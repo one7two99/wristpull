@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+dist/
+*.egg-info/
+.pytest_cache/
+
+# Health data must never enter the repository.
+# The data directory lives outside the repo (~/Health/wristpull), but guard against copies.
+Health/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.fit
+*.FIT
+*.gpx
+*.GPX
+raw/
+exports/
+reports/
+# Real-data scratch files
+scratch/
+tests/real/
+!tests/fixtures/*.fit
+
+# Personal project notes, kept locally
+INIT-PROMPT.md

@@ -1,0 +1,325 @@
+-- wristpull schema. All timestamps are ISO-8601 UTC strings ("2026-10-31T06:12:33Z");
+-- tz holds the IANA zone used to derive local_date.
+-- source is one of: garmin_usb | gadgetbridge_garmin | gadgetbridge_zepp
+
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw_files (
+    id                   INTEGER PRIMARY KEY,
+    sha256               TEXT NOT NULL UNIQUE,
+    source               TEXT NOT NULL,
+    kind                 TEXT NOT NULL,              -- activity | monitor | sleep | metrics | hrv | other
+    original_name        TEXT NOT NULL,
+    origin_path          TEXT,                       -- where the file was found (device path)
+    archive_path         TEXT NOT NULL,              -- relative to the raw directory
+    size_bytes           INTEGER NOT NULL,
+    device_mtime_utc     TEXT,
+    imported_at_utc      TEXT NOT NULL,
+    parsed_at_utc        TEXT,
+    parse_status         TEXT NOT NULL DEFAULT 'pending',  -- pending | ok | error
+    parse_error          TEXT,
+    fit_file_type        TEXT,
+    fit_time_created_utc TEXT,
+    device_serial        TEXT,
+    device_product       TEXT
+);
+
+CREATE TABLE IF NOT EXISTS activities (
+    id                   INTEGER PRIMARY KEY,
+    source               TEXT NOT NULL,
+    raw_file_id          INTEGER REFERENCES raw_files(id),
+    start_utc            TEXT NOT NULL,
+    end_utc              TEXT,
+    tz                   TEXT NOT NULL,
+    local_date           TEXT NOT NULL,
+    sport                TEXT,
+    sub_sport            TEXT,
+    profile_name         TEXT,
+    elapsed_s            REAL,
+    timer_s              REAL,
+    distance_m           REAL,
+    calories             INTEGER,
+    avg_hr               INTEGER,
+    max_hr               INTEGER,
+    min_hr               INTEGER,
+    avg_speed_mps        REAL,
+    max_speed_mps        REAL,
+    ascent_m             REAL,
+    descent_m            REAL,
+    avg_cadence          REAL,
+    max_cadence          REAL,
+    avg_power_w          REAL,
+    max_power_w          REAL,
+    normalized_power_w   REAL,
+    aerobic_te           REAL,
+    anaerobic_te         REAL,
+    training_load        REAL,
+    training_stress_score REAL,
+    avg_temperature_c    REAL,
+    avg_respiration      REAL,
+    num_laps             INTEGER,
+    hr_zone_times_s      TEXT,                       -- JSON list, seconds per HR zone
+    device_serial        TEXT,
+    UNIQUE (source, start_utc, sport)
+);
+
+CREATE TABLE IF NOT EXISTS activity_records (
+    id            INTEGER PRIMARY KEY,
+    activity_id   INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    ts_utc        TEXT NOT NULL,
+    hr            INTEGER,
+    distance_m    REAL,
+    speed_mps     REAL,
+    cadence       REAL,
+    altitude_m    REAL,
+    lat           REAL,
+    lon           REAL,
+    power_w       REAL,
+    temperature_c REAL,
+    respiration   REAL,
+    UNIQUE (activity_id, ts_utc)
+);
+
+CREATE TABLE IF NOT EXISTS activity_laps (
+    id            INTEGER PRIMARY KEY,
+    activity_id   INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    lap_index     INTEGER NOT NULL,
+    start_utc     TEXT,
+    end_utc       TEXT,
+    elapsed_s     REAL,
+    timer_s       REAL,
+    distance_m    REAL,
+    avg_hr        INTEGER,
+    max_hr        INTEGER,
+    avg_speed_mps REAL,
+    calories      INTEGER,
+    ascent_m      REAL,
+    descent_m     REAL,
+    UNIQUE (activity_id, lap_index)
+);
+
+CREATE TABLE IF NOT EXISTS heart_rate (
+    id          INTEGER PRIMARY KEY,
+    source      TEXT NOT NULL,
+    ts_utc      TEXT NOT NULL,
+    tz          TEXT NOT NULL,
+    local_date  TEXT NOT NULL,
+    bpm         INTEGER NOT NULL,
+    raw_file_id INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+CREATE INDEX IF NOT EXISTS idx_heart_rate_day ON heart_rate (source, local_date);
+
+CREATE TABLE IF NOT EXISTS resting_hr (
+    id                     INTEGER PRIMARY KEY,
+    source                 TEXT NOT NULL,
+    ts_utc                 TEXT NOT NULL,
+    tz                     TEXT NOT NULL,
+    local_date             TEXT NOT NULL,
+    resting_hr             INTEGER,
+    current_day_resting_hr INTEGER,
+    raw_file_id            INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+
+-- Cumulative daily counters per activity type, as the watch reports them (typically every 15 min).
+CREATE TABLE IF NOT EXISTS steps (
+    id              INTEGER PRIMARY KEY,
+    source          TEXT NOT NULL,
+    ts_utc          TEXT NOT NULL,
+    tz              TEXT NOT NULL,
+    local_date      TEXT NOT NULL,
+    activity_type   TEXT NOT NULL,
+    steps           INTEGER,
+    distance_m      REAL,
+    active_time_s   REAL,
+    active_calories INTEGER,
+    raw_file_id     INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc, activity_type)
+);
+CREATE INDEX IF NOT EXISTS idx_steps_day ON steps (source, local_date);
+
+CREATE TABLE IF NOT EXISTS intensity_minutes (
+    id          INTEGER PRIMARY KEY,
+    source      TEXT NOT NULL,
+    ts_utc      TEXT NOT NULL,
+    tz          TEXT NOT NULL,
+    local_date  TEXT NOT NULL,
+    moderate    INTEGER NOT NULL DEFAULT 0,
+    vigorous    INTEGER NOT NULL DEFAULT 0,
+    raw_file_id INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+
+-- Garmin stress 0..100; negative values are kept as reported (-1 unmeasurable, -2 during activity).
+CREATE TABLE IF NOT EXISTS stress (
+    id          INTEGER PRIMARY KEY,
+    source      TEXT NOT NULL,
+    ts_utc      TEXT NOT NULL,
+    tz          TEXT NOT NULL,
+    local_date  TEXT NOT NULL,
+    level       INTEGER NOT NULL,
+    raw_file_id INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+CREATE INDEX IF NOT EXISTS idx_stress_day ON stress (source, local_date);
+
+CREATE TABLE IF NOT EXISTS body_battery (
+    id          INTEGER PRIMARY KEY,
+    source      TEXT NOT NULL,
+    ts_utc      TEXT NOT NULL,
+    tz          TEXT NOT NULL,
+    local_date  TEXT NOT NULL,
+    level       INTEGER NOT NULL,
+    raw_file_id INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+CREATE INDEX IF NOT EXISTS idx_body_battery_day ON body_battery (source, local_date);
+
+CREATE TABLE IF NOT EXISTS sleep (
+    id              INTEGER PRIMARY KEY,
+    source          TEXT NOT NULL,
+    raw_file_id     INTEGER REFERENCES raw_files(id),
+    start_utc       TEXT NOT NULL,
+    end_utc         TEXT NOT NULL,
+    tz              TEXT NOT NULL,
+    local_date      TEXT NOT NULL,              -- local date of waking up
+    duration_s      INTEGER,
+    deep_s          INTEGER,
+    light_s         INTEGER,
+    rem_s           INTEGER,
+    awake_s         INTEGER,
+    unmeasurable_s  INTEGER,
+    score           INTEGER,
+    quality_score   INTEGER,
+    recovery_score  INTEGER,
+    awakenings      INTEGER,
+    avg_stress      REAL,
+    UNIQUE (source, start_utc)
+);
+
+CREATE TABLE IF NOT EXISTS sleep_stages (
+    id        INTEGER PRIMARY KEY,
+    sleep_id  INTEGER NOT NULL REFERENCES sleep(id) ON DELETE CASCADE,
+    start_utc TEXT NOT NULL,
+    end_utc   TEXT NOT NULL,
+    stage     TEXT NOT NULL,                     -- awake | light | deep | rem | unmeasurable
+    UNIQUE (sleep_id, start_utc)
+);
+
+CREATE TABLE IF NOT EXISTS hrv (
+    id                         INTEGER PRIMARY KEY,
+    source                     TEXT NOT NULL,
+    ts_utc                     TEXT NOT NULL,
+    tz                         TEXT NOT NULL,
+    local_date                 TEXT NOT NULL,
+    weekly_avg_ms              REAL,
+    last_night_avg_ms          REAL,
+    last_night_5min_high_ms    REAL,
+    baseline_low_upper_ms      REAL,
+    baseline_balanced_lower_ms REAL,
+    baseline_balanced_upper_ms REAL,
+    status                     TEXT,
+    raw_file_id                INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+
+CREATE TABLE IF NOT EXISTS hrv_values (
+    id          INTEGER PRIMARY KEY,
+    source      TEXT NOT NULL,
+    ts_utc      TEXT NOT NULL,
+    tz          TEXT NOT NULL,
+    local_date  TEXT NOT NULL,
+    rmssd_ms    REAL NOT NULL,
+    raw_file_id INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+
+CREATE TABLE IF NOT EXISTS spo2 (
+    id          INTEGER PRIMARY KEY,
+    source      TEXT NOT NULL,
+    ts_utc      TEXT NOT NULL,
+    tz          TEXT NOT NULL,
+    local_date  TEXT NOT NULL,
+    spo2_pct    INTEGER NOT NULL,
+    confidence  INTEGER,
+    mode        TEXT,
+    raw_file_id INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+
+CREATE TABLE IF NOT EXISTS respiration (
+    id              INTEGER PRIMARY KEY,
+    source          TEXT NOT NULL,
+    ts_utc          TEXT NOT NULL,
+    tz              TEXT NOT NULL,
+    local_date      TEXT NOT NULL,
+    breaths_per_min REAL NOT NULL,
+    raw_file_id     INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+
+-- Skin / wrist temperature (Zepp OS straps, Garmin wrist temperature).
+CREATE TABLE IF NOT EXISTS temperature (
+    id          INTEGER PRIMARY KEY,
+    source      TEXT NOT NULL,
+    ts_utc      TEXT NOT NULL,
+    tz          TEXT NOT NULL,
+    local_date  TEXT NOT NULL,
+    celsius     REAL NOT NULL,
+    kind        TEXT,                        -- skin | body | ambient | unknown
+    raw_file_id INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc)
+);
+
+-- Sparse fitness metrics (vo2_max, ...).
+CREATE TABLE IF NOT EXISTS metrics (
+    id          INTEGER PRIMARY KEY,
+    source      TEXT NOT NULL,
+    ts_utc      TEXT NOT NULL,
+    tz          TEXT NOT NULL,
+    local_date  TEXT NOT NULL,
+    metric      TEXT NOT NULL,
+    value       REAL NOT NULL,
+    sport       TEXT,
+    raw_file_id INTEGER REFERENCES raw_files(id),
+    UNIQUE (source, ts_utc, metric, sport)
+);
+
+-- Derived per local day, rebuilt from the sample tables after every import.
+CREATE TABLE IF NOT EXISTS daily_summary (
+    id                      INTEGER PRIMARY KEY,
+    source                  TEXT NOT NULL,
+    local_date              TEXT NOT NULL,
+    tz                      TEXT NOT NULL,
+    steps                   INTEGER,
+    distance_m              REAL,
+    active_calories         INTEGER,
+    active_time_s           REAL,
+    moderate_min            INTEGER,
+    vigorous_min            INTEGER,
+    hr_min                  INTEGER,
+    hr_max                  INTEGER,
+    hr_avg                  REAL,
+    resting_hr              INTEGER,
+    stress_avg              REAL,
+    stress_max              INTEGER,
+    body_battery_min        INTEGER,
+    body_battery_max        INTEGER,
+    spo2_avg                REAL,
+    spo2_min                INTEGER,
+    respiration_avg         REAL,
+    temperature_avg         REAL,
+    sleep_duration_s        INTEGER,
+    sleep_score             INTEGER,
+    hrv_last_night_avg_ms   REAL,
+    activities_count        INTEGER,
+    activities_duration_s   REAL,
+    activities_distance_m   REAL,
+    training_load           REAL,
+    updated_at_utc          TEXT NOT NULL,
+    UNIQUE (source, local_date)
+);

@@ -1,0 +1,111 @@
+"""Configuration: ~/.config/wristpull/config.toml with sensible defaults."""
+
+from __future__ import annotations
+
+import os
+import tomllib
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .timeutil import detect_local_zone
+
+DEFAULT_GARMIN_FOLDERS = ["Activity", "Monitor", "Sleep", "Metrics", "HRVStatus"]
+
+EXAMPLE_CONFIG = """\
+# wristpull configuration
+# All paths may use ~ for the home directory.
+
+[storage]
+# Raw files land in <data_dir>/raw/<source>/<year>/..., the database in <data_dir>/wristpull.sqlite
+data_dir = "{data_dir}"
+
+[time]
+# IANA zone used to derive local dates from the UTC timestamps in the device files.
+timezone = "{timezone}"
+
+[garmin]
+# Folders below GARMIN/ on the watch that are imported.
+folders = {folders}
+# Additional directories to search for a mounted watch (a directory that contains GARMIN/).
+mount_hints = []
+
+[phone]
+# ADB serial of the phone running Gadgetbridge.
+serial = "{phone_serial}"
+# Gadgetbridge export directory on the phone.
+export_dir = "/sdcard/Gadgetbridge"
+"""
+
+
+def default_config_path() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME")
+    root = Path(base) if base else Path.home() / ".config"
+    return root / "wristpull" / "config.toml"
+
+
+@dataclass
+class Config:
+    data_dir: Path = field(default_factory=lambda: Path.home() / "Health" / "wristpull")
+    timezone: str = field(default_factory=detect_local_zone)
+    garmin_folders: list[str] = field(default_factory=lambda: list(DEFAULT_GARMIN_FOLDERS))
+    garmin_mount_hints: list[Path] = field(default_factory=list)
+    phone_serial: str | None = None
+    phone_export_dir: str = "/sdcard/Gadgetbridge"
+    path: Path | None = None  # where this config was loaded from, if anywhere
+
+    @property
+    def db_path(self) -> Path:
+        return self.data_dir / "wristpull.sqlite"
+
+    @property
+    def raw_dir(self) -> Path:
+        return self.data_dir / "raw"
+
+    def render(self) -> str:
+        folders = "[" + ", ".join(f'"{f}"' for f in self.garmin_folders) + "]"
+        return EXAMPLE_CONFIG.format(
+            data_dir=str(self.data_dir).replace(str(Path.home()), "~", 1),
+            timezone=self.timezone,
+            folders=folders,
+            phone_serial=self.phone_serial or "",
+        )
+
+
+def _expand(value: str) -> Path:
+    return Path(os.path.expanduser(value))
+
+
+def load_config(path: Path | None = None) -> Config:
+    """Load the config file; a missing file yields defaults."""
+    cfg_path = path or default_config_path()
+    cfg = Config(path=cfg_path if cfg_path.exists() else None)
+    if not cfg_path.exists():
+        return cfg
+    with cfg_path.open("rb") as fh:
+        data = tomllib.load(fh)
+    storage = data.get("storage", {})
+    if "data_dir" in storage:
+        cfg.data_dir = _expand(storage["data_dir"])
+    time_section = data.get("time", {})
+    if time_section.get("timezone"):
+        cfg.timezone = time_section["timezone"]
+    garmin = data.get("garmin", {})
+    if "folders" in garmin:
+        cfg.garmin_folders = [str(f) for f in garmin["folders"]]
+    if "mount_hints" in garmin:
+        cfg.garmin_mount_hints = [_expand(str(p)) for p in garmin["mount_hints"]]
+    phone = data.get("phone", {})
+    if phone.get("serial"):
+        cfg.phone_serial = str(phone["serial"])
+    if phone.get("export_dir"):
+        cfg.phone_export_dir = str(phone["export_dir"])
+    return cfg
+
+
+def write_default_config(path: Path | None = None, *, overwrite: bool = False) -> Path:
+    cfg_path = path or default_config_path()
+    if cfg_path.exists() and not overwrite:
+        raise FileExistsError(cfg_path)
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg_path.write_text(Config().render(), "utf-8")
+    return cfg_path
