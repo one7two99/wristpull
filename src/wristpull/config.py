@@ -34,7 +34,17 @@ mount_hints = []
 serial = "{phone_serial}"
 # Gadgetbridge export directory on the phone.
 export_dir = "/sdcard/Gadgetbridge"
+
+[ui]
+# Language of the terminal UI (wristpull tui): "de", "en" or "" for the system locale.
+language = "{ui_language}"
+# Textual theme name, e.g. textual-dark, textual-light, nord, gruvbox.
+theme = "{ui_theme}"
+# Default number of days shown in the data screens.
+range_days = {ui_range_days}
 """
+
+UI_LANGUAGES = ("en", "de")
 
 
 def default_config_path() -> Path:
@@ -51,6 +61,9 @@ class Config:
     garmin_mount_hints: list[Path] = field(default_factory=list)
     phone_serial: str | None = None
     phone_export_dir: str = "/sdcard/Gadgetbridge"
+    ui_language: str | None = None  # None: follow the system locale
+    ui_theme: str = "textual-dark"
+    ui_range_days: int = 28
     path: Path | None = None  # where this config was loaded from, if anywhere
 
     @property
@@ -68,6 +81,9 @@ class Config:
             timezone=self.timezone,
             folders=folders,
             phone_serial=self.phone_serial or "",
+            ui_language=self.ui_language or "",
+            ui_theme=self.ui_theme,
+            ui_range_days=self.ui_range_days,
         )
 
 
@@ -99,6 +115,13 @@ def load_config(path: Path | None = None) -> Config:
         cfg.phone_serial = str(phone["serial"])
     if phone.get("export_dir"):
         cfg.phone_export_dir = str(phone["export_dir"])
+    ui = data.get("ui", {})
+    if ui.get("language"):
+        cfg.ui_language = str(ui["language"])
+    if ui.get("theme"):
+        cfg.ui_theme = str(ui["theme"])
+    if "range_days" in ui:
+        cfg.ui_range_days = max(1, int(ui["range_days"]))
     return cfg
 
 

@@ -51,3 +51,16 @@ def test_mark_parsed(conn, config):
     row = conn.execute("SELECT parse_status, fit_file_type, device_serial, parsed_at_utc FROM raw_files").fetchone()
     assert tuple(row)[:3] == ("ok", "monitoring_b", "123")
     assert row[3].endswith("Z")
+
+
+def test_lookup_path_absolute_and_relative(conn, config):
+    from pathlib import Path
+
+    from wristpull.archive import RawArchive
+
+    archive = RawArchive(config.raw_dir, conn)
+    stored = archive.store(b"\x0e\x10data", source="garmin_usb", kind="monitor", original_name="M1.FIT", year=2026)
+    assert archive.lookup_path(stored.archive_path)["id"] == stored.raw_file_id
+    assert archive.lookup_path(stored.archive_path.relative_to(config.raw_dir))["sha256"] == stored.sha256
+    assert archive.lookup_path(Path("/elsewhere/x.fit")) is None
+    assert archive.lookup_path(config.raw_dir / "garmin_usb" / "2026" / "monitor" / "nope.fit") is None

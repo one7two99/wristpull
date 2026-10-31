@@ -35,3 +35,14 @@ def test_load_custom_values(tmp_path: Path):
     rendered = cfg.render()
     assert 'timezone = "Europe/Vienna"' in rendered
     assert 'data_dir = "~/Somewhere/health"' in rendered
+
+
+def test_ui_section_defaults_and_values(tmp_path: Path):
+    cfg = load_config(tmp_path / "missing.toml")
+    assert cfg.ui_language is None and cfg.ui_theme == "textual-dark" and cfg.ui_range_days == 28
+    path = tmp_path / "config.toml"
+    path.write_text('[ui]\nlanguage = "de"\ntheme = "nord"\nrange_days = 0\n', "utf-8")
+    cfg = load_config(path)
+    assert cfg.ui_language == "de" and cfg.ui_theme == "nord" and cfg.ui_range_days == 1
+    rendered = cfg.render()
+    assert '[ui]' in rendered and 'language = "de"' in rendered and "range_days = 1" in rendered

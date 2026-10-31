@@ -69,3 +69,28 @@ def test_pull_cli_without_adb_device(cfg_file: Path, capsys, monkeypatch):
     monkeypatch.setattr(cli, "pull_phone", boom)
     assert main(["--config", str(cfg_file), "pull", "phone"]) == 1
     assert "no authorized device" in capsys.readouterr().err
+
+
+def test_tui_without_textual_explains(cfg_file: Path, capsys, monkeypatch):
+    from wristpull import cli
+
+    def missing():
+        raise ImportError("No module named 'textual'")
+
+    monkeypatch.setattr(cli, "_load_tui", missing)
+    assert main(["--config", str(cfg_file), "tui"]) == 1
+    assert "uv sync --extra tui" in capsys.readouterr().err
+
+
+def test_tui_command_runs_app(cfg_file: Path, monkeypatch):
+    from wristpull import cli
+
+    seen = {}
+
+    def fake_run(config):
+        seen["data_dir"] = config.data_dir
+        return 0
+
+    monkeypatch.setattr(cli, "_load_tui", lambda: fake_run)
+    assert main(["--config", str(cfg_file), "tui"]) == 0
+    assert seen["data_dir"].name == "Health"

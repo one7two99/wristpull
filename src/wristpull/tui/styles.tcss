@@ -1,0 +1,117 @@
+Screen {
+    layout: vertical;
+}
+
+.row {
+    height: auto;
+}
+
+.row.grow {
+    height: 1fr;
+}
+
+#home {
+    height: 1fr;
+}
+
+#kpis {
+    height: 6;
+    border: round $primary;
+    padding: 0 1;
+}
+
+#kpi-title {
+    height: 1;
+    border: none;
+    padding: 0 1;
+    color: $text-muted;
+}
+
+#recent {
+    width: 1fr;
+    border: round $primary;
+}
+
+#notes {
+    width: 44;
+}
+
+#devices, #store {
+    width: 1fr;
+}
+
+#sync {
+    height: 1fr;
+}
+
+#forms {
+    width: 42;
+    border: round $primary;
+    padding: 0 1;
+}
+
+.form {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.form-title {
+    text-style: bold;
+    color: $accent;
+}
+
+#forms Button {
+    width: 100%;
+    margin-top: 1;
+}
+
+#log-side {
+    width: 1fr;
+}
+
+#result {
+    height: auto;
+    max-height: 12;
+}
+
+#days {
+    height: 1fr;
+}
+
+#period {
+    height: 3;
+}
+
+#daytable {
+    width: 1fr;
+    border: round $primary;
+}
+
+#detail {
+    width: 54;
+}
+
+#files {
+    height: 1fr;
+}
+
+#tree {
+    width: 40;
+    border: round $primary;
+}
+
+#file-side {
+    width: 1fr;
+}
+
+#file-info {
+    height: auto;
+}
+
+#file-inspect {
+    height: 1fr;
+}
+
+#config {
+    height: 1fr;
+}

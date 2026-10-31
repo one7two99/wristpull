@@ -1,0 +1,483 @@
+# Translations template for wristpull.
+# Copyright (C) 2026 wristpull
+# This file is distributed under the same license as the wristpull project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: wristpull VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-10-31 20:05+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#, python-brace-format
+msgid "{screen} comes in the next wave"
+msgstr ""
+
+#, python-brace-format
+msgid "Language: {lang}"
+msgstr ""
+
+#, python-brace-format
+msgid "A job is already running: {title}"
+msgstr ""
+
+#, python-brace-format
+msgid "Started: {title}"
+msgstr ""
+
+msgid "cancelled"
+msgstr ""
+
+msgid "No Garmin device found. Connect the watch (MTP) or set a path."
+msgstr ""
+
+#, python-brace-format
+msgid "{found} FIT files, {new} new, {skipped} already archived, {errors} errors"
+msgstr ""
+
+msgid "database not found"
+msgstr ""
+
+msgid "new database export imported"
+msgstr ""
+
+msgid "database unchanged"
+msgstr ""
+
+#, python-brace-format
+msgid ""
+"phone {device}: {db}; {found} Garmin FIT files, {new} new, {skipped} "
+"already archived, {errors} errors"
+msgstr ""
+
+#, python-brace-format
+msgid "device: {label}"
+msgstr ""
+
+#, python-brace-format
+msgid "wrote {n} file to {dir}"
+msgid_plural "wrote {n} files to {dir}"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "done"
+msgstr ""
+
+msgid "inserted: "
+msgstr ""
+
+msgid "Import Garmin"
+msgstr ""
+
+msgid "Pull phone"
+msgstr ""
+
+#, python-brace-format
+msgid "exporting {start} to {end} …"
+msgstr ""
+
+msgid "Export for Claude"
+msgstr ""
+
+#, python-brace-format
+msgid "rendering {kind} report for {day} …"
+msgstr ""
+
+msgid "Weekly report"
+msgstr ""
+
+msgid "Monthly report"
+msgstr ""
+
+msgid "Steps"
+msgstr ""
+
+msgid "avg/day"
+msgstr ""
+
+msgid "Resting HR"
+msgstr ""
+
+msgid "Sleep"
+msgstr ""
+
+msgid "Body battery"
+msgstr ""
+
+msgid "Stress"
+msgstr ""
+
+msgid "Intensity min"
+msgstr ""
+
+msgid "Sleep, HRV and SpO2 mappings are not yet verified on a real night"
+msgstr ""
+
+msgid "No sleep data yet (watch not worn overnight or Sleep folder empty)"
+msgstr ""
+
+#, python-brace-format
+msgid "{n} raw files with parse errors"
+msgstr ""
+
+msgid "Garmin attached but not mounted; the import will try to mount it"
+msgstr ""
+
+msgid "palette"
+msgstr ""
+
+msgid "help"
+msgstr ""
+
+msgid "language"
+msgstr ""
+
+msgid "quit"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "back"
+msgstr ""
+
+msgid "Configuration file"
+msgstr ""
+
+msgid "Active values (editing comes in the next wave)"
+msgstr ""
+
+msgid "exists"
+msgstr ""
+
+msgid "missing, showing defaults"
+msgstr ""
+
+#, python-brace-format
+msgid "UI language now: {lang}"
+msgstr ""
+
+msgid "Garmin"
+msgstr ""
+
+msgid "Strap"
+msgstr ""
+
+#, python-brace-format
+msgid "Sources: {sources}"
+msgstr ""
+
+msgid "Days"
+msgstr ""
+
+msgid "shift period"
+msgstr ""
+
+msgid "this week"
+msgstr ""
+
+msgid "this month"
+msgstr ""
+
+msgid "default range"
+msgstr ""
+
+msgid "day"
+msgstr ""
+
+msgid "Period"
+msgstr ""
+
+msgid "Detail"
+msgstr ""
+
+#, python-brace-format
+msgid "{n} days with data"
+msgstr ""
+
+msgid "Date"
+msgstr ""
+
+msgid "RHR"
+msgstr ""
+
+msgid "BB"
+msgstr ""
+
+msgid "Int."
+msgstr ""
+
+msgid "Strap steps"
+msgstr ""
+
+msgid "Src"
+msgstr ""
+
+msgid "No data in this period. Import from the watch or pull the phone first."
+msgstr ""
+
+msgid "Files"
+msgstr ""
+
+msgid "inspect"
+msgstr ""
+
+msgid "open"
+msgstr ""
+
+msgid "copy path"
+msgstr ""
+
+msgid "File"
+msgstr ""
+
+msgid "Messages (inspect)"
+msgstr ""
+
+msgid "Select a file in the tree. Enter on a .fit file runs inspect."
+msgstr ""
+
+#, python-brace-format
+msgid "Size {size}"
+msgstr ""
+
+#, python-brace-format
+msgid "Modified {when}"
+msgstr ""
+
+msgid "Source"
+msgstr ""
+
+msgid "Kind"
+msgstr ""
+
+#, python-brace-format
+msgid "Imported {when}"
+msgstr ""
+
+#, python-brace-format
+msgid "Parse status {status}"
+msgstr ""
+
+#, python-brace-format
+msgid "Device {product} (serial {serial})"
+msgstr ""
+
+#, python-brace-format
+msgid "Origin {path}"
+msgstr ""
+
+msgid "Preview"
+msgstr ""
+
+#, python-brace-format
+msgid "Could not decode: {error}"
+msgstr ""
+
+#, python-brace-format
+msgid "{n} messages in {t} types; created {created}"
+msgstr ""
+
+#, python-brace-format
+msgid "{n} decoder warnings"
+msgstr ""
+
+msgid "Nothing selected"
+msgstr ""
+
+#, python-brace-format
+msgid "Opened {path}"
+msgstr ""
+
+msgid "Copied path"
+msgstr ""
+
+msgid "Everywhere"
+msgstr ""
+
+msgid "screens"
+msgstr ""
+
+msgid "command palette"
+msgstr ""
+
+msgid "Esc back"
+msgstr ""
+
+msgid "focus"
+msgstr ""
+
+msgid "move"
+msgstr ""
+
+msgid "select"
+msgstr ""
+
+msgid "Overview"
+msgstr ""
+
+msgid "import Garmin"
+msgstr ""
+
+msgid "pull phone"
+msgstr ""
+
+msgid "refresh"
+msgstr ""
+
+msgid "export"
+msgstr ""
+
+msgid "weekly report"
+msgstr ""
+
+msgid "Devices & Sync"
+msgstr ""
+
+msgid "start"
+msgstr ""
+
+msgid "clear log"
+msgstr ""
+
+msgid "copy CLI"
+msgstr ""
+
+msgid "read-only in this version"
+msgstr ""
+
+msgid ""
+"4 Activities, 5 Sleep and 7 Export & Report screens come in the next "
+"wave; e and r already run the export/report."
+msgstr ""
+
+msgid "Help"
+msgstr ""
+
+msgid "Devices"
+msgstr ""
+
+msgid "Data store"
+msgstr ""
+
+msgid "Last 7 days"
+msgstr ""
+
+msgid "Recent activities"
+msgstr ""
+
+msgid "Notes"
+msgstr ""
+
+msgid "Refreshed"
+msgstr ""
+
+#, python-brace-format
+msgid "USB, mounted at {path}"
+msgstr ""
+
+msgid "attached, not mounted"
+msgstr ""
+
+msgid "not connected"
+msgstr ""
+
+#, python-brace-format
+msgid "Phone (ADB): {serial}"
+msgstr ""
+
+msgid "first device"
+msgstr ""
+
+msgid "checked when pulling"
+msgstr ""
+
+#, python-brace-format
+msgid "database {size}"
+msgstr ""
+
+#, python-brace-format
+msgid "last import {when}"
+msgstr ""
+
+msgid "errors"
+msgstr ""
+
+msgid "Sport"
+msgstr ""
+
+msgid "Distance"
+msgstr ""
+
+msgid "Duration"
+msgstr ""
+
+msgid "avg HR"
+msgstr ""
+
+msgid "import"
+msgstr ""
+
+msgid "pull"
+msgstr ""
+
+msgid "GARMIN (USB)"
+msgstr ""
+
+msgid "Path (empty: auto-detect)"
+msgstr ""
+
+msgid "GARMIN folder or mount point"
+msgstr ""
+
+msgid "Dry run (list only)"
+msgstr ""
+
+msgid "i  Import Garmin"
+msgstr ""
+
+msgid "PHONE (ADB)"
+msgstr ""
+
+msgid "Serial (empty: config or the only device)"
+msgstr ""
+
+msgid "Trigger export"
+msgstr ""
+
+msgid "Trigger device sync first"
+msgstr ""
+
+msgid "Wait for export (seconds)"
+msgstr ""
+
+msgid "Dry run (show only)"
+msgstr ""
+
+msgid "p  Pull phone"
+msgstr ""
+
+msgid "Log"
+msgstr ""
+
+msgid "Last result"
+msgstr ""
+
+msgid "No job run yet."
+msgstr ""
+
+msgid "No job yet"
+msgstr ""
+
+#, python-brace-format
+msgid "Copied: {cli}"
+msgstr ""
+

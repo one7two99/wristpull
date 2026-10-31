@@ -46,6 +46,16 @@ class RawArchive:
     def lookup(self, sha256: str) -> sqlite3.Row | None:
         return self.conn.execute("SELECT * FROM raw_files WHERE sha256 = ?", (sha256,)).fetchone()
 
+    def lookup_path(self, path: Path | str) -> sqlite3.Row | None:
+        """Find the raw_files row for an archived file given its absolute or raw-relative path."""
+        candidate = Path(path)
+        if candidate.is_absolute():
+            try:
+                candidate = candidate.resolve().relative_to(self.raw_dir.resolve())
+            except ValueError:
+                return None
+        return self.conn.execute("SELECT * FROM raw_files WHERE archive_path = ?", (candidate.as_posix(),)).fetchone()
+
     def store(
         self,
         data: bytes,

@@ -1,0 +1,479 @@
+# German translations for the wristpull terminal UI.
+msgid ""
+msgstr ""
+"Project-Id-Version: wristpull\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "{screen} comes in the next wave"
+msgstr "{screen} kommt in der nächsten Welle"
+
+msgid "Language: {lang}"
+msgstr "Sprache: {lang}"
+
+msgid "A job is already running: {title}"
+msgstr "Es läuft bereits ein Job: {title}"
+
+msgid "Started: {title}"
+msgstr "Gestartet: {title}"
+
+msgid "cancelled"
+msgstr "abgebrochen"
+
+msgid "No Garmin device found. Connect the watch (MTP) or set a path."
+msgstr "Kein Garmin-Gerät gefunden. Uhr anschließen (MTP) oder einen Pfad angeben."
+
+msgid "{found} FIT files, {new} new, {skipped} already archived, {errors} errors"
+msgstr "{found} FIT-Dateien, {new} neu, {skipped} bereits archiviert, {errors} Fehler"
+
+msgid "database not found"
+msgstr "Datenbank nicht gefunden"
+
+msgid "new database export imported"
+msgstr "neuer Datenbank-Export importiert"
+
+msgid "database unchanged"
+msgstr "Datenbank unverändert"
+
+msgid "phone {device}: {db}; {found} Garmin FIT files, {new} new, {skipped} already archived, {errors} errors"
+msgstr "Telefon {device}: {db}; {found} Garmin-FIT-Dateien, {new} neu, {skipped} bereits archiviert, {errors} Fehler"
+
+msgid "device: {label}"
+msgstr "Gerät: {label}"
+
+msgid "wrote {n} file to {dir}"
+msgid_plural "wrote {n} files to {dir}"
+msgstr[0] "{n} Datei nach {dir} geschrieben"
+msgstr[1] "{n} Dateien nach {dir} geschrieben"
+
+msgid "done"
+msgstr "fertig"
+
+msgid "inserted: "
+msgstr "eingefügt: "
+
+msgid "Import Garmin"
+msgstr "Garmin importieren"
+
+msgid "Pull phone"
+msgstr "Telefon ziehen"
+
+msgid "exporting {start} to {end} …"
+msgstr "exportiere {start} bis {end} …"
+
+msgid "Export for Claude"
+msgstr "Export für Claude"
+
+msgid "rendering {kind} report for {day} …"
+msgstr "erzeuge {kind}-Report für {day} …"
+
+msgid "Weekly report"
+msgstr "Wochenreport"
+
+msgid "Monthly report"
+msgstr "Monatsreport"
+
+msgid "Steps"
+msgstr "Schritte"
+
+msgid "avg/day"
+msgstr "Ø/Tag"
+
+msgid "Resting HR"
+msgstr "Ruhepuls"
+
+msgid "Sleep"
+msgstr "Schlaf"
+
+msgid "Body battery"
+msgstr "Body Battery"
+
+msgid "Stress"
+msgstr "Stress"
+
+msgid "Intensity min"
+msgstr "Intensitätsmin."
+
+msgid "Sleep, HRV and SpO2 mappings are not yet verified on a real night"
+msgstr "Schlaf-, HRV- und SpO2-Mapping noch nicht an einer echten Nacht verifiziert"
+
+msgid "No sleep data yet (watch not worn overnight or Sleep folder empty)"
+msgstr "Noch keine Schlafdaten (Uhr nachts nicht getragen oder Sleep-Ordner leer)"
+
+msgid "{n} raw files with parse errors"
+msgstr "{n} Rohdateien mit Parse-Fehlern"
+
+msgid "Garmin attached but not mounted; the import will try to mount it"
+msgstr "Garmin angeschlossen, aber nicht gemountet; der Import versucht das Mounten"
+
+msgid "palette"
+msgstr "Palette"
+
+msgid "help"
+msgstr "Hilfe"
+
+msgid "language"
+msgstr "Sprache"
+
+msgid "quit"
+msgstr "Beenden"
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "back"
+msgstr "zurück"
+
+msgid "Configuration file"
+msgstr "Konfigurationsdatei"
+
+msgid "Active values (editing comes in the next wave)"
+msgstr "Aktive Werte (Bearbeiten kommt in der nächsten Welle)"
+
+msgid "exists"
+msgstr "vorhanden"
+
+msgid "missing, showing defaults"
+msgstr "fehlt, Standardwerte werden gezeigt"
+
+msgid "UI language now: {lang}"
+msgstr "Aktuelle Sprache: {lang}"
+
+msgid "Garmin"
+msgstr "Garmin"
+
+msgid "Strap"
+msgstr "Strap"
+
+msgid "Sources: {sources}"
+msgstr "Quellen: {sources}"
+
+msgid "Days"
+msgstr "Tage"
+
+msgid "shift period"
+msgstr "Zeitraum verschieben"
+
+msgid "this week"
+msgstr "diese Woche"
+
+msgid "this month"
+msgstr "dieser Monat"
+
+msgid "default range"
+msgstr "Standardzeitraum"
+
+msgid "day"
+msgstr "Tag"
+
+msgid "Period"
+msgstr "Zeitraum"
+
+msgid "Detail"
+msgstr "Detail"
+
+msgid "{n} days with data"
+msgstr "{n} Tage mit Daten"
+
+msgid "Date"
+msgstr "Datum"
+
+msgid "RHR"
+msgstr "RHF"
+
+msgid "BB"
+msgstr "BB"
+
+msgid "Int."
+msgstr "Int."
+
+msgid "Strap steps"
+msgstr "Strap-Schritte"
+
+msgid "Src"
+msgstr "Q"
+
+msgid "No data in this period. Import from the watch or pull the phone first."
+msgstr "Keine Daten in diesem Zeitraum. Zuerst von der Uhr importieren oder das Telefon ziehen."
+
+msgid "Files"
+msgstr "Dateien"
+
+msgid "inspect"
+msgstr "inspizieren"
+
+msgid "open"
+msgstr "öffnen"
+
+msgid "copy path"
+msgstr "Pfad kopieren"
+
+msgid "File"
+msgstr "Datei"
+
+msgid "Messages (inspect)"
+msgstr "Nachrichten (inspect)"
+
+msgid "Select a file in the tree. Enter on a .fit file runs inspect."
+msgstr "Datei im Baum auswählen. Enter auf einer .fit-Datei startet inspect."
+
+msgid "Size {size}"
+msgstr "Größe {size}"
+
+msgid "Modified {when}"
+msgstr "Geändert {when}"
+
+msgid "Source"
+msgstr "Quelle"
+
+msgid "Kind"
+msgstr "Art"
+
+msgid "Imported {when}"
+msgstr "Importiert {when}"
+
+msgid "Parse status {status}"
+msgstr "Parse-Status {status}"
+
+msgid "Device {product} (serial {serial})"
+msgstr "Gerät {product} (Seriennummer {serial})"
+
+msgid "Origin {path}"
+msgstr "Herkunft {path}"
+
+msgid "Preview"
+msgstr "Vorschau"
+
+msgid "Could not decode: {error}"
+msgstr "Konnte nicht dekodieren: {error}"
+
+msgid "{n} messages in {t} types; created {created}"
+msgstr "{n} Nachrichten in {t} Typen; erstellt {created}"
+
+msgid "{n} decoder warnings"
+msgstr "{n} Decoder-Warnungen"
+
+msgid "Nothing selected"
+msgstr "Nichts ausgewählt"
+
+msgid "Opened {path}"
+msgstr "{path} geöffnet"
+
+msgid "Copied path"
+msgstr "Pfad kopiert"
+
+msgid "Everywhere"
+msgstr "Überall"
+
+msgid "screens"
+msgstr "Screens"
+
+msgid "command palette"
+msgstr "Befehlspalette"
+
+msgid "Esc back"
+msgstr "Esc zurück"
+
+msgid "focus"
+msgstr "Fokus"
+
+msgid "move"
+msgstr "bewegen"
+
+msgid "select"
+msgstr "wählen"
+
+msgid "Overview"
+msgstr "Übersicht"
+
+msgid "import Garmin"
+msgstr "Garmin importieren"
+
+msgid "pull phone"
+msgstr "Telefon ziehen"
+
+msgid "refresh"
+msgstr "aktualisieren"
+
+msgid "export"
+msgstr "Export"
+
+msgid "weekly report"
+msgstr "Wochenreport"
+
+msgid "Devices & Sync"
+msgstr "Geräte & Sync"
+
+msgid "start"
+msgstr "starten"
+
+msgid "clear log"
+msgstr "Log leeren"
+
+msgid "copy CLI"
+msgstr "CLI kopieren"
+
+msgid "read-only in this version"
+msgstr "in dieser Version nur lesend"
+
+msgid "4 Activities, 5 Sleep and 7 Export & Report screens come in the next wave; e and r already run the export/report."
+msgstr "Die Screens 4 Aktivitäten, 5 Schlaf und 7 Export & Report kommen in der nächsten Welle; e und r starten Export und Report schon jetzt."
+
+msgid "Help"
+msgstr "Hilfe"
+
+msgid "Devices"
+msgstr "Geräte"
+
+msgid "Data store"
+msgstr "Datenbestand"
+
+msgid "Last 7 days"
+msgstr "Letzte 7 Tage"
+
+msgid "Recent activities"
+msgstr "Letzte Aktivitäten"
+
+msgid "Notes"
+msgstr "Hinweise"
+
+msgid "Refreshed"
+msgstr "Aktualisiert"
+
+msgid "USB, mounted at {path}"
+msgstr "USB, gemountet unter {path}"
+
+msgid "attached, not mounted"
+msgstr "angeschlossen, nicht gemountet"
+
+msgid "not connected"
+msgstr "nicht verbunden"
+
+msgid "Phone (ADB): {serial}"
+msgstr "Telefon (ADB): {serial}"
+
+msgid "first device"
+msgstr "erstes Gerät"
+
+msgid "checked when pulling"
+msgstr "wird beim Ziehen geprüft"
+
+msgid "database {size}"
+msgstr "Datenbank {size}"
+
+msgid "last import {when}"
+msgstr "letzter Import {when}"
+
+msgid "errors"
+msgstr "Fehler"
+
+msgid "Sport"
+msgstr "Sport"
+
+msgid "Distance"
+msgstr "Distanz"
+
+msgid "Duration"
+msgstr "Dauer"
+
+msgid "avg HR"
+msgstr "Ø HF"
+
+msgid "import"
+msgstr "Import"
+
+msgid "pull"
+msgstr "Pull"
+
+msgid "GARMIN (USB)"
+msgstr "GARMIN (USB)"
+
+msgid "Path (empty: auto-detect)"
+msgstr "Pfad (leer: automatisch suchen)"
+
+msgid "GARMIN folder or mount point"
+msgstr "GARMIN-Ordner oder Mountpunkt"
+
+msgid "Dry run (list only)"
+msgstr "Nur prüfen (dry-run)"
+
+msgid "i  Import Garmin"
+msgstr "i  Garmin importieren"
+
+msgid "PHONE (ADB)"
+msgstr "TELEFON (ADB)"
+
+msgid "Serial (empty: config or the only device)"
+msgstr "Seriennummer (leer: Config oder das einzige Gerät)"
+
+msgid "Trigger export"
+msgstr "Export anstoßen"
+
+msgid "Trigger device sync first"
+msgstr "Vorher Geräte-Sync auslösen"
+
+msgid "Wait for export (seconds)"
+msgstr "Auf Export warten (Sekunden)"
+
+msgid "Dry run (show only)"
+msgstr "Nur anzeigen (dry-run)"
+
+msgid "p  Pull phone"
+msgstr "p  Telefon ziehen"
+
+msgid "Log"
+msgstr "Log"
+
+msgid "Last result"
+msgstr "Letztes Ergebnis"
+
+msgid "No job run yet."
+msgstr "Noch kein Job gelaufen."
+
+msgid "No job yet"
+msgstr "Noch kein Job"
+
+msgid "Copied: {cli}"
+msgstr "Kopiert: {cli}"
+
+msgid "Active calories"
+msgstr "Aktive Kalorien"
+
+msgid "Moderate minutes"
+msgstr "Moderate Minuten"
+
+msgid "Vigorous minutes"
+msgstr "Intensive Minuten"
+
+msgid "HR min / avg / max"
+msgstr "HF min / Ø / max"
+
+msgid "Stress avg / max"
+msgstr "Stress Ø / max"
+
+msgid "Body battery min / max"
+msgstr "Body Battery min / max"
+
+msgid "SpO2 avg / min"
+msgstr "SpO2 Ø / min"
+
+msgid "Respiration avg"
+msgstr "Atmung Ø"
+
+msgid "Temperature avg"
+msgstr "Temperatur Ø"
+
+msgid "Sleep score"
+msgstr "Schlaf-Score"
+
+msgid "HRV last night"
+msgstr "HRV letzte Nacht"
+
+msgid "Activities"
+msgstr "Aktivitäten"
+
+msgid "Training load"
+msgstr "Trainingsbelastung"

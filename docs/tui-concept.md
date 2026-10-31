@@ -1,6 +1,6 @@
 # wristpull TUI – concept
 
-Status: design, no code yet (2026-10-31). Mockups live in [`../mockups/`](../mockups/README.md).
+Status: MVP implemented on 2026-10-31 (`wristpull tui`: overview, devices & sync, days, files, settings view, de/en). Activities, sleep and the export/report form are still open. Mockups live in [`../mockups/`](../mockups/README.md).
 
 ## Why
 

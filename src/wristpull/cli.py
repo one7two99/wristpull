@@ -63,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_report.add_argument("--charts", action="store_true", help="also write SVG charts next to the report")
     p_report.add_argument("--out", type=Path, help="output directory (default <data_dir>/reports/<period>-<label>)")
     p_report.add_argument("--stdout", action="store_true", help="also print the Markdown")
+
+    sub.add_parser("tui", help="open the terminal UI (requires the 'tui' extra: uv sync --extra tui)")
     return parser
 
 
@@ -241,6 +243,22 @@ def cmd_report(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+def _load_tui():
+    """Import the TUI lazily so the core CLI works without the optional 'tui' extra."""
+    from .tui.app import run_tui
+
+    return run_tui
+
+
+def cmd_tui(args: argparse.Namespace, config: Config) -> int:
+    try:
+        run_tui = _load_tui()
+    except ImportError as exc:
+        print(f"the terminal UI needs the optional dependencies: uv sync --extra tui ({exc})", file=sys.stderr)
+        return 1
+    return run_tui(config)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -259,4 +277,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_config(args, config)
     if args.command == "export":
         return cmd_export(args, config)
+    if args.command == "tui":
+        return cmd_tui(args, config)
     return cmd_report(args, config)

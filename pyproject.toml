@@ -1,6 +1,6 @@
 [project]
 name = "wristpull"
-version = "0.1.0"
+version = "0.2.0"
 description = "Collect wearable health data locally (Garmin Fenix via USB, Gadgetbridge via ADB), normalise it into SQLite and prepare it for analysis"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -13,8 +13,14 @@ dependencies = [
 [project.scripts]
 wristpull = "wristpull.cli:main"
 
+[project.optional-dependencies]
+tui = [
+    "textual>=8",
+]
+
 [dependency-groups]
 dev = [
+    "babel>=2.18.0",
     "pyflakes>=3.2",
     "pytest>=8",
 ]
