@@ -370,4 +370,5 @@ real health data is needed or allowed in the repository. Code, comments and comm
 2. ~~`pull phone`: Gadgetbridge database and FIT files via ADB, Helio Strap parsing~~ (done before wave 2 because the devices were set up first)
 3. ~~`export --for-claude --from --to` (compact Markdown + CSV) and `report week|month`, merging the Garmin sources~~
 4. Next: verify sleep/HRV/SpO2 mappings against real nights, udev/systemd trigger for automatic imports
-5. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)
+5. Next: terminal UI (`wristpull tui`, Textual, German/English) to run the commands, browse the data and open files; concept in [docs/tui-concept.md](docs/tui-concept.md), mockups in [mockups/](mockups/README.md)
+6. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)

@@ -1,0 +1,29 @@
+┌ wristpull · Export & Report ───────────────────────────────────────────────────────── 16:50 · de ┐
+├─────────────────────────────────────────────┬────────────────────────────────────────────────────┤
+│ WAS                                         │ ERGEBNIS  report week 2026-W44      erstellt 16:50 │
+│ (•) Claude-Export (Markdown + CSV)          │ ~/Health/wristpull/reports/week-2026-W44/          │
+│ ( ) Wochenreport                            │   report.md                 6,1 KiB                │
+│ ( ) Monatsreport                            │   steps.svg                 3,2 KiB                │
+│                                             │   resting_hr.svg            2,9 KiB                │
+│ ZEITRAUM                                    │   sleep.svg                 3,0 KiB                │
+│ Presets  [ letzte Woche ▾ ]                 │                                                    │
+│ Von  [ 2026-10-26 ]   Bis  [ 2026-11-01 ]   │ [y] Pfad kopieren  [o] Ordner öffnen  [v] Vorschau │
+│                                             │                                                    │
+│ OPTIONEN                                    │ VORSCHAU report.md                                 │
+│ [x] CSV-Dateien schreiben                   │ # Week 2026-W44 (2026-10-26 to 2026-11-01)         │
+│ [x] Charts (SVG) erzeugen                   │                                                    │
+│ Ausgabe [ <data_dir>/exports/…  (Std.) ]    │ | Metric        | This week | Prev. | Δ     |      │
+│                                             │ |---------------|-----------|-------|-------|      │
+│ [ e  Erzeugen ]                             │ | Steps avg     |     6 625 | 5 910 | +12 % |      │
+│                                             │ | Resting HR    |        52 |    53 |    −1 |      │
+│ Umfang: 7 Tage · 2 Aktivitäten · 6 Nächte   │ | Sleep avg     |      7:03 |  6:43 | +0:20 |      │
+│ Quellen: garmin_usb 7 · strap 6             │ | Intensity min |       137 |   150 |   −13 |      │
+│                                             │                                                    │
+│                                             │ ## Activities                                      │
+│                                             │ - 2026-10-28 Running 8.2 km 45:12 avg 148 bpm      │
+│                                             │ …                                     ↓ scrollen   │
+│                                             │                                                    │
+│ CLI  wristpull report week --date 2026-10-30 --charts                              [c] kopieren  │
+├─────────────────────────────────────────────┴────────────────────────────────────────────────────┤
+│ e Erzeugen  v Vorschau  y Pfad kopieren  o Ordner öffnen  c CLI kopieren  Esc Zurück             │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

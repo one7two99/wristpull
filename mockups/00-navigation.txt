@@ -1,0 +1,26 @@
+┌ wristpull TUI · Screen-Navigation ─────────────────────────────────────────── Konzept 2026-10-31 ┐
+│                                                                                                  │
+│                        ┌──────────────────────┐                                                  │
+│                        │  1  Übersicht        │   Gerätestatus, letzter Import je Quelle,        │
+│                        │     (Startscreen)    │   KPIs 7 Tage, letzte Aktivitäten, Hinweise      │
+│                        └──────────┬───────────┘                                                  │
+│      ┌──────────┬──────────┬──────┴─────┬──────────┬──────────┬──────────┬──────────┐            │
+│      ▼          ▼          ▼            ▼          ▼          ▼          ▼          ▼            │
+│  ┌────────┐ ┌────────┐ ┌─────────┐ ┌────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌───────┐      │
+│  │2 Geräte│ │3 Tage  │ │4 Aktivi-│ │5 Schlaf│ │6 Dateien│ │7 Export │ │8 Einst. │ │? Hilfe│      │
+│  │& Sync  │ │        │ │  täten  │ │        │ │         │ │& Report │ │         │ │       │      │
+│  └───┬────┘ └───┬────┘ └────┬────┘ └───┬────┘ └────┬────┘ └────┬────┘ └─────────┘ └───────┘      │
+│      │          │           │          │           │           │                                 │
+│      │          │           │          │           │           └─► Formular ─► Ergebnis mit      │
+│      │          │           │          │           │               Dateiliste + Markdown-Vorschau│
+│      │          │           │          │           └─► Baum raw/ exports/ reports/ ─► inspect    │
+│      │          │           │          └─► Nacht ─► Stadienbalken, HRV, SpO2, Garmin vs. Strap   │
+│      │          │           └─► Aktivität ─► Runden, HF-Zonen, HF-Kurve, FIT inspizieren         │
+│      │          └─► Tag ─► Stundenpuls, Stress / Body Battery, Schlaf der Nacht, Rohdateien      │
+│      └─► Job (import garmin / pull phone) ─► Live-Log ─► Ergebnis ─► CLI-Äquivalent              │
+│                                                                                                  │
+│  Überall:  /  Befehlspalette (alle Aktionen, Fuzzy-Suche)     ?  Hilfe-Overlay                   │
+│            1-8 Screen wechseln     Esc  zurück     F12  Sprache de/en     q  Beenden             │
+│                                                                                                  │
+│  Jede Aktion zeigt den gleichwertigen CLI-Befehl, z. B.  wristpull pull phone --wait 60          │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
