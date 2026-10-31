@@ -6,6 +6,11 @@ placeholders (`<serial>`, `<id>`), and no real health data is shown.
 
 The concept behind these screens is in [`docs/tui-concept.md`](../docs/tui-concept.md).
 
+Implementation status (2026-10-31): screens 1 (overview), 2 (devices & sync), 3 (days), 6 (files)
+and 8 (settings, read-only), the help overlay and the command palette exist in `wristpull tui`.
+Screens 4 (activities), 5 (sleep) and 7 (export & report form) are still mockups only; `e` and
+`r` on the overview already run the export and the weekly report.
+
 ## Files
 
 | File | Screen | Shows |
