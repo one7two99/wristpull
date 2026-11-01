@@ -85,7 +85,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_show = coach_sub.add_parser("show", help="print stored coach answers")
     p_show.add_argument("--last", type=int, default=1, help="how many runs (default 1)")
     p_show.add_argument("--kind", choices=["daily", "weekly", "ask"])
-    coach_sub.add_parser("profile", help="print the goal profile path and its open placeholders")
+    p_profile = coach_sub.add_parser("profile", help="show the goal profile (path, open placeholders) or run the goal wizard")
+    p_profile.add_argument("--wizard", action="store_true", help="answer multiple-choice questions and (re)generate the profile's wizard block")
+    p_profile.add_argument("--lang", choices=["de", "en"], help="language of the generated profile text")
     p_rate = coach_sub.add_parser("rate", help="rate a stored run: -1 (not useful), 0, 1 (useful); the coach sees it next time")
     p_rate.add_argument("run_id", type=int)
     p_rate.add_argument("rating", type=int, choices=[-1, 0, 1])
@@ -319,10 +321,14 @@ def cmd_coach(args: argparse.Namespace, config: Config) -> int:
         print(f"rated run #{args.run_id}: {args.rating:+d}")
         return 0
     if args.coach_cmd == "profile":
-        lang = resolve_language(config, None)
-        text, _sha, placeholders = load_profile(config, lang)
-        from .coach.profile import profile_path
+        from .coach.profile import apply_wizard, cli_asker, profile_path, run_wizard
 
+        lang = resolve_language(config, args.lang)
+        if args.wizard:
+            answers = run_wizard(config, lang, cli_asker(lang))
+            path = apply_wizard(config, answers, lang)
+            print(f"\nprofile written: {path}")
+        text, _sha, placeholders = load_profile(config, lang)
         print(f"profile: {profile_path(config)} ({len(text.splitlines())} lines)")
         print("open placeholders: " + (", ".join(placeholders) if placeholders else "none"))
         return 0 if not placeholders else 2

@@ -7,7 +7,7 @@ placeholders (`<serial>`, `<id>`), and no real health data is shown.
 The concept behind these screens is in [`docs/tui-concept.md`](../docs/tui-concept.md).
 
 Implementation status (2026-11-01): all eight screens, the help overlay and the command palette
-exist in `wristpull tui`. The mockups remain the design reference; details differ where the data
+exist in `wristpull tui`, plus a ninth screen "Coach" (not mocked up beforehand; see `docs/coach-concept.md`). The mockups remain the design reference; details differ where the data
 suggested otherwise (for example the sleep screen lists every source instead of pairing rows).
 
 ## Files

@@ -23,6 +23,7 @@ from ..db import connect
 from ..export import ExportResult
 from ..importers.garmin import ImportStats, import_garmin
 from ..importers.phone import PullStats, pull_phone
+from ..coach.runner import CoachResult
 from ..report import ReportResult
 from .deps import TuiDeps
 from .format import fmt_int
@@ -172,6 +173,15 @@ def describe_result(record: JobRecord) -> list[str]:
         lines.append("✓ " + ngettext("wrote {n} file to {dir}", "wrote {n} files to {dir}", len(result.files)).format(n=len(result.files), dir=result.directory))
     elif isinstance(result, ReportResult):
         lines.append("✓ " + ngettext("wrote {n} file to {dir}", "wrote {n} files to {dir}", len(result.files)).format(n=len(result.files), dir=result.directory))
+    elif isinstance(result, CoachResult):
+        if result.status == "dry_run":
+            lines.append("✓ " + _("dry run: prompt written to {path}").format(path=result.dry_run_path))
+        else:
+            tokens = f"{result.input_tokens or '?'} in / {result.output_tokens or '?'} out"
+            cost = f", ${result.cost_usd:.4f}" if result.cost_usd else ""
+            lines.append("✓ " + _("coach {kind} answered in {seconds:.0f} s ({tokens}{cost})").format(kind=result.kind, seconds=result.duration_s, tokens=tokens, cost=cost))
+        for warning in result.warnings:
+            lines.append(f"  ! {warning}")
     elif isinstance(result, str):
         lines.append("✓ " + result)
     else:
@@ -255,3 +265,18 @@ def report_job(config: Config, kind: str, day: date, *, charts: bool = True) -> 
 def last_days(today: date, days: int) -> tuple[date, date]:
     """Inclusive date range of the last ``days`` days ending today."""
     return today - timedelta(days=days - 1), today
+
+
+def coach_job(config: Config, deps: TuiDeps, kind: str, *, today: date, question: str | None = None, dry_run: bool = False, language: str | None = None, force: bool = True) -> JobSpec:
+    from ..coach.backends import make_backend
+    from ..coach.runner import run_coach
+
+    cli = f"wristpull coach {kind}" + (f' "{question}"' if question else "") + (" --dry-run" if dry_run else "") + (f" --lang {language}" if language else "")
+    titles = {"daily": _("Coach: daily check"), "weekly": _("Coach: weekly review"), "ask": _("Coach: question")}
+
+    def run(conn: sqlite3.Connection, log: Log) -> CoachResult:
+        factory = deps.coach_backend or (lambda c, **kw: make_backend(c, **kw))
+        backend = factory(config, kind=kind)
+        return run_coach(conn, config, kind, today=today, language=language, question=question, backend=backend, dry_run=dry_run, force=force, log=log)
+
+    return JobSpec(f"coach_{kind}", titles.get(kind, kind), cli, run)

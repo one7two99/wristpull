@@ -37,4 +37,5 @@ class TuiDeps:
     open_path: Callable[[Path], None] = open_with_desktop
     refresh_interval: float = 30.0  # seconds between device polls on the overview; 0 disables
     coach_backend: Callable[..., Any] | None = None  # tests inject a FakeBackend factory (config, **kwargs) -> Backend
+    editor: Callable[[Path], None] | None = None  # None: $EDITOR in a suspended terminal; tests inject a recorder
     opened: list[Path] = field(default_factory=list)  # recorder used by tests and the files screen

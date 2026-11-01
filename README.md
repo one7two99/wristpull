@@ -221,7 +221,7 @@ The training coach sends an aggregated data package to an LLM and stores the ans
 | `coach ask "…"` | a free question over the daily data package |
 | `coach show [--last N] [--kind K]` | print stored answers with their rating |
 | `coach rate RUN -1|0|1 [--note …]` | rate a run; the coach sees ratings and notes in later runs |
-| `coach profile` | path of the goal profile and its unfilled placeholders (exit 2 while some are open) |
+| `coach profile [--wizard]` | path of the goal profile and its unfilled placeholders (exit 2 while some are open); `--wizard` asks multiple-choice questions and writes the generated block into the profile, keeping your own notes below it |
 
 Options for `daily`/`weekly`/`ask`: `--backend ollama|claude|openrouter`, `--model`, `--lang de|en`,
 `--date YYYY-MM-DD` (pretend today), `--dry-run` (write the full prompt to `<data_dir>/coach/dryrun/`
@@ -231,9 +231,12 @@ section is checked against the data package; numbers that do not occur there are
 note so hallucinated values stand out. With Claude the request opts into the server-side refusal
 fallback, so a safety-classifier decline is retried on a fallback model inside the same call.
 
-The **goal profile** is a Markdown file at `<data_dir>/coach/profile.md`; the first run creates a
-template with `{{placeholders}}` for goals, event, time budget, constraints and so on. Fill it in
-your editor; the text goes to the model with every run. Trends, baselines, the acute:chronic
+The **goal profile** is a Markdown file at `<data_dir>/coach/profile.md`. Either answer the wizard
+(`coach profile --wizard`, or `g` on the TUI coach screen): goals, event, time budget, experience,
+preferences, constraints, planning style, tone and optional age/weight/max HR become a generated
+block between markers, and everything you write below it (your notes) survives a re-run. Or edit the
+file directly; the first run creates a template with `{{placeholders}}`. The text goes to the model
+with every run. Trends, baselines, the acute:chronic
 workload ratio and recovery flags are computed in Python before the model sees anything, and the
 model is told to use only those numbers. Every run (prompts, answer, tokens, cost estimate) lands in
 `coach_runs`; feedback goes to `coach_feedback` and is shown to the coach in later runs.
@@ -272,7 +275,7 @@ wristpull reparse --errors                     # retry what failed last time
 
 A terminal UI over the same library functions (needs the optional extra: `uv sync --extra tui`).
 It runs the commands above as background jobs with a live log, shows the data per day and browses
-the data directory. A tab row under the header lists the eight screens with their digit keys and
+the data directory. A tab row under the header lists the nine screens with their digit keys and
 marks the active one; tabs can also be clicked. German and English, switchable at runtime with `F12`; the language comes from
 `[ui] language`, else from `LANGUAGE`/`LC_ALL`/`LANG`, else English.
 
@@ -286,6 +289,7 @@ marks the active one; tabs can also be clicked. German and English, switchable a
 | `6` | Files: tree of the data directory; `Enter` on a `.fit` runs `inspect`, Markdown/CSV preview, `o` opens with `xdg-open`, `y` copies the path |
 | `7` | Export & Report: Claude export or weekly/monthly report for a period with presets, result file list and Markdown preview; `o` opens the folder, `y`/`c` copy path or CLI |
 | `8` | Settings: edit every config value including `[ui]` and `[coach]`, `Ctrl+S` validates and writes `config.toml` (language switches immediately, `data_dir` after a restart); `Ctrl+T` checks whether the coach backend is reachable |
+| `9` | Coach: `d` daily check, `w` weekly review, type a question and press Enter, `p` dry run; runs table with tokens, cost and rating, the answer beside it; `+` `−` `0` rate the selected run, `g` goal wizard (multiple choice → profile), `e` edit the profile in `$EDITOR` |
 | `i` `p` `e` `r` | on the overview: import Garmin, pull phone, export the default range for Claude, weekly report with charts |
 | `/` `?` `F12` `q` | command palette, help, language, quit |
 
@@ -543,5 +547,5 @@ real health data is needed or allowed in the repository. Code, comments and comm
 3. ~~`export --for-claude --from --to` (compact Markdown + CSV) and `report week|month`, merging the Garmin sources~~
 4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), mockups in [mockups/](mockups/README.md)
-6. Training coach via LLM: ~~C1 daily check and questions with Ollama, goal profile, local memory~~ ~~C2 weekly review, Claude API and OpenRouter backends, number check, ratings~~ — next: goal wizard, TUI screen, journal; concept in [docs/coach-concept.md](docs/coach-concept.md)
+6. Training coach via LLM: ~~C1 daily check and questions with Ollama, goal profile, local memory~~ ~~C2 weekly review, Claude API and OpenRouter backends, number check, ratings~~ ~~C3 goal wizard, TUI coach screen~~ — next: journal, systemd timer, plan adherence, ICS export; concept in [docs/coach-concept.md](docs/coach-concept.md)
 7. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)

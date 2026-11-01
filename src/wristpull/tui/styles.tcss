@@ -177,3 +177,30 @@ Button.small {
 RadioSet {
     width: 100%;
 }
+
+#coach {
+    height: 1fr;
+}
+
+#coach-status {
+    height: auto;
+    max-height: 5;
+}
+
+#runs {
+    width: 70;
+    border: round $primary;
+}
+
+#answer-scroll {
+    width: 1fr;
+}
+
+#coach-answer {
+    height: auto;
+}
+
+#question {
+    dock: bottom;
+    margin-bottom: 1;
+}

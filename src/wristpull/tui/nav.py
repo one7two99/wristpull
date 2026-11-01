@@ -13,6 +13,7 @@ NAV: tuple[tuple[str, str, str], ...] = (
     ("6", "files", "Files"),
     ("7", "export", "Export & Report"),
     ("8", "config", "Settings"),
+    ("9", "coach", "Coach"),
 )
 
 

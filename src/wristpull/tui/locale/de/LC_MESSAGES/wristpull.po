@@ -804,3 +804,114 @@ msgstr "Nicht geprüft: {n} Probleme"
 
 msgid "Coach backend check"
 msgstr "Prüfung des Coach-Backends"
+
+msgid "Coach"
+msgstr "Coach"
+
+msgid "daily"
+msgstr "täglich"
+
+msgid "weekly"
+msgstr "wöchentlich"
+
+msgid "ask"
+msgstr "fragen"
+
+msgid "dry run"
+msgstr "Dry-Run"
+
+msgid "stop"
+msgstr "stoppen"
+
+msgid "rate"
+msgstr "bewerten"
+
+msgid "goal wizard"
+msgstr "Ziel-Assistent"
+
+msgid "edit profile"
+msgstr "Profil bearbeiten"
+
+msgid "Answer"
+msgstr "Antwort"
+
+msgid "Ask the coach a question and press Enter …"
+msgstr "Frage an den Coach eingeben und Enter drücken …"
+
+msgid "Backend {backend} · model {model}"
+msgstr "Backend {backend} · Modell {model}"
+
+msgid "Profile {path}"
+msgstr "Profil {path}"
+
+msgid "{n} open placeholders (g for the wizard, e to edit)"
+msgstr "{n} offene Platzhalter (g für den Assistenten, e zum Bearbeiten)"
+
+msgid "running: {title}"
+msgstr "läuft: {title}"
+
+msgid "Kind"
+msgstr "Art"
+
+msgid "When"
+msgstr "Wann"
+
+msgid "Model"
+msgstr "Modell"
+
+msgid "Tokens"
+msgstr "Token"
+
+msgid "Cost"
+msgstr "Kosten"
+
+msgid "Rating"
+msgstr "Bewertung"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "No coach runs yet. Press d for the daily check or type a question below."
+msgstr "Noch keine Coach-Läufe. d für den Tages-Check drücken oder unten eine Frage eingeben."
+
+msgid "Dry run: the prompt was written to the coach/dryrun folder; nothing was sent."
+msgstr "Dry-Run: der Prompt wurde in den Ordner coach/dryrun geschrieben; nichts wurde gesendet."
+
+msgid "failed"
+msgstr "fehlgeschlagen"
+
+msgid "Type a question first"
+msgstr "Zuerst eine Frage eingeben"
+
+msgid "Select a run first"
+msgstr "Zuerst einen Lauf auswählen"
+
+msgid "Rated run #{id}: {mark}"
+msgstr "Lauf #{id} bewertet: {mark}"
+
+msgid "Profile written: {path}"
+msgstr "Profil geschrieben: {path}"
+
+msgid "Goal wizard: your choices become the first part of the goal profile; your own notes stay untouched."
+msgstr "Ziel-Assistent: deine Auswahl wird zum ersten Teil des Zielprofils; deine eigenen Notizen bleiben unangetastet."
+
+msgid "Save profile"
+msgstr "Profil speichern"
+
+msgid "Cancel"
+msgstr "Abbrechen"
+
+msgid "dry run: prompt written to {path}"
+msgstr "Dry-Run: Prompt geschrieben nach {path}"
+
+msgid "coach {kind} answered in {seconds:.0f} s ({tokens}{cost})"
+msgstr "Coach {kind} hat in {seconds:.0f} s geantwortet ({tokens}{cost})"
+
+msgid "Coach: daily check"
+msgstr "Coach: Tages-Check"
+
+msgid "Coach: weekly review"
+msgstr "Coach: Wochenrückblick"
+
+msgid "Coach: question"
+msgstr "Coach: Frage"

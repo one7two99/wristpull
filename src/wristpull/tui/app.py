@@ -13,6 +13,7 @@ from .deps import TuiDeps
 from .i18n import _, next_language, resolve_language, set_language
 from .jobs import JobLine, JobRunner, JobSpec, export_job, garmin_import_job, last_days, phone_pull_job, report_job
 from .screens.activities import ActivitiesScreen
+from .screens.coach import CoachScreen
 from .screens.days import DaysScreen
 from .screens.export import ExportScreen
 from .screens.files import FilesScreen
@@ -31,8 +32,9 @@ SCREEN_FACTORIES = {
     "files": FilesScreen,
     "export": ExportScreen,
     "config": SettingsScreen,
+    "coach": CoachScreen,
 }
-SCREEN_KEYS = {"1": "home", "2": "sync", "3": "days", "4": "activities", "5": "sleep", "6": "files", "7": "export", "8": "config"}
+SCREEN_KEYS = {"1": "home", "2": "sync", "3": "days", "4": "activities", "5": "sleep", "6": "files", "7": "export", "8": "config", "9": "coach"}
 
 
 class WristpullApp(App):
@@ -47,6 +49,7 @@ class WristpullApp(App):
         Binding("6", "goto('files')", "Files", show=False),
         Binding("7", "goto('export')", "Export & Report", show=False),
         Binding("8", "goto('config')", "Settings", show=False),
+        Binding("9", "goto('coach')", "Coach", show=False),
         Binding("question_mark", "help", "Help", show=False),
         Binding("f12", "toggle_language", "Language", show=False),
         Binding("slash", "command_palette", "Palette", show=False),
