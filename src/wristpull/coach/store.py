@@ -74,7 +74,7 @@ def memory_digest(conn: sqlite3.Connection, lang: str, *, daily: int = 3, weekly
             text = text[:397] + "…"
         rating = run.get("rating")
         mark = {1: "👍", 0: "😐", -1: "👎"}.get(rating, "–") if rating is not None else "–"
-        lines.append(f"- {run['created_at_utc'][:10]} {run['kind']} (feedback {mark}): {text}")
+        lines.append(f"- {run['created_at_utc'][:16].replace('T', ' ')} UTC {run['kind']} (feedback {mark}): {text}")
     out: list[str] = []
     total = 0
     for line in lines:

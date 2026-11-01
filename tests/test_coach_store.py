@@ -37,7 +37,7 @@ def test_memory_digest_picks_suggestions_and_plans(conn):
     _run(conn, answer="no headings at all " * 40)
     digest = memory_digest(conn, "en")
     lines = digest.splitlines()
-    assert len(lines) == 3 and lines[0].startswith("- ") and "daily" in lines[0]
+    assert len(lines) == 3 and lines[0].startswith("- 20") and " UTC daily" in lines[0]
     assert any("| Mon | rest |" in line for line in lines) and any("👎" in line for line in lines)
     assert all(len(line) < 460 for line in lines)
     assert memory_digest(conn, "en", max_chars=50) == ""

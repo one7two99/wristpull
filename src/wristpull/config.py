@@ -84,7 +84,7 @@ class CoachConfig:
     api_key_env: str | None = None
     ollama_url: str = "http://localhost:11434"
     num_ctx: int = 8192  # Ollama context window; must hold the data package plus the answer
-    max_tokens: int = 2000
+    max_tokens: int = 3000
     timeout_s: float = 600.0
     token_budget: int = 6000
     effort: str = "medium"

@@ -26,14 +26,14 @@ TASKS = {
     "daily": (
         "Give the morning check for today: how recovered the athlete is, one concrete suggestion for today "
         "(session type, duration, intensity, or rest) and at most two things to watch out for. "
-        "Keep the suggestion to about 150 words."
+        "Keep the suggestion to about 150 words and the whole answer under 350 words; the numbers section is a short list."
     ),
     "weekly": (
         "Review the past week against the previous one, assess recovery and training load, and propose a plan "
         "for the next week as a table with one row per day (day, session, duration, intensity). "
-        "Finish with up to three questions whose answers would improve the next plan."
+        "Finish with up to three questions whose answers would improve the next plan. Keep the whole answer under 700 words."
     ),
-    "ask": "Answer the athlete's question using only the data provided.",
+    "ask": "Answer the athlete's question using only the data provided. Keep the whole answer under 300 words.",
 }
 
 DEFAULT_PROFILE = {
@@ -134,6 +134,7 @@ def parse_sections(answer: str, kind: str, lang: str) -> dict[str, str]:
 
 
 NUMBER = re.compile(r"(?<![\w.])-?\d+(?:[.,]\d+)?(?![\w.])")
+LOOSE_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")  # for the data side: "5000m", "22min" or "180bpm" still count
 
 
 def _normal(token: str) -> str:
@@ -146,7 +147,7 @@ def verify_numbers(answer: str, data_md: str, *, section: str | None = None) -> 
     Comparison is textual after normalising decimal commas and trailing zeros; small integers up to 10
     are ignored because they usually count things (zones, list items) rather than quote data.
     """
-    haystack = {_normal(m.group(0)) for m in NUMBER.finditer(data_md)}
+    haystack = {_normal(m.group(0)) for m in LOOSE_NUMBER.finditer(data_md)}
     # also accept the integer part of decimals in the data ("7.4 h" quoted as "7 h")
     haystack |= {h.split(".")[0] for h in haystack}
     missing: list[str] = []

@@ -155,3 +155,5 @@ def test_verify_numbers():
     assert verify_numbers("RHR 53 and 7.9 h", data) == ["53", "7.9"]
     assert verify_numbers("ignored 999", data, section="52, 86") == []
     assert verify_numbers("7 h of sleep", data) == []  # integer part of a decimal in the data is accepted
+    profile = "Goal: 5000m in 22min within 3 months, max HR 180bpm, age 51"
+    assert verify_numbers("aim for 5000 m in 22 minutes at max 180", profile) == []  # units glued to numbers in the profile
