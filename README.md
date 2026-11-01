@@ -193,6 +193,37 @@ Setting up Gadgetbridge on the phone (install, pairing both devices, the Helio S
 authentication key, export and Intent API settings, ADB commands) is documented in
 [docs/gadgetbridge.md](docs/gadgetbridge.md).
 
+#### `wristpull coach`
+
+The training coach sends an aggregated data package to an LLM and stores the answer. Wave C1
+covers the local **Ollama** backend; Claude API and OpenRouter follow (see
+[docs/coach-concept.md](docs/coach-concept.md)). Nothing leaves the machine with Ollama.
+
+| Command | Effect |
+|---|---|
+| `coach daily` | morning check: last night, yesterday, 7-day table, baselines, training load, warning flags → status, a suggestion for today, things to watch, numbers used |
+| `coach ask "…"` | a free question over the same data package |
+| `coach show [--last N] [--kind K]` | print stored answers |
+| `coach profile` | path of the goal profile and its unfilled placeholders (exit 2 while some are open) |
+
+Options for `daily`/`ask`: `--backend`, `--model`, `--lang de|en`, `--date YYYY-MM-DD` (pretend
+today), `--dry-run` (write the full prompt to `<data_dir>/coach/dryrun/` instead of calling the
+model), `--force` (run although the profile still has placeholders).
+
+The **goal profile** is a Markdown file at `<data_dir>/coach/profile.md`; the first run creates a
+template with `{{placeholders}}` for goals, event, time budget, constraints and so on. Fill it in
+your editor; the text goes to the model with every run. Trends, baselines, the acute:chronic
+workload ratio and recovery flags are computed in Python before the model sees anything, and the
+model is told to use only those numbers. Every run (prompts, answer, tokens, cost estimate) lands in
+`coach_runs`; feedback goes to `coach_feedback` and is shown to the coach in later runs.
+
+```sh
+wristpull coach profile                          # where to edit the goal profile
+wristpull coach daily --dry-run                  # look at what would be sent
+wristpull coach daily                            # gemma3:4b via Ollama by default
+wristpull coach ask "Is a long run sensible today?" --lang de
+```
+
 #### `wristpull reparse`
 
 Re-parses files that are already in the archive, replacing the rows that came from them. Use it
@@ -260,6 +291,15 @@ export_dir = "/sdcard/Gadgetbridge"
 language = "de"                          # TUI language: "de", "en" or "" for the system locale
 theme = "textual-dark"                   # any Textual theme name
 range_days = 28                          # default period of the data screens and the export
+
+[coach]
+backend = "ollama"                       # ollama | claude | openrouter
+model = "gemma3:4b"
+ollama_url = "http://localhost:11434"
+max_tokens = 2000
+timeout_s = 600
+token_budget = 6000                      # size of the data package for local models
+language = ""                            # answer language, "" = UI language
 ```
 
 ### Helper commands around the watch
@@ -397,6 +437,7 @@ All timestamps are ISO-8601 UTC strings (`2026-10-31T06:12:33Z`). Every sample r
 | `temperature` | skin temperature (Helio Strap `GENERIC_TEMPERATURE_SAMPLE`) |
 | `metrics` | sparse metrics: `vo2_max` (Garmin `max_met_data`), `pai_total` / `pai_today` (Helio Strap) |
 | `daily_summary` | derived per day and source, rebuilt after every import |
+| `coach_runs`, `coach_feedback`, `journal` | training-coach runs (prompts, answer, tokens, cost), the user's ratings, a daily note |
 
 Verification status (fenix 6X Pro and Helio Strap, 2026-11-01): activity files (sessions, records
 with GPS/altitude/HR, laps, HR zone times, training load) and the wellness fields steps, all-day
@@ -460,5 +501,5 @@ real health data is needed or allowed in the repository. Code, comments and comm
 3. ~~`export --for-claude --from --to` (compact Markdown + CSV) and `report week|month`, merging the Garmin sources~~
 4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), mockups in [mockups/](mockups/README.md)
-6. Next: training coach via LLM (Claude API, Ollama, OpenRouter): daily recovery check and weekly review with a plan, goal wizard, local memory of advice and feedback; concept in [docs/coach-concept.md](docs/coach-concept.md)
+6. Training coach via LLM: ~~C1 daily check and questions with Ollama, goal profile, local memory~~ — next: weekly review, Claude API and OpenRouter backends, goal wizard, TUI screen; concept in [docs/coach-concept.md](docs/coach-concept.md)
 7. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)

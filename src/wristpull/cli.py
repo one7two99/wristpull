@@ -66,6 +66,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("tui", help="open the terminal UI (requires the 'tui' extra: uv sync --extra tui)")
 
+    p_coach = sub.add_parser("coach", help="training coach: send aggregated data to an LLM and store the answer")
+    coach_sub = p_coach.add_subparsers(dest="coach_cmd", required=True)
+    for name, help_text in (("daily", "morning check: recovery and a suggestion for today"), ("ask", "a free question over the daily data package")):
+        p_c = coach_sub.add_parser(name, help=help_text)
+        if name == "ask":
+            p_c.add_argument("question")
+        p_c.add_argument("--backend", choices=["ollama", "claude", "openrouter"], help="override [coach] backend")
+        p_c.add_argument("--model", help="override [coach] model")
+        p_c.add_argument("--lang", choices=["de", "en"], help="answer language (default: [coach] language or the UI language)")
+        p_c.add_argument("--date", help="treat this local date as today (YYYY-MM-DD)")
+        p_c.add_argument("--dry-run", action="store_true", help="write the prompt to <data_dir>/coach/dryrun/ instead of calling the model")
+        p_c.add_argument("--force", action="store_true", help="run although the goal profile still has placeholders")
+    p_show = coach_sub.add_parser("show", help="print stored coach answers")
+    p_show.add_argument("--last", type=int, default=1, help="how many runs (default 1)")
+    p_show.add_argument("--kind", choices=["daily", "weekly", "ask"])
+    coach_sub.add_parser("profile", help="print the goal profile path and its open placeholders")
+
     p_reparse = sub.add_parser("reparse", help="re-parse archived raw files after a parser change (rows are replaced)")
     p_reparse.add_argument("--id", type=int, action="append", dest="ids", help="raw_files.id (repeatable)")
     p_reparse.add_argument("--source", help="only this source, e.g. gadgetbridge or garmin_usb")
@@ -265,6 +282,53 @@ def cmd_reparse(args: argparse.Namespace, config: Config) -> int:
     return 0 if not stats.errors else 2
 
 
+def cmd_coach(args: argparse.Namespace, config: Config) -> int:
+    from .coach.backends import CoachError, make_backend
+    from .coach.profile import load_profile
+    from .coach.runner import resolve_language, run_coach
+    from .coach.store import recent_runs
+
+    conn = _open(config)
+    if args.coach_cmd == "show":
+        runs = recent_runs(conn, kind=args.kind, limit=args.last)
+        if not runs:
+            print("no coach runs stored yet")
+            return 1
+        for run in runs:
+            cost = f", ${run['cost_usd']:.4f}" if run.get("cost_usd") else ""
+            print(f"--- #{run['id']} {run['kind']} {run['created_at_utc']} {run['backend']}/{run['model']} ({run['input_tokens'] or '?'} in / {run['output_tokens'] or '?'} out{cost})")
+            print(run.get("answer_md") or "")
+        return 0
+    if args.coach_cmd == "profile":
+        lang = resolve_language(config, None)
+        text, _sha, placeholders = load_profile(config, lang)
+        from .coach.profile import profile_path
+
+        print(f"profile: {profile_path(config)} ({len(text.splitlines())} lines)")
+        print("open placeholders: " + (", ".join(placeholders) if placeholders else "none"))
+        return 0 if not placeholders else 2
+    log = (lambda _m: None) if args.quiet else print
+    try:
+        from .aggregate import parse_date
+        from datetime import date
+
+        today = parse_date(args.date) if args.date else date.today()
+        backend = make_backend(config, model=args.model, backend=args.backend)
+        result = run_coach(conn, config, args.coach_cmd, today=today, language=args.lang, question=getattr(args, "question", None), backend=backend, dry_run=args.dry_run, force=args.force, log=log)
+    except (CoachError, ValueError) as exc:
+        print(f"coach: {exc}", file=sys.stderr)
+        return 1
+    for warning in result.warnings:
+        print(f"  note: {warning}", file=sys.stderr)
+    if result.status == "dry_run":
+        print(f"dry run #{result.run_id}: prompt in {result.dry_run_path}")
+        return 0
+    print(result.answer_md.rstrip())
+    cost = f", est. ${result.cost_usd:.4f}" if result.cost_usd else ""
+    print(f"\n[run #{result.run_id}, {result.backend}/{result.model}, {result.duration_s:.0f} s, {result.input_tokens or '?'} in / {result.output_tokens or '?'} out tokens{cost}]", file=sys.stderr)
+    return 0
+
+
 def _load_tui():
     """Import the TUI lazily so the core CLI works without the optional 'tui' extra."""
     from .tui.app import run_tui
@@ -303,4 +367,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_tui(args, config)
     if args.command == "reparse":
         return cmd_reparse(args, config)
+    if args.command == "coach":
+        return cmd_coach(args, config)
     return cmd_report(args, config)

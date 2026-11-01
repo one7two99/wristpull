@@ -1,6 +1,6 @@
 # wristpull training coach – concept
 
-Status: concept approved 2026-11-01, no code yet. Implementation waves at the end.
+Status: concept approved 2026-11-01; wave C1 implemented the same day (`wristpull coach daily|ask|show|profile` with the Ollama backend). Implementation waves at the end.
 
 ## Why
 

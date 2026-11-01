@@ -7,7 +7,7 @@ from collections.abc import Iterable, Mapping
 from importlib import resources
 from pathlib import Path
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"  # 2: coach_runs, coach_feedback, journal
 
 
 def connect(path: Path | str) -> sqlite3.Connection:
@@ -44,7 +44,7 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(sql)
     ensure_columns(conn)
     conn.execute(
-        "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', ?)",
+        "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)",
         (SCHEMA_VERSION,),
     )
     conn.commit()

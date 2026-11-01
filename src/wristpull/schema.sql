@@ -323,3 +323,44 @@ CREATE TABLE IF NOT EXISTS daily_summary (
     updated_at_utc          TEXT NOT NULL,
     UNIQUE (source, local_date)
 );
+
+-- Training coach: every LLM run with its prompts and answer, the user's feedback, a daily journal line.
+CREATE TABLE IF NOT EXISTS coach_runs (
+    id              INTEGER PRIMARY KEY,
+    kind            TEXT NOT NULL,               -- daily | weekly | ask
+    period_start    TEXT NOT NULL,               -- local dates covered by the data package
+    period_end      TEXT NOT NULL,
+    language        TEXT NOT NULL,
+    backend         TEXT NOT NULL,
+    model           TEXT NOT NULL,
+    profile_sha256  TEXT,
+    prompt_sha256   TEXT NOT NULL,
+    system_prompt   TEXT NOT NULL,
+    user_prompt     TEXT NOT NULL,
+    question        TEXT,
+    answer_md       TEXT,
+    input_tokens    INTEGER,
+    output_tokens   INTEGER,
+    tokens_estimated INTEGER NOT NULL DEFAULT 0,
+    cost_usd        REAL,
+    duration_s      REAL,
+    stop_reason     TEXT,
+    truncated       INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'ok',  -- ok | error | dry_run
+    error           TEXT,
+    created_at_utc  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS coach_feedback (
+    id              INTEGER PRIMARY KEY,
+    run_id          INTEGER NOT NULL REFERENCES coach_runs(id) ON DELETE CASCADE,
+    rating          INTEGER NOT NULL CHECK (rating BETWEEN -1 AND 1),
+    note            TEXT,
+    created_at_utc  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS journal (
+    local_date      TEXT PRIMARY KEY,
+    note            TEXT NOT NULL,
+    created_at_utc  TEXT NOT NULL
+);

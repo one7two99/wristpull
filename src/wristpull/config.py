@@ -42,9 +42,57 @@ language = "{ui_language}"
 theme = "{ui_theme}"
 # Default number of days shown in the data screens.
 range_days = {ui_range_days}
-"""
+
+[coach]
+# LLM backend for the training coach: ollama | claude | openrouter
+backend = "{coach_backend}"
+model = "{coach_model}"
+# Optional larger model for the weekly review (empty: same as model).
+weekly_model = "{coach_weekly_model}"
+# Environment variable holding the API key (never the key itself). Empty: ANTHROPIC_API_KEY / OPENROUTER_API_KEY.
+api_key_env = "{coach_api_key_env}"
+ollama_url = "{coach_ollama_url}"
+# Ollama context window in tokens (the data package plus the answer must fit; memory grows with it).
+num_ctx = {coach_num_ctx}
+max_tokens = {coach_max_tokens}
+timeout_s = {coach_timeout_s}
+# Roughly how many tokens of data the coach may send (local models: 6000).
+token_budget = {coach_token_budget}
+# Claude only: low | medium | high
+effort = "{coach_effort}"
+# Answer language: de | en | "" for the UI language
+language = "{coach_language}"
+{coach_prices}"""
 
 UI_LANGUAGES = ("en", "de")
+COACH_BACKENDS = ("ollama", "claude", "openrouter")
+COACH_EFFORTS = ("low", "medium", "high")
+# USD per million input / output tokens; used for the cost estimate of a run (overridable in [coach.prices]).
+DEFAULT_PRICES: dict[str, tuple[float, float]] = {
+    "claude-opus-5-5": (4.0, 20.0),
+    "claude-sonnet-5-5": (2.0, 10.0),
+    "claude-haiku-5-5": (0.10, 0.50),
+    "claude-fable-5-1": (10.0, 50.0),
+}
+
+
+@dataclass
+class CoachConfig:
+    backend: str = "ollama"
+    model: str = "gemma3:4b"
+    weekly_model: str | None = None
+    api_key_env: str | None = None
+    ollama_url: str = "http://localhost:11434"
+    num_ctx: int = 8192  # Ollama context window; must hold the data package plus the answer
+    max_tokens: int = 2000
+    timeout_s: float = 600.0
+    token_budget: int = 6000
+    effort: str = "medium"
+    language: str | None = None
+    prices: dict[str, tuple[float, float]] = field(default_factory=dict)
+
+    def price_for(self, model: str) -> tuple[float, float] | None:
+        return self.prices.get(model) or DEFAULT_PRICES.get(model)
 
 
 def default_config_path() -> Path:
@@ -64,6 +112,7 @@ class Config:
     ui_language: str | None = None  # None: follow the system locale
     ui_theme: str = "textual-dark"
     ui_range_days: int = 28
+    coach: CoachConfig = field(default_factory=CoachConfig)
     path: Path | None = None  # where this config was loaded from, if anywhere
 
     @property
@@ -86,6 +135,22 @@ class Config:
             ui_language=self.ui_language or "",
             ui_theme=self.ui_theme,
             ui_range_days=self.ui_range_days,
+            coach_backend=self.coach.backend,
+            coach_model=self.coach.model,
+            coach_weekly_model=self.coach.weekly_model or "",
+            coach_api_key_env=self.coach.api_key_env or "",
+            coach_ollama_url=self.coach.ollama_url,
+            coach_num_ctx=self.coach.num_ctx,
+            coach_max_tokens=self.coach.max_tokens,
+            coach_timeout_s=f"{self.coach.timeout_s:g}",
+            coach_token_budget=self.coach.token_budget,
+            coach_effort=self.coach.effort,
+            coach_language=self.coach.language or "",
+            coach_prices=(
+                "\n[coach.prices]\n" + "".join(f'"{m}" = {{ input = {i:g}, output = {o:g} }}\n' for m, (i, o) in sorted(self.coach.prices.items()))
+                if self.coach.prices
+                else ""
+            ),
         )
 
 
@@ -124,6 +189,23 @@ def load_config(path: Path | None = None) -> Config:
         cfg.ui_theme = str(ui["theme"])
     if "range_days" in ui:
         cfg.ui_range_days = max(1, int(ui["range_days"]))
+    coach = data.get("coach", {})
+    for key in ("backend", "model", "ollama_url", "effort"):
+        if coach.get(key):
+            setattr(cfg.coach, key, str(coach[key]))
+    for key in ("weekly_model", "api_key_env", "language"):
+        if coach.get(key):
+            setattr(cfg.coach, key, str(coach[key]))
+    for key in ("max_tokens", "token_budget", "num_ctx"):
+        if key in coach:
+            setattr(cfg.coach, key, int(coach[key]))
+    if "timeout_s" in coach:
+        cfg.coach.timeout_s = float(coach["timeout_s"])
+    prices = coach.get("prices", {})
+    if isinstance(prices, dict):
+        for model, entry in prices.items():
+            if isinstance(entry, dict) and "input" in entry and "output" in entry:
+                cfg.coach.prices[str(model)] = (float(entry["input"]), float(entry["output"]))
     return cfg
 
 
@@ -155,6 +237,23 @@ def validate_config(cfg: Config) -> list[str]:
         problems.append("range_days must be at least 1")
     if not cfg.phone_export_dir.startswith("/"):
         problems.append("phone export_dir must be an absolute path on the phone")
+    coach = cfg.coach
+    if coach.backend not in COACH_BACKENDS:
+        problems.append(f"coach backend must be one of {', '.join(COACH_BACKENDS)}")
+    if not coach.model.strip():
+        problems.append("coach model must not be empty")
+    if coach.max_tokens < 100:
+        problems.append("coach max_tokens must be at least 100")
+    if coach.token_budget < 1000:
+        problems.append("coach token_budget must be at least 1000")
+    if coach.num_ctx < 2048:
+        problems.append("coach num_ctx must be at least 2048")
+    if coach.timeout_s <= 0:
+        problems.append("coach timeout_s must be positive")
+    if coach.effort not in COACH_EFFORTS:
+        problems.append(f"coach effort must be one of {', '.join(COACH_EFFORTS)}")
+    if coach.language and coach.language not in UI_LANGUAGES:
+        problems.append(f"coach language must be one of {', '.join(UI_LANGUAGES)} or empty")
     return problems
 
 

@@ -64,3 +64,26 @@ def test_validate_and_write_config_roundtrip(tmp_path: Path):
     with pytest.raises(ValueError):
         write_config(bad, tmp_path / "bad.toml")
     assert not (tmp_path / "bad.toml").exists()
+
+
+def test_coach_section_roundtrip_and_validation(tmp_path: Path):
+    cfg = load_config(tmp_path / "missing.toml")
+    assert cfg.coach.backend == "ollama" and cfg.coach.model == "gemma3:4b" and cfg.coach.price_for("claude-opus-5-5") == (4.0, 20.0)
+    path = tmp_path / "config.toml"
+    path.write_text(
+        '[coach]\nbackend = "claude"\nmodel = "claude-sonnet-5-5"\nweekly_model = "claude-opus-5-5"\napi_key_env = "MY_KEY"\n'
+        'max_tokens = 1500\ntimeout_s = 90\ntoken_budget = 12000\neffort = "high"\nlanguage = "de"\n'
+        '[coach.prices]\n"my-model" = { input = 1.5, output = 3 }\n',
+        "utf-8",
+    )
+    cfg = load_config(path)
+    c = cfg.coach
+    assert (c.backend, c.model, c.weekly_model, c.api_key_env, c.max_tokens, c.timeout_s, c.token_budget, c.effort, c.language) == ("claude", "claude-sonnet-5-5", "claude-opus-5-5", "MY_KEY", 1500, 90.0, 12000, "high", "de")
+    assert c.price_for("my-model") == (1.5, 3.0) and c.price_for("nothing") is None
+    rendered = cfg.render()
+    assert 'backend = "claude"' in rendered and '"my-model" = { input = 1.5, output = 3 }' in rendered
+    assert load_config(write_config(cfg, tmp_path / "again.toml")).coach.prices == {"my-model": (1.5, 3.0)}
+    assert validate_config(cfg) == []
+    cfg.coach.backend, cfg.coach.model, cfg.coach.max_tokens, cfg.coach.effort, cfg.coach.language = "bogus", " ", 10, "ultra", "fr"
+    problems = validate_config(cfg)
+    assert len(problems) == 5 and any("backend" in p for p in problems)
