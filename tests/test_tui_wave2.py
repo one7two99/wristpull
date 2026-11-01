@@ -193,3 +193,44 @@ def test_format_helpers_for_wave2():
     assert stage_bar([], base, base, 5) == ""
     assert bar(30, 60, 10) == "█████" and bar(None, 60) == "" and bar(1, 1000, 10) == "█"
     assert pace_per_km(5000, 1500) == "5:00 /km" and pace_per_km(None, 100) == "–"
+
+
+def test_settings_screen_edits_coach_section(config: Config, tmp_path: Path):
+    from wristpull.coach.backends import FakeBackend
+
+    config.path = None
+    deps = make_deps(tmp_path)
+    deps.coach_backend = lambda cfg, **kw: FakeBackend(model=cfg.coach.model)
+    app = make_app(config, deps)
+    target = tmp_path / "cfg" / "config.toml"
+
+    async def scenario():
+        async with app.run_test(size=(130, 50)) as pilot:
+            await pilot.press("8")
+            await pilot.pause()
+            screen = app.screen
+            app.config.path = target
+            screen.query_one("#set-coach-backend", Select).value = "claude"
+            screen.query_one("#set-coach-model", Input).value = "claude-opus-5-5"
+            screen.query_one("#set-coach-weekly-model", Input).value = "claude-sonnet-5-5"
+            screen.query_one("#set-coach-key-env", Input).value = "MY_KEY"
+            screen.query_one("#set-coach-budget", Input).value = "12000"
+            screen.query_one("#set-coach-effort", Select).value = "high"
+            screen.query_one("#set-coach-language", Select).value = "de"
+            screen.query_one("#set-coach-max-tokens", Input).value = "50"  # too small: refused
+            screen.action_save()
+            await pilot.pause()
+            assert not target.exists() and "max_tokens" in str(screen.query_one("#settings-status", Panel).content)
+            screen.query_one("#set-coach-max-tokens", Input).value = "1500"
+            screen.action_save()
+            await pilot.pause()
+            loaded = load_config(target).coach
+            assert (loaded.backend, loaded.model, loaded.weekly_model, loaded.api_key_env, loaded.token_budget, loaded.effort, loaded.language, loaded.max_tokens) == ("claude", "claude-opus-5-5", "claude-sonnet-5-5", "MY_KEY", 12000, "high", "de", 1500)
+            assert app.config.coach.backend == "claude"
+            # the connection check runs as a job and reports into the status panel
+            screen.action_check_coach()
+            await wait_jobs(app)
+            await pilot.pause()
+            assert "fake backend ready" in str(screen.query_one("#settings-status", Panel).content)
+
+    run(scenario())

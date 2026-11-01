@@ -756,3 +756,51 @@ msgstr "…"
 
 msgid "… {n} laps in total"
 msgstr "… insgesamt {n} Runden"
+
+msgid "check coach backend"
+msgstr "Coach-Backend prüfen"
+
+msgid "COACH (LLM)"
+msgstr "COACH (LLM)"
+
+msgid "backend"
+msgstr "Backend"
+
+msgid "model"
+msgstr "Modell"
+
+msgid "weekly model (empty: same as model)"
+msgstr "Wochenmodell (leer: wie Modell)"
+
+msgid "API key environment variable (empty: ANTHROPIC_API_KEY / OPENROUTER_API_KEY)"
+msgstr "Umgebungsvariable mit dem API-Schlüssel (leer: ANTHROPIC_API_KEY / OPENROUTER_API_KEY)"
+
+msgid "Ollama context window (num_ctx)"
+msgstr "Ollama-Kontextfenster (num_ctx)"
+
+msgid "max answer tokens"
+msgstr "max. Antwort-Token"
+
+msgid "timeout (seconds)"
+msgstr "Timeout (Sekunden)"
+
+msgid "data package budget (tokens)"
+msgstr "Budget des Datenpakets (Token)"
+
+msgid "effort (Claude only)"
+msgstr "Effort (nur Claude)"
+
+msgid "answer language"
+msgstr "Antwortsprache"
+
+msgid "UI language"
+msgstr "Sprache der Oberfläche"
+
+msgid "Check coach"
+msgstr "Coach prüfen"
+
+msgid "Not checked: {n} problems"
+msgstr "Nicht geprüft: {n} Probleme"
+
+msgid "Coach backend check"
+msgstr "Prüfung des Coach-Backends"

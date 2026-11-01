@@ -11,7 +11,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Input, Label, Select
 
-from ...config import UI_LANGUAGES, Config, default_config_path, validate_config, write_config
+from ...config import COACH_BACKENDS, COACH_EFFORTS, UI_LANGUAGES, CoachConfig, Config, default_config_path, validate_config, write_config
 from ..i18n import _, current_language, set_language
 from ..widgets import Panel
 from .base import WristpullScreen
@@ -26,6 +26,7 @@ class SettingsScreen(WristpullScreen):
     BINDINGS = [
         Binding("ctrl+s", "save", "Save", show=False),
         Binding("ctrl+r", "reset", "Reset", show=False),
+        Binding("ctrl+t", "check_coach", "Check coach backend", show=False),
         Binding("escape", "app.goto('home')", "Back", show=False),
     ]
 
@@ -33,7 +34,7 @@ class SettingsScreen(WristpullScreen):
         return _("Settings")
 
     def keys(self) -> list[tuple[str, str]]:
-        return [("Ctrl+S", _("save")), ("Ctrl+R", _("reset")), ("Tab", _("next field")), ("Esc", _("back"))]
+        return [("Ctrl+S", _("save")), ("Ctrl+R", _("reset")), ("Ctrl+T", _("check coach backend")), ("Tab", _("next field")), ("Esc", _("back"))]
 
     def body(self) -> ComposeResult:
         config = self.app.config
@@ -61,9 +62,34 @@ class SettingsScreen(WristpullScreen):
                 yield Input(value=config.ui_theme, id="set-theme")
                 yield Label(_("default range (days)"))
                 yield Input(value=str(config.ui_range_days), id="set-range", type="integer")
+                coach = config.coach
+                yield Label(_("COACH (LLM)"), classes="form-title")
+                yield Label(_("backend"))
+                yield Select([(name, name) for name in COACH_BACKENDS], value=coach.backend, allow_blank=False, id="set-coach-backend")
+                yield Label(_("model"))
+                yield Input(value=coach.model, id="set-coach-model")
+                yield Label(_("weekly model (empty: same as model)"))
+                yield Input(value=coach.weekly_model or "", id="set-coach-weekly-model")
+                yield Label(_("API key environment variable (empty: ANTHROPIC_API_KEY / OPENROUTER_API_KEY)"))
+                yield Input(value=coach.api_key_env or "", id="set-coach-key-env")
+                yield Label("ollama_url")
+                yield Input(value=coach.ollama_url, id="set-coach-ollama-url")
+                yield Label(_("Ollama context window (num_ctx)"))
+                yield Input(value=str(coach.num_ctx), id="set-coach-num-ctx", type="integer")
+                yield Label(_("max answer tokens"))
+                yield Input(value=str(coach.max_tokens), id="set-coach-max-tokens", type="integer")
+                yield Label(_("timeout (seconds)"))
+                yield Input(value=f"{coach.timeout_s:g}", id="set-coach-timeout", type="number")
+                yield Label(_("data package budget (tokens)"))
+                yield Input(value=str(coach.token_budget), id="set-coach-budget", type="integer")
+                yield Label(_("effort (Claude only)"))
+                yield Select([(name, name) for name in COACH_EFFORTS], value=coach.effort, allow_blank=False, id="set-coach-effort")
+                yield Label(_("answer language"))
+                yield Select([(_("UI language"), ""), ("English", "en"), ("Deutsch", "de")], value=coach.language or "", allow_blank=False, id="set-coach-language")
                 with Horizontal(classes="row"):
                     yield Button(_("Save"), id="btn-save", variant="primary")
                     yield Button(_("Reset"), id="btn-reset")
+                    yield Button(_("Check coach"), id="btn-check-coach")
             with Vertical(id="settings-side"):
                 yield Panel(_("Configuration file"), id="settings-status")
                 yield Panel(_("Preview (TOML)"), id="settings-preview")
@@ -74,13 +100,37 @@ class SettingsScreen(WristpullScreen):
         self.query_one("#settings-status", Panel).set_lines([f"{path}  ({_('exists') if path.exists() else _('missing, showing defaults')})"])
         self.query_one("#settings-preview", Panel).set_lines(config.render().rstrip().splitlines())
 
+    def _int(self, selector: str, default: int = 0) -> int:
+        try:
+            return int(self.query_one(selector, Input).value or default)
+        except ValueError:
+            return default
+
+    def collect_coach(self) -> CoachConfig:
+        try:
+            timeout = float(self.query_one("#set-coach-timeout", Input).value or 0)
+        except ValueError:
+            timeout = 0.0
+        coach_language = self.query_one("#set-coach-language", Select).value
+        return replace(
+            self.app.config.coach,
+            backend=str(self.query_one("#set-coach-backend", Select).value),
+            model=self.query_one("#set-coach-model", Input).value.strip(),
+            weekly_model=self.query_one("#set-coach-weekly-model", Input).value.strip() or None,
+            api_key_env=self.query_one("#set-coach-key-env", Input).value.strip() or None,
+            ollama_url=self.query_one("#set-coach-ollama-url", Input).value.strip() or "http://localhost:11434",
+            num_ctx=self._int("#set-coach-num-ctx"),
+            max_tokens=self._int("#set-coach-max-tokens"),
+            timeout_s=timeout,
+            token_budget=self._int("#set-coach-budget"),
+            effort=str(self.query_one("#set-coach-effort", Select).value),
+            language=str(coach_language) if coach_language else None,
+        )
+
     def collect(self) -> Config:
         """A Config built from the form (not yet validated)."""
         language = self.query_one("#set-language", Select).value
-        try:
-            range_days = int(self.query_one("#set-range", Input).value or 0)
-        except ValueError:
-            range_days = 0
+        range_days = self._int("#set-range")
         return replace(
             self.app.config,
             data_dir=Path(self.query_one("#set-data-dir", Input).value.strip()).expanduser(),
@@ -92,6 +142,7 @@ class SettingsScreen(WristpullScreen):
             ui_language=str(language) if language else None,
             ui_theme=self.query_one("#set-theme", Input).value.strip() or "textual-dark",
             ui_range_days=range_days,
+            coach=self.collect_coach(),
         )
 
     def action_save(self) -> None:
@@ -105,7 +156,7 @@ class SettingsScreen(WristpullScreen):
             return
         path = write_config(cfg, self.app.config.path or default_config_path())
         live = self.app.config
-        for field_name in ("data_dir", "timezone", "garmin_folders", "garmin_mount_hints", "phone_serial", "phone_export_dir", "ui_language", "ui_theme", "ui_range_days", "path"):
+        for field_name in ("data_dir", "timezone", "garmin_folders", "garmin_mount_hints", "phone_serial", "phone_export_dir", "ui_language", "ui_theme", "ui_range_days", "coach", "path"):
             setattr(live, field_name, getattr(cfg, field_name))
         self.app.theme = cfg.ui_theme
         self.app.notify(_("Saved to {path}").format(path=path))
@@ -119,6 +170,34 @@ class SettingsScreen(WristpullScreen):
     def action_reset(self) -> None:
         self.app.switch_screen(SettingsScreen())
 
+    def action_check_coach(self) -> None:
+        """Ask the configured backend whether it is reachable, as a background job (Ollama may need a moment)."""
+        from ...coach.backends import CoachError, make_backend
+        from ..jobs import JobSpec
+
+        cfg = replace(self.app.config, coach=self.collect_coach())
+        problems = validate_config(cfg)
+        if problems:
+            self.app.notify(_("Not checked: {n} problems").format(n=len(problems)), severity="error")
+            return
+
+        def run(conn, log):
+            factory = self.app.deps.coach_backend or (lambda c, **kw: make_backend(c, **kw))
+            try:
+                backend = factory(cfg)
+                return backend.check()
+            except CoachError as exc:
+                raise RuntimeError(str(exc)) from exc
+
+        self.app.start_job(JobSpec("coach_check", _("Coach backend check"), f"wristpull coach daily --dry-run  # backend {cfg.coach.backend}/{cfg.coach.model}", run))
+
+    def job_finished(self, record) -> None:
+        if record.spec.key == "coach_check":
+            text = str(record.result) if record.ok else str(record.error)
+            self.query_one("#settings-status", Panel).set_lines([("✓ " if record.ok else "✗ ") + text])
+            return
+        self.refresh_data()
+
     @on(Button.Pressed, "#btn-save")
     def _save(self) -> None:
         self.action_save()
@@ -126,3 +205,7 @@ class SettingsScreen(WristpullScreen):
     @on(Button.Pressed, "#btn-reset")
     def _reset(self) -> None:
         self.action_reset()
+
+    @on(Button.Pressed, "#btn-check-coach")
+    def _check(self) -> None:
+        self.action_check_coach()

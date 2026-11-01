@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from ..adb import Adb
 from ..garmin_usb import gio_garmin_mtp_urls, try_mount_garmin
@@ -35,4 +36,5 @@ class TuiDeps:
     today: Callable[[], date] = date.today
     open_path: Callable[[Path], None] = open_with_desktop
     refresh_interval: float = 30.0  # seconds between device polls on the overview; 0 disables
+    coach_backend: Callable[..., Any] | None = None  # tests inject a FakeBackend factory (config, **kwargs) -> Backend
     opened: list[Path] = field(default_factory=list)  # recorder used by tests and the files screen

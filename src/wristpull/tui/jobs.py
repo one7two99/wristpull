@@ -172,6 +172,8 @@ def describe_result(record: JobRecord) -> list[str]:
         lines.append("✓ " + ngettext("wrote {n} file to {dir}", "wrote {n} files to {dir}", len(result.files)).format(n=len(result.files), dir=result.directory))
     elif isinstance(result, ReportResult):
         lines.append("✓ " + ngettext("wrote {n} file to {dir}", "wrote {n} files to {dir}", len(result.files)).format(n=len(result.files), dir=result.directory))
+    elif isinstance(result, str):
+        lines.append("✓ " + result)
     else:
         lines.append("✓ " + _("done"))
     rows = getattr(result, "rows", None)
