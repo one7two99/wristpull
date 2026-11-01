@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -19,6 +19,7 @@ from .decode import FitFile, FitMessage
 SEMICIRCLE_TO_DEG = 180.0 / 2**31
 SLEEP_LEVELS = {0: "unmeasurable", 1: "awake", 2: "light", 3: "deep", 4: "rem"}
 SLEEP_SESSION_GAP = timedelta(hours=8)
+EVENT_SLEEP = 74  # event message (21) field 0: the watch's sleep window (start/stop), i.e. bedtime to wake-up
 from ..rows import ParsedActivity, ParsedRows, ParsedSleep  # noqa: E402  (re-exported)
 
 __all__ = ["ParsedActivity", "ParsedRows", "ParsedSleep", "parse_fit", "compute_timestamp16"]
@@ -317,6 +318,31 @@ def _split_sessions(levels: list[tuple[datetime, str]]) -> list[list[tuple[datet
     return sessions
 
 
+def sleep_windows(fit: FitFile) -> list[tuple[datetime, datetime]]:
+    """(start, stop) pairs of the watch's sleep events; an unmatched start is ignored."""
+    windows: list[tuple[datetime, datetime]] = []
+    open_start: datetime | None = None
+    for msg in sorted(fit.of(21), key=lambda m: m.timestamp() or datetime.min.replace(tzinfo=UTC)):
+        ts = msg.timestamp()
+        if ts is None or msg.get_raw(0) != EVENT_SLEEP:
+            continue
+        kind = msg.get(1)
+        kind = kind if isinstance(kind, str) else {0: "start", 1: "stop", 4: "stop_all"}.get(kind, str(kind))
+        if kind == "start":
+            open_start = ts
+        elif kind in ("stop", "stop_all", "stop_disable", "stop_disable_all") and open_start is not None:
+            windows.append((open_start, ts))
+            open_start = None
+    return windows
+
+
+def _window_for(start: datetime, end: datetime, windows: list[tuple[datetime, datetime]]) -> tuple[datetime, datetime] | None:
+    for w_start, w_stop in windows:
+        if w_start <= end and start <= w_stop:
+            return w_start, w_stop
+    return None
+
+
 def parse_sleep(fit: FitFile, tz: ZoneInfo, source: str) -> list[ParsedSleep]:
     levels: list[tuple[datetime, str]] = []
     for msg in fit.of(275):
@@ -330,6 +356,7 @@ def parse_sleep(fit: FitFile, tz: ZoneInfo, source: str) -> list[ParsedSleep]:
 
     assessment = next(iter(fit.of(346)), None)
     summary = next(iter(fit.of(411)), None)
+    windows = sleep_windows(fit)
     results: list[ParsedSleep] = []
     for chunk in _split_sessions(levels):
         if not any(stage in ("light", "deep", "rem") for _, stage in chunk):
@@ -344,6 +371,18 @@ def parse_sleep(fit: FitFile, tz: ZoneInfo, source: str) -> list[ParsedSleep]:
         start, end = chunk[0][0], chunk[-1][0]
         if summary is not None and isinstance(summary.get(10), datetime) and isinstance(summary.get(8), datetime):
             start, end = summary.get(10), summary.get(8)
+        window = _window_for(start, end, windows)
+        if window is not None:
+            # the watch's sleep window (bedtime to wake-up) is what Garmin shows as the sleep start/end;
+            # minutes it does not cover with a stage record are kept visible as "unmeasurable"
+            w_start, w_stop = window
+            if w_start < start:
+                stages.insert(0, {"start_utc": iso_utc(w_start), "end_utc": iso_utc(start), "stage": "unmeasurable"})
+                durations["unmeasurable"] += int((start - w_start).total_seconds())
+            if w_stop > end:
+                stages.append({"start_utc": iso_utc(end), "end_utc": iso_utc(w_stop), "stage": "unmeasurable"})
+                durations["unmeasurable"] += int((w_stop - end).total_seconds())
+            start, end = min(start, w_start), max(end, w_stop)
         row = {
             "source": source,
             "start_utc": iso_utc(start),

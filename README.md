@@ -349,14 +349,22 @@ Two things seen on the first real night (2026-11-01) shape how the sources compl
   wellness data then arrives through `pull phone` (`gadgetbridge_garmin`). Importing over USB
   before the phone syncs keeps both paths complete; otherwise the merge rule covers it.
 - Sleep, HRV status and metrics files stay on the watch and come through both paths.
-- Between the evening Gadgetbridge sync and wake-up the watch wrote no monitoring samples at all
-  (no HR, stress, body battery or respiration from 00:10 to 06:51 local), while the HRV file has a
-  value every 5 minutes for the whole night. Gadgetbridge's own tables show the same gap, so it is
-  the watch, not the parser; whether the data appears with a later sync is still being watched.
+- The same applies to **any other client that syncs the watch**. On the first night the Garmin
+  Connect app fetched the night's monitoring file first (Connect shows HR and SpO2 until 06:00),
+  so neither Gadgetbridge nor USB ever saw those samples: wristpull has HR, stress, body battery
+  and SpO2 only until 00:08 and again from 06:51 local. Whoever syncs first gets the file. For a
+  cloud-free setup, unpair the Garmin Connect app (or disable its sync) and let Gadgetbridge
+  and USB be the only readers.
 - The Helio Strap's sleep comes from the band's own **sleep session reports**
-  (`HUAMI_SLEEP_SESSION_SAMPLE`, stages light/deep/REM/awake with a score), exactly as
-  Gadgetbridge displays it. The per-minute flags are only a fallback for databases without such
-  reports, interpreted with Gadgetbridge's thresholds.
+  (`HUAMI_SLEEP_SESSION_SAMPLE`, stages light/deep/REM/awake with a score), the same data
+  current Gadgetbridge code overlays on its charts. Gadgetbridge 0.95.1 still shows the older
+  estimate from the per-minute flags (every minute the band flags as "sleep"), which came out
+  about 40 minutes longer than the band's own session on the first night. The per-minute flags
+  are only a fallback here, for databases without session reports, interpreted with
+  Gadgetbridge's thresholds.
+- Garmin's sleep start and end are the watch's **sleep window** (event 74 in the sleep file,
+  bedtime to wake-up, what Garmin Connect shows as the sleep period). Minutes inside the window
+  without a stage record are stored as `unmeasurable` stages so the gap stays visible.
 
 `garmin_usb` and `gadgetbridge_garmin` describe the same watch, so their readings overlap. They
 are kept apart in the sample tables and in `daily_summary` (one row per source and day). The
@@ -398,8 +406,9 @@ strap HRV (400 values, identical), strap stress and resting HR (identical), stra
 (stages and score as Gadgetbridge computes them). Garmin sleep stages are read from
 `sleep_level` exactly as Gadgetbridge does; the night's stage sequence and the sleep assessment
 scores (overall, quality, recovery, awakenings, average stress) were confirmed against the FIT
-file. Still open: whether the Garmin sleep window should start at the watch's `sleep` event
-(bedtime) rather than at the first stage record, and the Helio Strap's SpO2 table (no samples yet).
+file; the sleep start (23:10) and HRV (40 ms) matched Garmin Connect. Still open: the Helio
+Strap's SpO2 table (no samples yet) and Garmin SpO2 for the whole night, which only reaches
+wristpull when no other app syncs the watch first (see "Sources and how they relate").
 
 Conventions worth knowing:
 

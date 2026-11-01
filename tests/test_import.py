@@ -28,7 +28,7 @@ def test_import_from_tree_and_idempotent(conn, config, garmin_tree: Path):
     assert (again.found, again.new, again.skipped) == (5, 0, 5)
     assert table_count(conn, "heart_rate") == 672
     assert table_count(conn, "activities") == 1
-    assert table_count(conn, "sleep_stages") == 11
+    assert table_count(conn, "sleep_stages") == 12
 
     # daily summary was rebuilt
     day = conn.execute("SELECT * FROM daily_summary WHERE local_date = '2026-10-06'").fetchone()

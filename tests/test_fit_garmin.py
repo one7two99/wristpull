@@ -2,7 +2,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from conftest import build_activity_fit, build_hrv_fit, build_metrics_fit, build_monitor_fit, build_sleep_fit
+from conftest import build_activity_fit, build_hrv_fit, build_metrics_fit, build_monitor_fit, build_sleep_fit, file_id, ts
 from wristpull.fit.decode import decode_fit, summarize
 from wristpull.fit.garmin import compute_timestamp16, parse_fit
 
@@ -59,17 +59,20 @@ def test_sleep_file_rows():
     rows = parse_fit(decode_fit(build_sleep_fit()), TZ, SRC)
     assert len(rows.sleep) == 1
     night = rows.sleep[0]
-    assert night.row["start_utc"] == "2026-10-05T21:30:00Z"
+    # the sleep window (event 74) opens 20 minutes before the first stage record
+    assert night.row["start_utc"] == "2026-10-05T21:10:00Z"
     assert night.row["end_utc"] == "2026-10-06T05:20:00Z"
     assert night.row["local_date"] == "2026-10-06"
     assert night.row["awake_s"] == (10 + 5) * 60
     assert night.row["deep_s"] == (50 + 40) * 60
     assert night.row["rem_s"] == 30 * 60
     assert night.row["light_s"] == (30 + 30 + 150 + 80 + 45) * 60
-    assert night.row["duration_s"] == 470 * 60 - night.row["awake_s"]
+    assert night.row["unmeasurable_s"] == 20 * 60
+    assert night.row["duration_s"] == 490 * 60 - night.row["awake_s"]
     assert night.row["score"] == 78 and night.row["awakenings"] == 2 and night.row["avg_stress"] == 21.5
-    assert len(night.stages) == 11
-    assert night.stages[0] == {"start_utc": "2026-10-05T21:30:00Z", "end_utc": "2026-10-05T21:40:00Z", "stage": "awake"}
+    assert len(night.stages) == 12
+    assert night.stages[0] == {"start_utc": "2026-10-05T21:10:00Z", "end_utc": "2026-10-05T21:30:00Z", "stage": "unmeasurable"}
+    assert night.stages[1] == {"start_utc": "2026-10-05T21:30:00Z", "end_utc": "2026-10-05T21:40:00Z", "stage": "awake"}
     assert night.stages[-1]["stage"] == "awake" and night.stages[-1]["start_utc"] == night.stages[-1]["end_utc"]
 
 
@@ -117,3 +120,22 @@ def test_summarize_lists_unknown_fields():
     assert "0:stress_level_value" in keys and "1:stress_level_time" in keys
     assert "3:unknown_3" in keys  # body battery, undocumented in the SDK profile
     assert "19:active_calories" in summary["monitoring"]["fields"]
+
+
+def test_sleep_windows_and_unmatched_events():
+    from datetime import UTC, datetime, timedelta
+
+    from fitwriter import FitWriter
+    from wristpull.fit.garmin import sleep_windows
+
+    start = datetime(2026, 10, 5, 22, 0, tzinfo=UTC)
+    w = FitWriter()
+    file_id(w, 49, start)
+    w.message(21, [(253, "uint32", ts(start)), (0, "enum", 74), (1, "enum", 0)])  # start without stop
+    w.message(21, [(253, "uint32", ts(start + timedelta(hours=1))), (0, "enum", 74), (1, "enum", 0)])
+    w.message(21, [(253, "uint32", ts(start + timedelta(hours=2))), (0, "enum", 0), (1, "enum", 1)])  # other event
+    w.message(21, [(253, "uint32", ts(start + timedelta(hours=8))), (0, "enum", 74), (1, "enum", 1)])
+    fit = decode_fit(w.finish())
+    assert sleep_windows(fit) == [(start + timedelta(hours=1), start + timedelta(hours=8))]
+    # a sleep file without stage records yields no night, window or not
+    assert parse_fit(fit, TZ, SRC).sleep == []
