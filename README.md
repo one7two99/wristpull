@@ -1,3 +1,5 @@
+<img src="docs/logos/wristpull-g-logo.svg" alt="wristpull" width="260">
+
 # wristpull
 
 Collects health and training data from wearables **without any vendor cloud**, stores the raw

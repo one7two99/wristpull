@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
 <title>wristpull</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M20.72%209.28A9.5%209.5%200%201%200%2020.72%2022.72%22%20fill%3D%22none%22%20stroke%3D%22%23141518%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22butt%22%20stroke-linejoin%3D%22miter%22%20stroke-miterlimit%3D%2210%22/%3E%3Ccircle%20cx%3D%2214%22%20cy%3D%2216%22%20r%3D%223.6%22%20fill%3D%22%23e5342e%22/%3E%3Cpath%20d%3D%22M14%2016H24%22%20fill%3D%22none%22%20stroke%3D%22%23e5342e%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22butt%22%20stroke-linejoin%3D%22miter%22%20stroke-miterlimit%3D%2210%22/%3E%3Cpath%20d%3D%22M23%2010L30%2016L23%2022Z%22%20fill%3D%22%23e5342e%22/%3E%3C/svg%3E">
 <meta name="description" content="wristpull pulls your wearable data off the watch and the phone, keeps it in a local SQLite and lets you pick the LLM that coaches you. No cloud, no subscription.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,600;1,500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@600;700&display=swap">
 <style>
-/* Layout: a terminal session narrated like a field manual. Left-aligned, one measure, mono labels, amber as the only loud colour. */
+/* Layout: a terminal session narrated like a field manual. Left-aligned, one measure, mono labels, the logo red as the only loud colour. */
 :root {
   --bg: #0e1218;
   --bg-2: #141a23;
@@ -17,12 +18,12 @@
   --line: #2a3443;
   --fg: #dfe6ee;
   --fg-2: #9aa7b6;
-  --accent: #f2b45a;        /* amber: the watch face backlight */
-  --accent-ink: #1a1206;
+  --accent: #f0514b;        /* the logo red, lifted a little for dark ground */
+  --accent-ink: #ffffff;
   --data: #6fc3c9;          /* teal for data and links */
   --good: #7fcf8a;
   --warn: #e9a06c;
-  --display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --display: "Sora", "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   color-scheme: dark;
@@ -30,13 +31,13 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f6f3ec; --bg-2: #efebe1; --panel: #ffffff; --line: #d9d2c3; --fg: #1b2028; --fg-2: #58606c;
-    --accent: #b86f0e; --accent-ink: #fff7e8; --data: #0f7f86; --good: #2d8a46; --warn: #b4651a;
+    --accent: #e5342e; --accent-ink: #ffffff; --data: #0f7f86; --good: #2d8a46; --warn: #b4651a;
     color-scheme: light;
   }
 }
 :root[data-theme="light"] {
   --bg: #f6f3ec; --bg-2: #efebe1; --panel: #ffffff; --line: #d9d2c3; --fg: #1b2028; --fg-2: #58606c;
-  --accent: #b86f0e; --accent-ink: #fff7e8; --data: #0f7f86; --good: #2d8a46; --warn: #b4651a;
+  --accent: #e5342e; --accent-ink: #ffffff; --data: #0f7f86; --good: #2d8a46; --warn: #b4651a;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
@@ -49,9 +50,9 @@ a { color: var(--data); text-decoration-thickness: 1px; text-underline-offset: 3
 a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .wrap { max-width: 1040px; margin: 0 auto; }
 .measure { max-width: 68ch; }
-h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.15; text-wrap: balance; margin: 0; }
-h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); }
-h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.12; text-wrap: balance; margin: 0; letter-spacing: -0.02em; }
+h1 { font-size: clamp(2.1rem, 4.6vw, 3.3rem); font-weight: 700; }
+h2 { font-size: clamp(1.5rem, 2.8vw, 2rem); }
 h3 { font-size: 1.2rem; font-family: var(--body); font-weight: 600; }
 p { margin: 0; }
 .eyebrow { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
@@ -69,8 +70,11 @@ section.hero { border-top: 0; padding-top: clamp(3rem, 8vw, 6rem); }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.2rem 1.3rem; display: grid; gap: 0.5rem; align-content: start; }
 .card h3 { margin-top: 0.1rem; }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-block: 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.brand { font-family: var(--mono); font-weight: 600; letter-spacing: 0.04em; }
+.brand { display: inline-flex; align-items: center; gap: 0.55rem; font-family: var(--display); font-weight: 600; font-size: 1.35rem; letter-spacing: -0.03em; color: var(--fg); text-decoration: none; }
 .brand span { color: var(--accent); }
+.mark { width: 1.6em; height: 1.6em; flex: none; color: var(--fg); }
+.hero .mark { width: 72px; height: 72px; }
+.hero-head { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
 nav a { margin-left: 1rem; font-family: var(--mono); font-size: 0.85rem; text-decoration: none; color: var(--fg-2); }
 nav a:hover { color: var(--fg); }
 .hero-grid { display: grid; gap: 2.5rem; grid-template-columns: 1fr; }
@@ -123,16 +127,16 @@ footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--
 <div class="wrap">
 
 <header class="topbar">
-  <div class="brand">wrist<span>pull</span></div>
+  <a class="brand" href="#top" aria-label="wristpull"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><circle cx="14" cy="16" r="3.6" fill="var(--accent)"/><path d="M14 16H24" fill="none" stroke="var(--accent)" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><path d="M23 10L30 16L23 22Z" fill="var(--accent)"/></svg><span class="word">wrist<span>pull</span></span></a>
   <nav aria-label="Sections">
     <a href="#why">Why</a><a href="#how">How</a><a href="#features">Features</a><a href="#llm">LLMs</a><a href="#screens">Screens</a><a href="#roadmap">Roadmap</a><a href="#support">Support</a>
   </nav>
 </header>
 
-<section class="hero">
+<section class="hero" id="top">
   <div class="hero-grid">
     <div class="stack">
-      <p class="eyebrow">Local-first wearable data · Python · SQLite · your choice of LLM</p>
+      <div class="hero-head"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><circle cx="14" cy="16" r="3.6" fill="var(--accent)"/><path d="M14 16H24" fill="none" stroke="var(--accent)" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><path d="M23 10L30 16L23 22Z" fill="var(--accent)"/></svg><p class="eyebrow">Local-first wearable data · Python · SQLite · your choice of LLM</p></div>
       <h1>Your body produces the data. Your machine should hold it.</h1>
       <p class="lede">wristpull pulls the raw files off a Garmin watch over USB and the Gadgetbridge export off your phone over ADB, normalises everything into one local SQLite database and lets a language model of <em>your</em> choosing coach you. No vendor cloud. No subscription. No account.</p>
       <p class="measure dim">It currently runs every day with a <b>Garmin fenix 6X Pro</b> <em>and</em> an <b>Amazfit Helio Strap</b> worn side by side. Those two are examples, not requirements: they are simply the devices the project owner wears. Anything Gadgetbridge can read, or any watch that exposes its FIT files, is a candidate source.</p>
@@ -317,7 +321,7 @@ Recovered: resting HR 47 bpm is below your 7-day mean of 52 …
 </section>
 
 <footer>
-  <div>wristpull · MIT licence · Python 3.14 · built for people who read their own logs</div>
+  <div style="display:flex;align-items:center;gap:0.6rem"><svg class="mark" style="width:1.3rem;height:1.3rem" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><circle cx="14" cy="16" r="3.6" fill="var(--accent)"/><path d="M14 16H24" fill="none" stroke="var(--accent)" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><path d="M23 10L30 16L23 22Z" fill="var(--accent)"/></svg>wristpull · MIT licence · Python 3.14 · built for people who read their own logs</div>
   <div class="mono">no cookies · no analytics · no cloud</div>
 </footer>
 
