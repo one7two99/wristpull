@@ -185,6 +185,6 @@ resting HR); a one-line daily `journal`; the weekly plan as an ICS calendar file
   transport tests, price table, `verify_numbers`, `coach weekly|rate`.
 - **C3:** goal wizard (`profile.py`, `coach profile --wizard`, marker merge), TUI screen 9 with
   runs table left, answer as Markdown right, rating, wizard modal, prompt editor; mockup
-  `mockups/11-coach.txt`, catalog, README.
+  catalog, README.
 - **C4:** journal, systemd timer for the morning run, plan adherence from the activities, ICS
   export, opt-in live test (skipped without an API key).

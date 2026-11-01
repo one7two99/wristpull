@@ -1,6 +1,6 @@
 # wristpull TUI – concept
 
-Status: implemented (MVP 2026-10-31, second wave 2026-11-01: activities, sleep, export & report form, editable settings, cooperative cancel). Snapshot tests remain open. Mockups live in [`../mockups/`](../mockups/README.md).
+Status: implemented (MVP 2026-10-31, second wave 2026-11-01: activities, sleep, export & report form, editable settings, cooperative cancel). Snapshot tests remain open. The text mockups that guided the build were removed after the screens existed; `../screenshots/` holds renders of the real TUI.
 
 ## Why
 
@@ -27,7 +27,7 @@ only through individual commands and `sqlite3`. The TUI should
 - **Keyboard first, mouse works too.** Digits switch screens, letters trigger actions, `/` opens the
   command palette, `?` the help overlay, `F12` toggles the language.
 - **Readable at 100×30, usable from 80×24** (narrow columns collapse).
-- **Health data stays local.** The TUI writes nothing into the repository; mockups and tests use
+- **Health data stays local.** The TUI writes nothing into the repository; screenshots and tests use
   synthetic values only.
 
 ## Screens

@@ -556,6 +556,6 @@ real health data is needed or allowed in the repository. Code, comments and comm
 2. ~~`pull phone`: Gadgetbridge database and FIT files via ADB, Helio Strap parsing~~ (done before wave 2 because the devices were set up first)
 3. ~~`export --for-claude --from --to` (compact Markdown + CSV) and `report week|month`, merging the Garmin sources~~
 4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
-5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), mockups in [mockups/](mockups/README.md)
+5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [screenshots/](screenshots/README.md)
 6. Training coach via LLM: ~~C1 daily check and questions with Ollama, goal profile, local memory~~ ~~C2 weekly review, Claude API and OpenRouter backends, number check, ratings~~ ~~C3 goal wizard, TUI coach screen~~ — next: journal, systemd timer, plan adherence, ICS export; concept in [docs/coach-concept.md](docs/coach-concept.md)
 7. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)
