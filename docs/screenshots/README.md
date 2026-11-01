@@ -3,7 +3,7 @@
 Headless renders of the terminal UI (`wristpull tui`), produced from the **synthetic test fixtures**
 (`tests/conftest.py`, `tests/gb_db.py`) with Textual's `save_screenshot`. No real health data: every
 number, date and name is invented, device identifiers are placeholders, the home directory is
-`/home/alice`. They illustrate the layout in the README and in `website/index.html`.
+`/home/alice`. They illustrate the layout in the README and on the project page `docs/index.html`.
 
 | File | Screen |
 |---|---|

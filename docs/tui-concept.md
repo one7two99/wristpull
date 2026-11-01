@@ -1,6 +1,6 @@
 # wristpull TUI – concept
 
-Status: implemented (MVP 2026-10-31, second wave 2026-11-01: activities, sleep, export & report form, editable settings, cooperative cancel). Snapshot tests remain open. The text mockups that guided the build were removed after the screens existed; `../screenshots/` holds renders of the real TUI.
+Status: implemented (MVP 2026-10-31, second wave 2026-11-01: activities, sleep, export & report form, editable settings, cooperative cancel). Snapshot tests remain open. The text mockups that guided the build were removed after the screens existed; `screenshots/` (next to this file) holds renders of the real TUI.
 
 ## Why
 

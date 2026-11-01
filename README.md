@@ -404,10 +404,12 @@ first contact `Monitor/` held just the current day), so import regularly, ideall
 
 ## Website and screenshots
 
-`website/index.html` is a static one-page presentation of the project (reasons, pipeline, features,
-LLM choice, screens, how to support it); `screenshots/` holds the pseudonymised TUI renders it uses,
-produced from the synthetic test fixtures only. Open the page locally with
-`python3 -m http.server 8000` from the repository root and visit `/website/`.
+`docs/index.html` is a static one-page presentation of the project (reasons, pipeline, features,
+LLM choice, screens, roadmap, how to support it); `docs/screenshots/` holds the pseudonymised TUI
+renders it uses, produced from the synthetic test fixtures only, and `docs/logos/` the logo. The
+`docs/` folder is laid out for GitHub Pages ("deploy from a branch", folder `/docs`; `.nojekyll`
+keeps the files as they are). Locally: `python3 -m http.server 8000` from the repository root and
+open `/docs/`.
 
 ## Data layout
 
@@ -556,6 +558,6 @@ real health data is needed or allowed in the repository. Code, comments and comm
 2. ~~`pull phone`: Gadgetbridge database and FIT files via ADB, Helio Strap parsing~~ (done before wave 2 because the devices were set up first)
 3. ~~`export --for-claude --from --to` (compact Markdown + CSV) and `report week|month`, merging the Garmin sources~~
 4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
-5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [screenshots/](screenshots/README.md)
+5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [docs/screenshots/](docs/screenshots/README.md)
 6. Training coach via LLM: ~~C1 daily check and questions with Ollama, goal profile, local memory~~ ~~C2 weekly review, Claude API and OpenRouter backends, number check, ratings~~ ~~C3 goal wizard, TUI coach screen~~ — next: journal, systemd timer, plan adherence, ICS export; concept in [docs/coach-concept.md](docs/coach-concept.md)
 7. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)
