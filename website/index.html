@@ -125,7 +125,7 @@ footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--
 <header class="topbar">
   <div class="brand">wrist<span>pull</span></div>
   <nav aria-label="Sections">
-    <a href="#why">Why</a><a href="#how">How</a><a href="#features">Features</a><a href="#llm">LLMs</a><a href="#screens">Screens</a><a href="#support">Support</a>
+    <a href="#why">Why</a><a href="#how">How</a><a href="#features">Features</a><a href="#llm">LLMs</a><a href="#screens">Screens</a><a href="#roadmap">Roadmap</a><a href="#support">Support</a>
   </nav>
 </header>
 
@@ -280,6 +280,20 @@ Recovered: resting HR 47 bpm is below your 7-day mean of 52 …
     <div class="note"><h3>Not a medical device</h3><p>The coach is told to refuse diagnoses and to send you to a doctor when values look pathological. Treat it as a training partner with a good memory, not as a clinician.</p></div>
     <div class="note"><h3>Early and opinionated</h3><p>Verified on one fenix 6X Pro, one Amazfit Helio Strap and a handful of nights. Other watches will need parser work. Field mappings that are still unconfirmed are listed in the README and shown in the UI.</p></div>
     <div class="note"><h3>Sync is a race</h3><p>A Garmin watch deletes monitoring files once any app has fetched them. If Garmin Connect syncs first, those hours are gone for everyone else. wristpull documents the order that keeps your data complete, but it cannot win a race you let the vendor app start.</p></div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="stack">
+    <p class="eyebrow">Roadmap</p>
+    <h2>Where this is going</h2>
+    <p class="measure">The CLI, the terminal UI and the coach exist and are used every morning. The next steps widen who can use the data and where, without touching the principle: the SQLite file on your machine stays the single source of truth.</p>
+  </div>
+  <div class="grid" style="margin-top:2rem">
+    <div class="card"><p class="eyebrow">next</p><h3>Web app for metrics</h3><p>A local web dashboard over the same database: trends across months, heart-rate zones per week, sleep consistency, source comparison Garmin vs strap, the coach's advice next to what actually happened. Served from your machine or your home server, no account, readable on any screen in the house.</p></div>
+    <div class="card"><p class="eyebrow">planned</p><h3>Android app</h3><p>Pull the Gadgetbridge export on the phone itself and sync the database to your computer over your own network, so the laptop and the cable become optional. Same tables, same files, same coach; the phone is a courier, not a cloud.</p></div>
+    <div class="card"><p class="eyebrow">soon</p><h3>Automation</h3><p>A udev rule that imports when the watch is plugged in, a systemd timer for the phone pull and the morning check, a one-line daily journal the coach reads, the weekly plan as a calendar file.</p></div>
+    <div class="card"><p class="eyebrow">on request</p><h3>Features you need</h3><p>More devices, another source such as nutrition or a scale, a different LLM backend, a metric the coach should track: open an issue and describe the use case. Small, well-scoped requests from people who run the tool shape the roadmap more than any plan.</p></div>
   </div>
 </section>
 
