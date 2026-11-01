@@ -22,7 +22,7 @@ def test_build_daily_sections(conn, config, garmin_tree: Path, tmp_path: Path):
     assert "running" in body["Activities, last 7 days"] and "load" in body["Activities, last 7 days"]
     assert body["Last 7 days"].count("\n") == 3  # header, separator, two data rows
     assert "only 2 days of history" in body["Training load"]
-    assert "from 1 earlier day" in body["Trends (latest day vs baselines)"]
+    assert "no earlier days to compare with" in body["Trends (latest day vs baselines)"]
     assert "legs heavy" in body["Athlete's journal"] and "easy run" in body["Previous coaching"]
     assert "missing is not zero" in body["Data caveats"] and "Only 2 days with any data" in body["Data caveats"]
     assert pkg.facts["days_with_garmin_7d"] == 2 and pkg.facts["load"]["history_days"] == 2
