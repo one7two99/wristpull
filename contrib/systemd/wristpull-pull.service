@@ -1,0 +1,8 @@
+[Unit]
+Description=wristpull: pull Gadgetbridge export and FIT files from the phone
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alice/dev/wristpull
+ExecStart=/usr/bin/env uv run wristpull -q pull phone

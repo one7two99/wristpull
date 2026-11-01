@@ -1,6 +1,6 @@
 # wristpull training coach – concept
 
-Status: concept approved 2026-11-01; waves C1 to C3 implemented the same day (`wristpull coach daily|weekly|ask|show|rate|profile [--wizard]`; Ollama, Claude SDK and OpenRouter backends; number check; TUI screen 9 with goal wizard). Implementation waves at the end.
+Status: concept approved 2026-11-01; waves C1 to C4 implemented the same day (`wristpull coach daily|weekly|ask|show|rate|profile [--wizard]|note|notes|plan-ics`; Ollama, Claude SDK and OpenRouter backends; number check; TUI screen 9 with goal wizard and journal; plan adherence; systemd/udev templates under `contrib/`). Implementation waves at the end.
 
 ## Why
 

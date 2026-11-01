@@ -1,0 +1,10 @@
+[Unit]
+Description=wristpull: pull the phone every morning
+
+[Timer]
+OnCalendar=*-*-* 06:45:00
+OnBootSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

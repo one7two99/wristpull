@@ -104,6 +104,12 @@ def build_gb_db(path: Path, *, start: datetime | None = None, sleep_session: boo
         "INSERT INTO BASE_ACTIVITY_SUMMARY VALUES (1, 'Evening walk', ?, ?, NULL, 64, NULL, NULL, NULL, NULL, NULL, NULL, 2, 1, ?, NULL)",
         (int(w_start.timestamp()) * 1000, int((w_start + timedelta(minutes=26)).timestamp()) * 1000, json.dumps(summary)),
     )
+    # an accidental 3-minute start without any values (kind 0): must be skipped on import
+    blip = start + timedelta(minutes=250)
+    conn.execute(
+        "INSERT INTO BASE_ACTIVITY_SUMMARY VALUES (2, NULL, ?, ?, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, 2, 1, '{}', NULL)",
+        (int(blip.timestamp()) * 1000, int((blip + timedelta(minutes=3)).timestamp()) * 1000),
+    )
     conn.commit()
     conn.close()
     return path

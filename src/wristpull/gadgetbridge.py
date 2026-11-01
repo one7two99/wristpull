@@ -377,6 +377,15 @@ def _summary_value(summary: dict[str, Any], *keys: str) -> float | None:
     return None
 
 
+MIN_WORKOUT_SECONDS = 300
+
+
+def is_accidental_workout(elapsed_s: float | None, timer_s: float | None, distance_m: float | None, avg_hr: float | None) -> bool:
+    """Shorter than five minutes and without distance or heart rate: an accidental start, not training."""
+    duration = max(elapsed_s or 0, timer_s or 0)
+    return duration < MIN_WORKOUT_SECONDS and not distance_m and avg_hr is None
+
+
 def _workouts(conn: sqlite3.Connection, device: GbDevice, tz: ZoneInfo, src: str) -> list[ParsedActivity]:
     out: list[ParsedActivity] = []
     for r in _rows(conn, "BASE_ACTIVITY_SUMMARY", device.id, order="START_TIME"):
@@ -388,6 +397,9 @@ def _workouts(conn: sqlite3.Connection, device: GbDevice, tz: ZoneInfo, src: str
         avg_hr = _summary_value(summary, "averageHR", "avgHeartRate")
         max_hr = _summary_value(summary, "maxHR", "maxHeartRate")
         timer = _summary_value(summary, "activeSeconds", "activeTime")
+        elapsed = (end - start).total_seconds() if end else None
+        if is_accidental_workout(elapsed, timer, _summary_value(summary, "distanceMeters", "distance"), avg_hr):
+            continue  # a few minutes with no values: the band was started by mistake
         out.append(
             ParsedActivity(
                 row={

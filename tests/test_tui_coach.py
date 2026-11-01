@@ -66,6 +66,17 @@ def test_coach_screen_runs_rates_and_asks(config: Config, tmp_path: Path, garmin
             await wait_jobs(app)
             await pilot.pause()
             assert len(fake.requests) == 2 and "Dry run" in str(screen.query_one("#coach-answer", Panel).content)
+            # journal note through the same input field (n toggles the mode)
+            await pilot.press("n")
+            await pilot.pause()
+            assert screen.input_mode == "note"
+            box.value = "legs heavy"
+            await pilot.press("enter")
+            await pilot.pause()
+            from wristpull.coach.store import recent_notes
+
+            assert recent_notes(app.conn, 1)[0]["note"] == "legs heavy" and screen.input_mode == "ask"
+            assert "Journal 2026-10-06: legs heavy" in str(screen.query_one("#coach-status", Panel).content)
             # editing goes through the injected hook
             opened: list[Path] = []
             deps.editor = opened.append

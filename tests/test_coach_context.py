@@ -12,10 +12,13 @@ TODAY = date(2026, 10, 6)
 def test_build_daily_sections(conn, config, garmin_tree: Path, tmp_path: Path):
     import_garmin(conn, config, path=garmin_tree)
     import_gadgetbridge_db(conn, config, build_gb_db(tmp_path / "Gadgetbridge.db"))
+    from wristpull.coach.store import add_note
+
+    add_note(conn, "2026-10-05", "slept badly")
     pkg = build_daily(conn, config, TODAY, digest="- 2026-10-05 daily: easy run", journal="legs heavy")
     titles = [s.title for s in pkg.sections]
     assert titles[:3] == ["Coverage", "Last night", "Yesterday"]
-    assert {"Activities, last 7 days", "Last 7 days", "Trends (latest day vs baselines)", "Training load", "Warning flags", "Athlete's journal", "Previous coaching", "Data caveats"} <= set(titles)
+    assert {"Activities, last 7 days", "Last 7 days", "Trends (latest day vs baselines)", "Training load", "Warning flags", "Athlete's journal (last 7 days)", "Previous coaching", "Data caveats"} <= set(titles)
     body = {s.title: s.body for s in pkg.sections}
     assert "Garmin data on 2 of the last 7 days" in body["Coverage"]
     assert body["Last night"].startswith("- garmin: in bed 23:10 to 07:20, slept 7.9 h") and "score 78" in body["Last night"]
@@ -23,7 +26,8 @@ def test_build_daily_sections(conn, config, garmin_tree: Path, tmp_path: Path):
     assert body["Last 7 days"].count("\n") == 3  # header, separator, two data rows
     assert "only 2 days of history" in body["Training load"]
     assert "no earlier days to compare with" in body["Trends (latest day vs baselines)"]
-    assert "legs heavy" in body["Athlete's journal"] and "easy run" in body["Previous coaching"]
+    journal = body["Athlete's journal (last 7 days)"]
+    assert "- 2026-10-05: slept badly" in journal and journal.endswith("legs heavy") and "easy run" in body["Previous coaching"]
     assert "missing is not zero" in body["Data caveats"] and "Only 2 days with any data" in body["Data caveats"]
     assert pkg.facts["days_with_garmin_7d"] == 2 and pkg.facts["load"]["history_days"] == 2
     rows = day_rows(conn, date(2026, 10, 1), TODAY)
@@ -93,3 +97,18 @@ def test_meaningful_frame_filters_blips(conn, config, tmp_path: Path):
     frame = pl.DataFrame({"duration_min": [3.0, 3.0, 45.0, None], "distance_km": [None, None, None, 2.0], "avg_hr": [None, 110, None, None]})
     assert meaningful_frame(frame)["duration_min"].to_list() == [3.0, 45.0, None]
     assert meaningful_frame(frame.clear()).is_empty()
+
+
+def test_build_weekly_adherence_and_journal(conn, config, garmin_tree: Path):
+    from wristpull.coach.store import add_note, save_run
+
+    import_garmin(conn, config, path=garmin_tree)
+    save_run(conn, kind="weekly", period_start="2026-09-28", period_end="2026-10-04", language="en", backend="fake", model="m", prompt_sha256="x", system_prompt="s", user_prompt="u",
+             answer_md="## Plan for next week\n| Day | Session | Duration | Intensity |\n|---|---|---|---|\n| Tue | Easy run | 30 min | easy |\n| Wed | Rest | | |\n## Numbers used\n-")
+    add_note(conn, "2026-10-06", "felt strong")
+    pkg = build_weekly(conn, config, date(2026, 10, 11))
+    body = {s.title: s.body for s in pkg.sections}
+    key = next(t for t in body if t.startswith("Plan adherence"))
+    assert "Tue 2026-10-06: planned Easy run 30 min, easy → running 30 min, avg HR" in body[key] and "✓" in body[key]
+    assert "Wed 2026-10-07" in body[key] and "rest ✓" in body[key]
+    assert body["Athlete's journal"] == "- 2026-10-06: felt strong" and pkg.facts["plan_rows"] == 2

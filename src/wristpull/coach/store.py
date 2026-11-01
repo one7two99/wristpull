@@ -83,3 +83,32 @@ def memory_digest(conn: sqlite3.Connection, lang: str, *, daily: int = 3, weekly
         out.append(line)
         total += len(line)
     return "\n".join(out)
+
+
+def add_note(conn: sqlite3.Connection, local_date: str, note: str) -> None:
+    """One journal line per local date; a second note on the same day is appended."""
+    text = note.strip()
+    if not text:
+        raise ValueError("empty note")
+    existing = conn.execute("SELECT note FROM journal WHERE local_date = ?", (local_date,)).fetchone()
+    if existing:
+        text = f"{existing['note']} · {text}"
+    conn.execute("INSERT OR REPLACE INTO journal (local_date, note, created_at_utc) VALUES (?, ?, ?)", (local_date, text, _now()))
+    conn.commit()
+
+
+def notes(conn: sqlite3.Connection, start: str, end: str) -> list[dict[str, Any]]:
+    return [dict(r) for r in conn.execute("SELECT local_date, note FROM journal WHERE local_date BETWEEN ? AND ? ORDER BY local_date", (start, end)).fetchall()]
+
+
+def recent_notes(conn: sqlite3.Connection, limit: int = 10) -> list[dict[str, Any]]:
+    return [dict(r) for r in conn.execute("SELECT local_date, note FROM journal ORDER BY local_date DESC LIMIT ?", (limit,)).fetchall()]
+
+
+def last_weekly_plan(conn: sqlite3.Connection, before: str) -> tuple[dict[str, Any], str] | None:
+    """The newest weekly run that planned the week starting at ``before`` (its period ended before that date), with its plan text."""
+    for run in conn.execute("SELECT * FROM coach_runs WHERE kind = 'weekly' AND status = 'ok' AND period_end < ? ORDER BY id DESC LIMIT 5", (before,)).fetchall():
+        sections = parse_sections(run["answer_md"] or "", "weekly", run["language"] or "en")
+        if sections.get("plan"):
+            return dict(run), sections["plan"]
+    return None

@@ -16,7 +16,7 @@ from textual.widgets import DataTable, Input
 
 from ...coach.profile import apply_wizard, load_profile, profile_path
 from ...coach.runner import CoachResult, resolve_language
-from ...coach.store import add_feedback, get_run, recent_runs
+from ...coach.store import add_feedback, add_note, get_run, recent_notes, recent_runs
 from ..format import fmt_datetime, fmt_float, fmt_int
 from ..i18n import _
 from ..jobs import JobRecord, coach_job
@@ -34,6 +34,7 @@ class CoachScreen(WristpullScreen):
         Binding("w", "run('weekly')", "Weekly", show=False),
         Binding("p", "dry_run", "Dry run", show=False),
         Binding("x", "app.cancel_job", "Stop", show=False),
+        Binding("n", "note_mode", "Journal note", show=False),
         Binding("g", "wizard", "Goal wizard", show=False),
         Binding("e", "edit_profile", "Edit profile", show=False),
         Binding("plus", "rate(1)", "Good", show=False),
@@ -45,12 +46,13 @@ class CoachScreen(WristpullScreen):
     def __init__(self) -> None:
         super().__init__()
         self.selected_run: int | None = None
+        self.input_mode = "ask"
 
     def screen_title(self) -> str:
         return _("Coach")
 
     def keys(self) -> list[tuple[str, str]]:
-        return [("d", _("daily")), ("w", _("weekly")), ("Enter", _("ask")), ("p", _("dry run")), ("x", _("stop")), ("+ − 0", _("rate")), ("g", _("goal wizard")), ("e", _("edit profile")), ("Esc", _("back"))]
+        return [("d", _("daily")), ("w", _("weekly")), ("Enter", _("ask")), ("n", _("journal note")), ("p", _("dry run")), ("x", _("stop")), ("+ − 0", _("rate")), ("g", _("goal wizard")), ("e", _("edit profile")), ("Esc", _("back"))]
 
     def body(self) -> ComposeResult:
         with Vertical(id="coach"):
@@ -78,6 +80,9 @@ class CoachScreen(WristpullScreen):
         ]
         if app.runner.busy and app.runner.active and app.runner.active.key.startswith("coach_"):
             status.append("⏳ " + _("running: {title}").format(title=app.runner.active.title))
+        latest = recent_notes(app.conn, 1)
+        if latest:
+            status.append(_("Journal {date}: {note}").format(date=latest[0]["local_date"], note=latest[0]["note"][:80]))
         self.query_one("#coach-status", Panel).set_lines(status)
         runs = recent_runs(app.conn, limit=50, status="ok") + recent_runs(app.conn, limit=10, status="dry_run") + recent_runs(app.conn, limit=10, status="error")
         runs.sort(key=lambda r: r["id"], reverse=True)
@@ -132,13 +137,30 @@ class CoachScreen(WristpullScreen):
 
     @on(Input.Submitted, "#question")
     def _ask(self, event: Input.Submitted) -> None:
-        question = event.value.strip()
-        if not question:
-            self.app.notify(_("Type a question first"), severity="warning")
+        text = event.value.strip()
+        if not text:
+            self.app.notify(_("Type a question first") if self.input_mode == "ask" else _("Type a note first"), severity="warning")
             return
         event.input.value = ""
-        self._start("ask", question=question)
+        if self.input_mode == "note":
+            add_note(self.app.conn, self.app.deps.today().isoformat(), text)
+            self.app.notify(_("Noted for today"))
+            self.action_note_mode()  # back to asking
+            self.refresh_data()
+        else:
+            self._start("ask", question=text)
         self.query_one("#runs", DataTable).focus()
+
+    def action_note_mode(self) -> None:
+        """Toggle the input between asking the coach and writing today's journal line."""
+        box = self.query_one("#question", Input)
+        if self.input_mode == "ask":
+            self.input_mode = "note"
+            box.placeholder = _("Journal for today (how you feel, what you did) and press Enter …")
+            box.focus()
+        else:
+            self.input_mode = "ask"
+            box.placeholder = _("Ask the coach a question and press Enter …")
 
     def action_rate(self, rating: int) -> None:
         if self.selected_run is None:

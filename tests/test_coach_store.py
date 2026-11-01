@@ -1,6 +1,6 @@
 import pytest
 
-from wristpull.coach.store import add_feedback, get_run, memory_digest, recent_runs, save_run
+from wristpull.coach.store import add_feedback, add_note, get_run, last_weekly_plan, memory_digest, notes, recent_notes, recent_runs, save_run
 
 
 def _run(conn, kind="daily", answer="## Status\nok\n## Today's suggestion\nEasy 40 min run.\n## Numbers used\n52", **extra):
@@ -41,3 +41,22 @@ def test_memory_digest_picks_suggestions_and_plans(conn):
     assert any("| Mon | rest |" in line for line in lines) and any("👎" in line for line in lines)
     assert all(len(line) < 460 for line in lines)
     assert memory_digest(conn, "en", max_chars=50) == ""
+
+
+def test_journal_notes(conn):
+    add_note(conn, "2026-10-05", "legs heavy")
+    add_note(conn, "2026-10-05", "slept badly")
+    add_note(conn, "2026-10-07", "great run")
+    assert notes(conn, "2026-10-01", "2026-10-06") == [{"local_date": "2026-10-05", "note": "legs heavy · slept badly"}]
+    assert [n["local_date"] for n in recent_notes(conn, 5)] == ["2026-10-07", "2026-10-05"]
+    with pytest.raises(ValueError):
+        add_note(conn, "2026-10-08", "   ")
+
+
+def test_last_weekly_plan(conn):
+    assert last_weekly_plan(conn, "2026-10-12") is None
+    _run(conn, kind="weekly", period_start="2026-09-28", period_end="2026-10-04", answer="## Week in review\nx\n## Plan for next week\n| Mon | Easy run | 40 min | easy |\n## Numbers used\n1")
+    _run(conn, kind="weekly", period_start="2026-10-05", period_end="2026-10-11", answer="## Week in review\nno plan section\n")
+    run, plan = last_weekly_plan(conn, "2026-10-12")
+    assert run["period_end"] == "2026-10-04" and "| Mon | Easy run |" in plan  # the run without a plan is skipped
+    assert last_weekly_plan(conn, "2026-10-01") is None

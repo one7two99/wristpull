@@ -1,0 +1,9 @@
+[Unit]
+Description=wristpull: import FIT files from the USB-connected Garmin watch
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alice/dev/wristpull
+# gio needs a moment to see the MTP device after udev fires
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/env uv run wristpull -q import garmin

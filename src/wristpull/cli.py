@@ -88,6 +88,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_profile = coach_sub.add_parser("profile", help="show the goal profile (path, open placeholders) or run the goal wizard")
     p_profile.add_argument("--wizard", action="store_true", help="answer multiple-choice questions and (re)generate the profile's wizard block")
     p_profile.add_argument("--lang", choices=["de", "en"], help="language of the generated profile text")
+    p_note = coach_sub.add_parser("note", help="write a one-line journal entry the coach reads (how you felt, what you did)")
+    p_note.add_argument("text")
+    p_note.add_argument("--date", help="local date (default today)")
+    p_notes = coach_sub.add_parser("notes", help="print recent journal entries")
+    p_notes.add_argument("--last", type=int, default=14)
+    p_ics = coach_sub.add_parser("plan-ics", help="write the last weekly plan as an iCalendar file")
+    p_ics.add_argument("--out", type=Path, help="target file (default <data_dir>/coach/plan-<week>.ics)")
+    p_ics.add_argument("--hour", type=int, default=7, help="start hour of timed sessions (default 7)")
     p_rate = coach_sub.add_parser("rate", help="rate a stored run: -1 (not useful), 0, 1 (useful); the coach sees it next time")
     p_rate.add_argument("run_id", type=int)
     p_rate.add_argument("rating", type=int, choices=[-1, 0, 1])
@@ -309,6 +317,49 @@ def cmd_coach(args: argparse.Namespace, config: Config) -> int:
             rating = {1: " 👍", 0: " 😐", -1: " 👎"}.get(run.get("rating"), "") if run.get("rating") is not None else ""
             print(f"--- #{run['id']} {run['kind']} {run['created_at_utc']} {run['backend']}/{run['model']} ({run['input_tokens'] or '?'} in / {run['output_tokens'] or '?'} out{cost}){rating}")
             print(run.get("answer_md") or "")
+        return 0
+    if args.coach_cmd == "note":
+        from datetime import date
+
+        from .aggregate import parse_date
+        from .coach.store import add_note
+
+        try:
+            day = parse_date(args.date) if args.date else date.today()
+            add_note(conn, day.isoformat(), args.text)
+        except ValueError as exc:
+            print(f"coach: {exc}", file=sys.stderr)
+            return 2
+        print(f"noted for {day.isoformat()}")
+        return 0
+    if args.coach_cmd == "notes":
+        from .coach.store import recent_notes
+
+        rows = recent_notes(conn, args.last)
+        if not rows:
+            print("no journal entries yet (wristpull coach note \"…\")")
+            return 1
+        for row in rows:
+            print(f"{row['local_date']}  {row['note']}")
+        return 0
+    if args.coach_cmd == "plan-ics":
+        from datetime import date, timedelta
+
+        from .coach.plan import parse_plan_table, plan_to_ics
+        from .coach.profile import coach_dir
+        from .coach.store import last_weekly_plan
+        from .timeutil import zone
+
+        planned = last_weekly_plan(conn, "9999-12-31")
+        rows = parse_plan_table(planned[1]) if planned else []
+        if not rows:
+            print("no weekly plan stored yet (run wristpull coach weekly first)", file=sys.stderr)
+            return 1
+        week_start = date.fromisoformat(planned[0]["period_end"]) + timedelta(days=1)
+        out = args.out or (coach_dir(config) / f"plan-{week_start.isoformat()}.ics")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(plan_to_ics(rows, week_start, zone(config.timezone), hour=args.hour), "utf-8")
+        print(f"wrote {len(rows)} events for the week of {week_start.isoformat()} to {out}")
         return 0
     if args.coach_cmd == "rate":
         from .coach.store import add_feedback

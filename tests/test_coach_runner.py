@@ -157,3 +157,30 @@ def test_verify_numbers():
     assert verify_numbers("7 h of sleep", data) == []  # integer part of a decimal in the data is accepted
     profile = "Goal: 5000m in 22min within 3 months, max HR 180bpm, age 51"
     assert verify_numbers("aim for 5000 m in 22 minutes at max 180", profile) == []  # units glued to numbers in the profile
+
+
+def test_coach_note_notes_and_plan_ics_cli(tmp_path: Path, capsys, monkeypatch):
+    from wristpull.db import connect
+    from wristpull.coach.store import save_run
+
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(f'[storage]\ndata_dir = "{tmp_path / "Health"}"\n[time]\ntimezone = "Europe/Berlin"\n', "utf-8")
+    assert main(["--config", str(cfg), "coach", "notes"]) == 1
+    assert main(["--config", str(cfg), "coach", "note", "legs heavy", "--date", "2026-10-05"]) == 0
+    assert main(["--config", str(cfg), "coach", "note", "   "]) == 2
+    capsys.readouterr()
+    assert main(["--config", str(cfg), "coach", "notes"]) == 0
+    assert "2026-10-05  legs heavy" in capsys.readouterr().out
+    assert main(["--config", str(cfg), "coach", "plan-ics"]) == 1
+    conn = connect(tmp_path / "Health" / "wristpull.sqlite")
+    save_run(conn, kind="weekly", period_start="2026-09-28", period_end="2026-10-04", language="en", backend="fake", model="m", prompt_sha256="x", system_prompt="s", user_prompt="u",
+             answer_md="## Plan for next week\n| Mon | Easy run | 40 min | easy |\n| Wed | Rest | | |\n## Numbers used\n-")
+    conn.close()
+    out = tmp_path / "plan.ics"
+    capsys.readouterr()
+    assert main(["--config", str(cfg), "coach", "plan-ics", "--out", str(out), "--hour", "18"]) == 0
+    assert "wrote 2 events for the week of 2026-10-05" in capsys.readouterr().out
+    text = out.read_text("utf-8")
+    assert "DTSTART;TZID=Europe/Berlin:20261005T180000" in text and "DTSTART;VALUE=DATE:20261007" in text
+    assert main(["--config", str(cfg), "coach", "plan-ics"]) == 0
+    assert (tmp_path / "Health" / "coach" / "plan-2026-10-05.ics").exists()

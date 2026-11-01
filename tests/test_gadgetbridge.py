@@ -45,7 +45,7 @@ def test_parse_strap_rows(tmp_path: Path):
     assert rows.spo2[0]["spo2_pct"] == 97 and rows.resting_hr[0]["resting_hr"] == 51
     assert rows.respiration[0]["breaths_per_min"] == 14.0 and rows.hrv_values[0]["rmssd_ms"] == 45.0
     assert {m["metric"]: m["value"] for m in rows.metrics} == {"pai_total": 41.5, "pai_today": 3.0}
-    # workout from BASE_ACTIVITY_SUMMARY
+    # workout from BASE_ACTIVITY_SUMMARY; the 3-minute accidental start (kind 0, no values) is skipped
     assert len(rows.activities) == 1
     act = rows.activities[0].row
     assert act["sport"] == "walking" and act["profile_name"] == "Evening walk"
@@ -114,3 +114,13 @@ def test_strap_daily_summary_uses_sleep_window_hrv(conn, config, tmp_path: Path)
     ).fetchone()
     assert row["sleep_duration_s"] == 90 * 60 and row["sleep_score"] == 70
     assert row["hrv_last_night_avg_ms"] == 45.0  # the one RMSSD sample lies inside the night
+
+
+def test_is_accidental_workout():
+    from wristpull.gadgetbridge import is_accidental_workout
+
+    assert is_accidental_workout(180, None, None, None)
+    assert not is_accidental_workout(180, None, None, 120)
+    assert not is_accidental_workout(180, None, 500.0, None)
+    assert not is_accidental_workout(900, None, None, None)
+    assert not is_accidental_workout(None, 600, None, None)

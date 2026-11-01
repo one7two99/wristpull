@@ -915,3 +915,18 @@ msgstr "Coach: Wochenrückblick"
 
 msgid "Coach: question"
 msgstr "Coach: Frage"
+
+msgid "journal note"
+msgstr "Journal-Notiz"
+
+msgid "Journal {date}: {note}"
+msgstr "Journal {date}: {note}"
+
+msgid "Type a note first"
+msgstr "Zuerst eine Notiz eingeben"
+
+msgid "Noted for today"
+msgstr "Für heute notiert"
+
+msgid "Journal for today (how you feel, what you did) and press Enter …"
+msgstr "Journal für heute (wie du dich fühlst, was du gemacht hast), dann Enter …"

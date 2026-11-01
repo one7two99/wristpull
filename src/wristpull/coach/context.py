@@ -15,6 +15,8 @@ from ..export import _fmt
 from ..timeutil import zone
 from . import metrics
 from .backends import estimate_tokens
+from .plan import adherence, parse_plan_table
+from .store import last_weekly_plan, notes
 
 DATA_CAVEATS = [
     "Sleep stage, HRV and SpO2 mappings were verified on one real night only; treat them as plausible, not certified.",
@@ -103,6 +105,10 @@ def _delta_line(label: str, d: dict[str, float | None], unit: str) -> str:
     return f"- {label}: " + ", ".join(parts)
 
 
+def journal_lines(conn: sqlite3.Connection, start: date, end: date) -> list[str]:
+    return [f"- {n['local_date']}: {n['note']}" for n in notes(conn, start.isoformat(), end.isoformat())]
+
+
 def build_daily(conn: sqlite3.Connection, config: Config, today: date, *, digest: str = "", journal: str | None = None, history_days: int = 35) -> DataPackage:
     """Last night, yesterday, the 7-day table, baselines, load and flags for the morning check."""
     tz = zone(config.timezone)
@@ -171,8 +177,11 @@ def build_daily(conn: sqlite3.Connection, config: Config, today: date, *, digest
 
     pkg.flags = metrics.recovery_flags(rows, load)
     pkg.add("Warning flags", "\n".join(f"- {f}" for f in pkg.flags) if pkg.flags else "- none", 95)
+    journal_text = "\n".join(journal_lines(conn, today - timedelta(days=6), today))
     if journal:
-        pkg.add("Athlete's journal", journal, 88)
+        journal_text = (journal_text + "\n" if journal_text else "") + journal
+    if journal_text:
+        pkg.add("Athlete's journal (last 7 days)", journal_text, 88)
     if digest:
         pkg.add("Previous coaching", digest, 50)
     caveats = list(DATA_CAVEATS)
@@ -260,6 +269,17 @@ def build_weekly(conn: sqlite3.Connection, config: Config, day: date, *, digest:
     pkg.add("Training load", load_text, 75)
     pkg.flags = metrics.recovery_flags(rows_all, load)
     pkg.add("Warning flags (latest day)", "\n".join(f"- {f}" for f in pkg.flags) if pkg.flags else "- none", 90)
+    planned = last_weekly_plan(conn, start.isoformat())
+    if planned:
+        run, plan_md = planned
+        rows = parse_plan_table(plan_md)
+        if rows:
+            lines = adherence(rows, start, list(acts.iter_rows(named=True)), tz)
+            pkg.add(f"Plan adherence (plan from {run['created_at_utc'][:10]})", "\n".join(lines), 78)
+            pkg.facts["plan_rows"] = len(rows)
+    week_journal = journal_lines(conn, start, end)
+    if week_journal:
+        pkg.add("Athlete's journal", "\n".join(week_journal), 82)
     if digest:
         pkg.add("Previous coaching", digest, 50)
     caveats = list(DATA_CAVEATS)
