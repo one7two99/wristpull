@@ -17,6 +17,9 @@ wristpull = "wristpull.cli:main"
 tui = [
     "textual>=8",
 ]
+coach = [
+    "anthropic>=1",
+]
 
 [dependency-groups]
 dev = [

@@ -12,13 +12,13 @@ from typing import Any
 
 from ..config import Config
 from .backends import Backend, ChatRequest, CoachError, make_backend
-from .context import build_daily, render
+from .context import build_daily, build_weekly, render
 from .profile import coach_dir, load_profile
-from .prompts import parse_sections, system_prompt, user_prompt
+from .prompts import parse_sections, system_prompt, user_prompt, verify_numbers
 from .store import memory_digest, save_run
 
 Log = Callable[[str], None]
-KINDS = ("daily", "ask")  # weekly follows in wave C2
+KINDS = ("daily", "weekly", "ask")
 
 
 @dataclass
@@ -79,7 +79,7 @@ def run_coach(
             raise CoachError(message + "; pass --force to run anyway")
         warnings.append(message)
     digest = memory_digest(conn, lang)
-    pkg = build_daily(conn, config, today, digest=digest)
+    pkg = build_weekly(conn, config, today, digest=digest) if kind == "weekly" else build_daily(conn, config, today, digest=digest)
     data_md, dropped = render(pkg, budget_tokens=config.coach.token_budget)
     if dropped:
         warnings.append("sections omitted for the token budget: " + ", ".join(dropped))
@@ -90,7 +90,7 @@ def run_coach(
         kind=kind, period_start=pkg.start.isoformat(), period_end=pkg.end.isoformat(), language=lang,
         profile_sha256=profile_sha, prompt_sha256=prompt_sha, system_prompt=system, user_prompt=user, question=question,
     )
-    chosen = backend or make_backend(config)
+    chosen = backend or make_backend(config, kind=kind)
     model = chosen.model
 
     if dry_run:
@@ -112,6 +112,9 @@ def run_coach(
     sections = parse_sections(response.text, kind, lang)
     if response.truncated:
         warnings.append("answer was cut off at max_tokens")
+    unknown = verify_numbers(response.text, data_md + "\n" + profile_md, section=sections.get("numbers"))
+    if unknown:
+        warnings.append("numbers not found in the data package: " + ", ".join(unknown[:12]) + (" …" if len(unknown) > 12 else ""))
     cost = response.cost_usd if response.cost_usd is not None else cost_estimate(config, response.model, response.input_tokens, response.output_tokens)
     run_id = save_run(
         conn,

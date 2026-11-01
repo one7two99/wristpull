@@ -2,7 +2,7 @@ from datetime import date
 from pathlib import Path
 
 from gb_db import build_gb_db
-from wristpull.coach.context import DataPackage, build_daily, day_rows, render
+from wristpull.coach.context import DataPackage, build_daily, build_weekly, day_rows, render, review_week
 from wristpull.importers.garmin import import_garmin
 from wristpull.importers.phone import import_gadgetbridge_db
 
@@ -59,3 +59,27 @@ def test_meaningful_activity_filter():
     assert meaningful_activity({"duration_min": 3.0, "distance_km": None, "avg_hr": 120})
     assert meaningful_activity({"duration_min": 45.0, "distance_km": None, "avg_hr": None})
     assert meaningful_activity({"duration_min": None, "distance_km": 1.2, "avg_hr": None})
+
+
+def test_review_week_rule():
+    assert review_week(date(2026, 11, 1)) == (date(2026, 10, 26), date(2026, 11, 1))  # Sunday: the current week
+    assert review_week(date(2026, 11, 2)) == (date(2026, 10, 26), date(2026, 11, 1))  # Monday: the week just finished
+    assert review_week(date(2026, 11, 5)) == (date(2026, 10, 26), date(2026, 11, 1))  # Thursday: still the last completed week
+
+
+def test_build_weekly_sections(conn, config, garmin_tree: Path, tmp_path: Path):
+    import_garmin(conn, config, path=garmin_tree)
+    import_gadgetbridge_db(conn, config, build_gb_db(tmp_path / "Gadgetbridge.db"))
+    pkg = build_weekly(conn, config, date(2026, 10, 11), digest="- earlier plan")  # Sunday of the week with the fixture data
+    body = {s.title: s.body for s in pkg.sections}
+    assert pkg.start == date(2026, 10, 5) and pkg.end == date(2026, 10, 11)
+    assert "ISO week 41" in body["Coverage"] and "Days with data: 2 (previous week 0)" in body["Coverage"]
+    assert body["Week vs previous week"].startswith("- steps per day:") and "training: 1 activities" in body["Week vs previous week"]
+    assert body["Days of the week"].count("\n") == 3
+    assert "running" in body["Activities"] and "TE " in body["Activities"]
+    assert "garmin" in body["Nights"] and "7.9 h" in body["Nights"]
+    assert "| week |" in body["Last 6 weeks"] and "2026-W41" in body["Last 6 weeks"]
+    assert "only 2 days of history" in body["Training load"]
+    assert body["Previous coaching"] == "- earlier plan" and "Only 2 of 7 days" in body["Data caveats"]
+    empty = build_weekly(conn, config, date(2026, 12, 6))
+    assert {s.title: s.body for s in empty.sections}["Week vs previous week"] == "No daily data in the review week."

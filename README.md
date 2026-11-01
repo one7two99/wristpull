@@ -195,20 +195,27 @@ authentication key, export and Intent API settings, ADB commands) is documented 
 
 #### `wristpull coach`
 
-The training coach sends an aggregated data package to an LLM and stores the answer. Wave C1
-covers the local **Ollama** backend; Claude API and OpenRouter follow (see
-[docs/coach-concept.md](docs/coach-concept.md)). Nothing leaves the machine with Ollama.
+The training coach sends an aggregated data package to an LLM and stores the answer. Backends:
+**Ollama** (local, nothing leaves the machine), **Claude API** (official SDK, optional extra
+`uv sync --extra coach`, key in `ANTHROPIC_API_KEY` or via `ant auth login`) and **OpenRouter**
+(key in `OPENROUTER_API_KEY`). Concept: [docs/coach-concept.md](docs/coach-concept.md).
 
 | Command | Effect |
 |---|---|
 | `coach daily` | morning check: last night, yesterday, 7-day table, baselines, training load, warning flags → status, a suggestion for today, things to watch, numbers used |
-| `coach ask "…"` | a free question over the same data package |
-| `coach show [--last N] [--kind K]` | print stored answers |
+| `coach weekly` | review of the last completed week (the current one when run on a Sunday) vs the week before: activities, nights, 6-week trend, load → review, recovery, load, a plan for next week (Mon–Sun), questions, numbers used |
+| `coach ask "…"` | a free question over the daily data package |
+| `coach show [--last N] [--kind K]` | print stored answers with their rating |
+| `coach rate RUN -1|0|1 [--note …]` | rate a run; the coach sees ratings and notes in later runs |
 | `coach profile` | path of the goal profile and its unfilled placeholders (exit 2 while some are open) |
 
-Options for `daily`/`ask`: `--backend`, `--model`, `--lang de|en`, `--date YYYY-MM-DD` (pretend
-today), `--dry-run` (write the full prompt to `<data_dir>/coach/dryrun/` instead of calling the
-model), `--force` (run although the profile still has placeholders).
+Options for `daily`/`weekly`/`ask`: `--backend ollama|claude|openrouter`, `--model`, `--lang de|en`,
+`--date YYYY-MM-DD` (pretend today), `--dry-run` (write the full prompt to `<data_dir>/coach/dryrun/`
+instead of calling the model), `--force` (run although the profile still has placeholders).
+`[coach] weekly_model` lets the weekly review use a larger model. The answer's "numbers used"
+section is checked against the data package; numbers that do not occur there are reported as a
+note so hallucinated values stand out. With Claude the request opts into the server-side refusal
+fallback, so a safety-classifier decline is retried on a fallback model inside the same call.
 
 The **goal profile** is a Markdown file at `<data_dir>/coach/profile.md`; the first run creates a
 template with `{{placeholders}}` for goals, event, time budget, constraints and so on. Fill it in
@@ -221,7 +228,9 @@ model is told to use only those numbers. Every run (prompts, answer, tokens, cos
 wristpull coach profile                          # where to edit the goal profile
 wristpull coach daily --dry-run                  # look at what would be sent
 wristpull coach daily                            # gemma3:4b via Ollama by default
+wristpull coach weekly --backend claude          # Sunday review with Claude (ANTHROPIC_API_KEY)
 wristpull coach ask "Is a long run sensible today?" --lang de
+wristpull coach rate 7 1 --note "did the easy run"
 ```
 
 #### `wristpull reparse`
@@ -295,10 +304,14 @@ range_days = 28                          # default period of the data screens an
 [coach]
 backend = "ollama"                       # ollama | claude | openrouter
 model = "gemma3:4b"
+weekly_model = ""                        # optional larger model for the weekly review
+api_key_env = ""                         # env var with the key; default ANTHROPIC_API_KEY / OPENROUTER_API_KEY
 ollama_url = "http://localhost:11434"
+num_ctx = 8192                           # Ollama context window
 max_tokens = 2000
 timeout_s = 600
-token_budget = 6000                      # size of the data package for local models
+token_budget = 6000                      # size of the data package (12000 is fine for Claude)
+effort = "medium"                        # Claude only
 language = ""                            # answer language, "" = UI language
 ```
 
@@ -501,5 +514,5 @@ real health data is needed or allowed in the repository. Code, comments and comm
 3. ~~`export --for-claude --from --to` (compact Markdown + CSV) and `report week|month`, merging the Garmin sources~~
 4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), mockups in [mockups/](mockups/README.md)
-6. Training coach via LLM: ~~C1 daily check and questions with Ollama, goal profile, local memory~~ — next: weekly review, Claude API and OpenRouter backends, goal wizard, TUI screen; concept in [docs/coach-concept.md](docs/coach-concept.md)
+6. Training coach via LLM: ~~C1 daily check and questions with Ollama, goal profile, local memory~~ ~~C2 weekly review, Claude API and OpenRouter backends, number check, ratings~~ — next: goal wizard, TUI screen, journal; concept in [docs/coach-concept.md](docs/coach-concept.md)
 7. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)

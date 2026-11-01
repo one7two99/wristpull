@@ -1,6 +1,6 @@
 # wristpull training coach – concept
 
-Status: concept approved 2026-11-01; wave C1 implemented the same day (`wristpull coach daily|ask|show|profile` with the Ollama backend). Implementation waves at the end.
+Status: concept approved 2026-11-01; waves C1 and C2 implemented the same day (`wristpull coach daily|weekly|ask|show|rate|profile`; Ollama, Claude SDK and OpenRouter backends; number check). Implementation waves at the end.
 
 ## Why
 

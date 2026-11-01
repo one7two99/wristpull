@@ -5,7 +5,7 @@ import urllib.error
 import pytest
 
 from wristpull.coach._http import HttpError, get_json, post_json, with_retries
-from wristpull.coach.backends import ChatRequest, CoachError, FakeBackend, OllamaBackend, estimate_tokens, make_backend
+from wristpull.coach.backends import ChatRequest, ClaudeBackend, CoachError, FakeBackend, OllamaBackend, OpenRouterBackend, api_key_for, estimate_tokens, make_backend
 from wristpull.config import Config
 
 
@@ -101,8 +101,6 @@ def test_fake_backend_and_factory():
     backend = make_backend(config)
     assert isinstance(backend, OllamaBackend) and backend.model == "gemma3:4b"
     assert make_backend(config, model="gemma3:12b", backend="ollama").model == "gemma3:12b"
-    with pytest.raises(CoachError, match="next coach wave"):
-        make_backend(config, backend="claude")
     with pytest.raises(CoachError, match="unknown"):
         make_backend(config, backend="nope")
 
@@ -119,3 +117,123 @@ def test_ollama_memory_error_is_not_retried():
         backend.complete(ChatRequest("s", "u", "gemma3:4b"))
     assert slept == []
     assert make_backend(Config()).num_ctx == 8192
+
+
+class _Block:
+    def __init__(self, text, type="text"):
+        self.text, self.type = text, type
+
+
+class _Usage:
+    input_tokens, output_tokens = 1500, 300
+
+
+class _Response:
+    def __init__(self, text="## Status\nok", stop_reason="end_turn"):
+        self.content = [_Block("ignored", "thinking"), _Block(text)]
+        self.usage = _Usage()
+        self.stop_reason = stop_reason
+        self.model = "claude-opus-5-5"
+        self.stop_details = None
+
+
+class _Messages:
+    def __init__(self, response, fail=None):
+        self.response, self.fail, self.calls = response, fail, []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.fail:
+            raise self.fail
+        return self.response
+
+
+class _FakeClaudeClient:
+    def __init__(self, response=None, fail=None):
+        self.messages = _Messages(response or _Response(), fail)
+        self.beta = type("Beta", (), {})()
+        self.beta.messages = _Messages(response or _Response(), fail)
+        self.models = type("Models", (), {"retrieve": lambda self_, model: {"id": model}})()
+
+
+def test_claude_backend_uses_fallbacks_for_current_models():
+    client = _FakeClaudeClient()
+    backend = ClaudeBackend("claude-opus-5-5", effort="high", client=client)
+    assert backend.check() == "claude claude-opus-5-5 ready"
+    response = backend.complete(ChatRequest(system="sys", user="usr", model="claude-opus-5-5", max_tokens=700))
+    assert response.text == "## Status\nok" and response.input_tokens == 1500 and response.output_tokens == 300
+    assert client.messages.calls == [] and len(client.beta.messages.calls) == 1
+    call = client.beta.messages.calls[0]
+    assert call["fallbacks"] == "default" and call["betas"] == ["server-side-fallback-2026-07-01"]
+    assert call["output_config"] == {"effort": "high"} and call["max_tokens"] == 700 and call["system"] == "sys"
+    assert "temperature" not in call and call["messages"] == [{"role": "user", "content": "usr"}]
+    # an older model goes through the plain endpoint
+    client = _FakeClaudeClient()
+    ClaudeBackend("claude-haiku-4-5", client=client).complete(ChatRequest("s", "u", "claude-haiku-4-5"))
+    assert len(client.messages.calls) == 1 and client.beta.messages.calls == []
+
+
+def test_claude_backend_refusal_and_errors():
+    import anthropic
+
+    client = _FakeClaudeClient(response=_Response(stop_reason="refusal"))
+    with pytest.raises(CoachError, match="declined"):
+        ClaudeBackend("claude-opus-5-5", client=client).complete(ChatRequest("s", "u", "claude-opus-5-5"))
+    import httpx2 as httpx
+
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    auth_error = anthropic.AuthenticationError("bad key", response=httpx.Response(401, request=request), body=None)
+    with pytest.raises(CoachError, match="API key missing or invalid"):
+        ClaudeBackend("claude-opus-5-5", client=_FakeClaudeClient(fail=auth_error)).complete(ChatRequest("s", "u", "claude-opus-5-5"))
+    rate = anthropic.RateLimitError("slow", response=httpx.Response(429, request=request), body=None)
+    with pytest.raises(CoachError, match="rate limited"):
+        ClaudeBackend("claude-opus-5-5", client=_FakeClaudeClient(fail=rate)).complete(ChatRequest("s", "u", "claude-opus-5-5"))
+    with pytest.raises(CoachError, match="empty"):
+        ClaudeBackend("claude-opus-5-5", client=_FakeClaudeClient(response=_Response(text="  "))).complete(ChatRequest("s", "u", "claude-opus-5-5"))
+
+
+def test_openrouter_backend():
+    opener = opener_with([
+        {"data": {"label": "wristpull key"}},
+        {"model": "anthropic/claude-sonnet-4.6", "choices": [{"message": {"role": "assistant", "content": "## Status\nfine"}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 900, "completion_tokens": 120, "cost": 0.0042}},
+    ])
+    backend = OpenRouterBackend("anthropic/claude-sonnet-4.6", api_key="sk-or-test", opener=opener, sleep=lambda _s: None)
+    assert backend.check() == "openrouter anthropic/claude-sonnet-4.6 ready (wristpull key)"
+    response = backend.complete(ChatRequest("sys", "usr", "anthropic/claude-sonnet-4.6", max_tokens=400))
+    assert response.text == "## Status\nfine" and response.cost_usd == 0.0042 and response.input_tokens == 900 and not response.truncated
+    method, url, body, _ = opener.calls[1]
+    assert url == "https://openrouter.ai/api/v1/chat/completions" and body["usage"] == {"include": True} and body["max_tokens"] == 400
+    req_headers = None
+    backend2 = OpenRouterBackend("m", api_key="sk", opener=opener_with([401]), sleep=lambda _s: None)
+    with pytest.raises(CoachError, match="API key invalid"):
+        backend2.complete(ChatRequest("s", "u", "m"))
+    backend3 = OpenRouterBackend("m", api_key="sk", opener=opener_with([{"error": {"message": "model is down"}}]), sleep=lambda _s: None)
+    with pytest.raises(CoachError, match="model is down"):
+        backend3.complete(ChatRequest("s", "u", "m"))
+    assert req_headers is None
+
+
+def test_api_key_resolution_and_factory_kinds():
+    config = Config()
+    env = {"ANTHROPIC_API_KEY": "a", "OPENROUTER_API_KEY": "o", "MY_KEY": "m"}.get
+    assert api_key_for(config, "claude", env) == "a" and api_key_for(config, "openrouter", env) == "o"
+    config.coach.api_key_env = "MY_KEY"
+    assert api_key_for(config, "claude", env) == "m"
+    config.coach.api_key_env = None
+    config.coach.weekly_model = "gemma3:12b"
+    assert make_backend(config, kind="weekly").model == "gemma3:12b" and make_backend(config, kind="daily").model == "gemma3:4b"
+    assert make_backend(config, kind="weekly", model="x").model == "x"
+    claude = make_backend(config, backend="claude")
+    assert isinstance(claude, ClaudeBackend) and claude.model == "gemma3:4b"  # model comes from the config, whatever it is
+    import os
+
+    saved = os.environ.pop("OPENROUTER_API_KEY", None)
+    try:
+        with pytest.raises(CoachError, match="needs an API key"):
+            make_backend(config, backend="openrouter")
+        os.environ["OPENROUTER_API_KEY"] = "sk-or"
+        assert isinstance(make_backend(config, backend="openrouter"), OpenRouterBackend)
+    finally:
+        os.environ.pop("OPENROUTER_API_KEY", None)
+        if saved is not None:
+            os.environ["OPENROUTER_API_KEY"] = saved

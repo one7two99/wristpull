@@ -6,7 +6,7 @@ import pytest
 from wristpull.cli import main
 from wristpull.coach.backends import CoachError, FakeBackend
 from wristpull.coach.profile import profile_path
-from wristpull.coach.prompts import parse_sections, system_prompt, unfilled_placeholders, user_prompt
+from wristpull.coach.prompts import parse_sections, system_prompt, unfilled_placeholders, user_prompt, verify_numbers
 from wristpull.coach.runner import cost_estimate, resolve_language, run_coach
 from wristpull.coach.store import recent_runs
 from wristpull.config import Config
@@ -58,7 +58,7 @@ def test_run_coach_daily_and_ask_with_fake_backend(conn, config, garmin_tree: Pa
     with pytest.raises(CoachError, match="question is required"):
         run_coach(conn, config, "ask", today=TODAY, backend=fake)
     with pytest.raises(CoachError, match="unknown coach run kind"):
-        run_coach(conn, config, "weekly", today=TODAY, backend=fake)
+        run_coach(conn, config, "monthly", today=TODAY, backend=fake)
 
 
 def test_run_coach_profile_placeholders_dry_run_and_errors(conn, config):
@@ -110,8 +110,8 @@ def test_coach_cli(tmp_path: Path, monkeypatch, capsys):
     assert "profile:" in out and "goals" in out
     from wristpull import cli
 
-    monkeypatch.setattr(cli, "make_backend", lambda config, model=None, backend=None: FakeBackend([ANSWER_EN]), raising=False)
-    monkeypatch.setattr("wristpull.coach.backends.make_backend", lambda config, model=None, backend=None: FakeBackend([ANSWER_EN]))
+    monkeypatch.setattr(cli, "make_backend", lambda config, model=None, backend=None, kind="daily": FakeBackend([ANSWER_EN]), raising=False)
+    monkeypatch.setattr("wristpull.coach.backends.make_backend", lambda config, model=None, backend=None, kind="daily": FakeBackend([ANSWER_EN]))
     assert main(["--config", str(cfg), "coach", "daily", "--date", "2026-10-06", "--dry-run"]) == 0
     assert "dry run #1" in capsys.readouterr().out
     assert main(["--config", str(cfg), "coach", "daily", "--date", "2026-10-06"]) == 1  # placeholders, no --force
@@ -121,3 +121,37 @@ def test_coach_cli(tmp_path: Path, monkeypatch, capsys):
     assert "Easy 40 min run" in out.out and "[run #2, fake/fake-model" in out.err
     assert main(["--config", str(cfg), "coach", "show", "--last", "2"]) == 0
     assert "--- #2 daily" in capsys.readouterr().out
+    assert main(["--config", str(cfg), "coach", "rate", "2", "1", "--note", "did the walk"]) == 0
+    assert "rated run #2: +1" in capsys.readouterr().out
+    assert main(["--config", str(cfg), "coach", "rate", "99", "1"]) == 2
+    capsys.readouterr()
+    assert main(["--config", str(cfg), "coach", "show"]) == 0
+    assert "👍" in capsys.readouterr().out
+    monkeypatch.setattr("wristpull.coach.backends.make_backend", lambda config, model=None, backend=None, kind="daily": FakeBackend([WEEKLY_EN]))
+    assert main(["--config", str(cfg), "-q", "coach", "weekly", "--date", "2026-10-11", "--force"]) == 0
+    assert "Plan for next week" in capsys.readouterr().out
+
+
+WEEKLY_EN = "## Week in review\nLight week.\n## Recovery\nfine\n## Training load\nlow\n## Plan for next week\n| Mon | rest |\n## Questions for you\n- ?\n## Numbers used\n47, 78, 30\n"
+
+
+def test_run_coach_weekly_and_number_check(conn, config, garmin_tree: Path):
+    import_garmin(conn, config, path=garmin_tree)
+    filled_profile(config)
+    fake = FakeBackend([WEEKLY_EN])
+    result = run_coach(conn, config, "weekly", today=date(2026, 10, 11), backend=fake)
+    assert result.status == "ok" and result.sections["plan"] == "| Mon | rest |"
+    assert "## Week in review" in fake.requests[0].system and "## Week vs previous week" in fake.requests[0].user
+    assert recent_runs(conn, kind="weekly")[0]["period_start"] == "2026-10-05"
+    assert not any("numbers not found" in w for w in result.warnings)  # 47, 78, 30 occur in the data
+    liar = FakeBackend(["## Status\nx\n## Today's suggestion\ny\n## Watch out for\nz\n## Numbers used\n47, 999, 12.5, 3\n"])
+    result = run_coach(conn, config, "daily", today=TODAY, backend=liar)
+    assert any(w.startswith("numbers not found in the data package: 999, 12.5") for w in result.warnings)
+
+
+def test_verify_numbers():
+    data = "resting HR 52 bpm, slept 7.4 h, steps 4766, load 61.5, score 86"
+    assert verify_numbers("RHR 52, sleep 7,4 h, 4766 steps, 61.50 load, 3 zones", data) == []
+    assert verify_numbers("RHR 53 and 7.9 h", data) == ["53", "7.9"]
+    assert verify_numbers("ignored 999", data, section="52, 86") == []
+    assert verify_numbers("7 h of sleep", data) == []  # integer part of a decimal in the data is accepted

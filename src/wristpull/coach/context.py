@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-from ..aggregate import activities_frame, daily_frame, sleep_frame
+from ..aggregate import activities_frame, daily_frame, period_overview, sleep_frame, week_bounds, weekly_frame
 from ..config import Config
 from ..export import _fmt
 from ..timeutil import zone
@@ -172,6 +172,90 @@ def build_daily(conn: sqlite3.Connection, config: Config, today: date, *, digest
         caveats.append("Days without a resting-HR value in the last week: " + ", ".join(missing))
     if len(rows) < 7:
         caveats.append(f"Only {len(rows)} days with any data in the last {history_days} days.")
+    pkg.add("Data caveats", "\n".join(f"- {c}" for c in caveats), 40)
+    return pkg
+
+
+def review_week(day: date) -> tuple[date, date]:
+    """The week a review run on ``day`` covers: the current ISO week on a Sunday, else the last completed one."""
+    if day.weekday() == 6:
+        return week_bounds(day)
+    return week_bounds(day - timedelta(days=day.weekday() + 1))
+
+
+def _delta(current: Any, previous: Any, digits: int = 0, unit: str = "") -> str:
+    if current is None:
+        return "-"
+    text = f"{current:.{digits}f}{unit}"
+    if previous is not None:
+        text += f" (prev {previous:.{digits}f}{unit}, Δ {current - previous:+.{digits}f})"
+    return text
+
+
+def build_weekly(conn: sqlite3.Connection, config: Config, day: date, *, digest: str = "", weeks_back: int = 6) -> DataPackage:
+    """The completed week vs the one before, with activities, nights, a 6-week trend and the load history."""
+    tz = zone(config.timezone)
+    start, end = review_week(day)
+    prev_start, prev_end = start - timedelta(days=7), start - timedelta(days=1)
+    pkg = DataPackage("weekly", start, end)
+    rows_all = day_rows(conn, start - timedelta(days=7 * weeks_back - 1), end)
+    week_rows = [r for r in rows_all if start.isoformat() <= r["date"] <= end.isoformat()]
+    daily = daily_frame(conn, start.isoformat(), end.isoformat())
+    prev_daily = daily_frame(conn, prev_start.isoformat(), prev_end.isoformat())
+    acts = activities_frame(conn, start.isoformat(), end.isoformat(), tz)
+    prev_acts = activities_frame(conn, prev_start.isoformat(), prev_end.isoformat(), tz)
+    now, prev = period_overview(daily, acts), period_overview(prev_daily, prev_acts)
+    pkg.facts.update(week=f"{start.isoformat()} to {end.isoformat()}", days_with_data=now.get("days", 0), previous_days_with_data=prev.get("days", 0))
+    pkg.add("Coverage", f"Review of {start.isoformat()} to {end.isoformat()} (ISO week {start.isocalendar().week}), run on {day.isoformat()}, time zone {config.timezone}. Days with data: {now.get('days', 0)} (previous week {prev.get('days', 0)}).", 100)
+    if now.get("days"):
+        overview = [
+            f"- steps per day: {_delta(now.get('steps_per_day'), prev.get('steps_per_day'))}",
+            f"- resting HR: {_delta(now.get('resting_hr'), prev.get('resting_hr'), 1, ' bpm')}",
+            f"- HRV (night): {_delta(now.get('hrv_ms'), prev.get('hrv_ms'), 1, ' ms')}",
+            f"- stress: {_delta(now.get('stress'), prev.get('stress'), 1)}",
+            f"- sleep: {_delta(now.get('sleep_h'), prev.get('sleep_h'), 1, ' h')}, score {_delta(now.get('sleep_score'), prev.get('sleep_score'))}",
+            f"- training: {now.get('activities', 0)} activities (prev {prev.get('activities', 0)}), {_delta(now.get('training_h'), prev.get('training_h'), 1, ' h')}, {_delta(now.get('training_km'), prev.get('training_km'), 1, ' km')}, load {_delta(now.get('training_load'), prev.get('training_load'))}",
+        ]
+        pkg.add("Week vs previous week", "\n".join(overview), 95)
+    else:
+        pkg.add("Week vs previous week", "No daily data in the review week.", 95)
+    pkg.add("Days of the week", _row_table(week_rows) if week_rows else "No daily rows.", 85)
+    acts_rows = [a for a in acts.iter_rows(named=True) if meaningful_activity(a)][:15]
+    if acts_rows:
+        lines = [
+            f"- {a['start_local']} {a['sport'] or '-'}{(' (' + a['name'] + ')') if a['name'] else ''}: {_fmt(a['duration_min'], 0)} min, {_fmt(a['distance_km'], 1)} km, "
+            f"avg HR {_fmt(a['avg_hr'])}, max {_fmt(a['max_hr'])}, load {_fmt(a['training_load'], 0)}, TE {_fmt(a['aerobic_te'], 1)}/{_fmt(a['anaerobic_te'], 1)}, HR zones min {a['hr_zones_min'] or '-'}"
+            for a in acts_rows
+        ]
+        pkg.add("Activities", "\n".join(lines), 80)
+    else:
+        pkg.add("Activities", "No recorded activities this week.", 80)
+    nights = sleep_frame(conn, start.isoformat(), end.isoformat(), tz)
+    if nights.height:
+        lines = [
+            f"- {n['date']} {n['device']}: {n['bed_local'][11:]}–{n['wake_local'][11:]}, {n['sleep_h']:.1f} h, deep {n['deep_min']} / light {n['light_min']} / REM {n['rem_min']} / awake {n['awake_min']} min, score {_fmt(n['score'])}"
+            for n in nights.iter_rows(named=True)
+        ]
+        pkg.add("Nights", "\n".join(lines), 70)
+    weekly = weekly_frame(daily_frame(conn, (start - timedelta(days=7 * (weeks_back - 1))).isoformat(), end.isoformat()))
+    if weekly.height:
+        lines = ["| week | days | steps/day | resting HR | HRV ms | sleep h | activities | training h | load |", "|---|---|---|---|---|---|---|---|---|"]
+        for w in weekly.iter_rows(named=True):
+            lines.append(f"| {w['week']} | {w['days']} | {_fmt(w['steps_per_day'], 0)} | {_fmt(w['resting_hr'], 1)} | {_fmt(w['hrv_ms'], 1)} | {_fmt(w['sleep_h'], 1)} | {_fmt(w['activities'])} | {_fmt(w['training_h'], 1)} | {_fmt(w['training_load'], 0)} |")
+        pkg.add(f"Last {weeks_back} weeks", "\n".join(lines), 65)
+    load = metrics.acute_chronic(rows_all)
+    pkg.facts["load"] = load
+    load_text = f"- acute 7-day load {load['acute_load']}, chronic weekly load {load['chronic_weekly_load']}, ACWR {load['acwr'] if load['acwr'] is not None else '-'}, monotony {load['monotony'] if load['monotony'] is not None else '-'}"
+    if not load["sufficient_history"]:
+        load_text += f"\n- only {load['history_days']} days of history; the chronic load is not yet meaningful"
+    pkg.add("Training load", load_text, 75)
+    pkg.flags = metrics.recovery_flags(rows_all, load)
+    pkg.add("Warning flags (latest day)", "\n".join(f"- {f}" for f in pkg.flags) if pkg.flags else "- none", 90)
+    if digest:
+        pkg.add("Previous coaching", digest, 50)
+    caveats = list(DATA_CAVEATS)
+    if now.get("days", 0) < 7:
+        caveats.append(f"Only {now.get('days', 0)} of 7 days have data in the review week.")
     pkg.add("Data caveats", "\n".join(f"- {c}" for c in caveats), 40)
     return pkg
 

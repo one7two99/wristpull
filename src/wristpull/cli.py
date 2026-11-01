@@ -68,7 +68,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_coach = sub.add_parser("coach", help="training coach: send aggregated data to an LLM and store the answer")
     coach_sub = p_coach.add_subparsers(dest="coach_cmd", required=True)
-    for name, help_text in (("daily", "morning check: recovery and a suggestion for today"), ("ask", "a free question over the daily data package")):
+    for name, help_text in (
+        ("daily", "morning check: recovery and a suggestion for today"),
+        ("weekly", "review of the last completed week (the current one on a Sunday) with a plan for the next"),
+        ("ask", "a free question over the daily data package"),
+    ):
         p_c = coach_sub.add_parser(name, help=help_text)
         if name == "ask":
             p_c.add_argument("question")
@@ -82,6 +86,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_show.add_argument("--last", type=int, default=1, help="how many runs (default 1)")
     p_show.add_argument("--kind", choices=["daily", "weekly", "ask"])
     coach_sub.add_parser("profile", help="print the goal profile path and its open placeholders")
+    p_rate = coach_sub.add_parser("rate", help="rate a stored run: -1 (not useful), 0, 1 (useful); the coach sees it next time")
+    p_rate.add_argument("run_id", type=int)
+    p_rate.add_argument("rating", type=int, choices=[-1, 0, 1])
+    p_rate.add_argument("--note", help="optional comment, e.g. what you actually did")
 
     p_reparse = sub.add_parser("reparse", help="re-parse archived raw files after a parser change (rows are replaced)")
     p_reparse.add_argument("--id", type=int, action="append", dest="ids", help="raw_files.id (repeatable)")
@@ -296,8 +304,19 @@ def cmd_coach(args: argparse.Namespace, config: Config) -> int:
             return 1
         for run in runs:
             cost = f", ${run['cost_usd']:.4f}" if run.get("cost_usd") else ""
-            print(f"--- #{run['id']} {run['kind']} {run['created_at_utc']} {run['backend']}/{run['model']} ({run['input_tokens'] or '?'} in / {run['output_tokens'] or '?'} out{cost})")
+            rating = {1: " 👍", 0: " 😐", -1: " 👎"}.get(run.get("rating"), "") if run.get("rating") is not None else ""
+            print(f"--- #{run['id']} {run['kind']} {run['created_at_utc']} {run['backend']}/{run['model']} ({run['input_tokens'] or '?'} in / {run['output_tokens'] or '?'} out{cost}){rating}")
             print(run.get("answer_md") or "")
+        return 0
+    if args.coach_cmd == "rate":
+        from .coach.store import add_feedback
+
+        try:
+            add_feedback(conn, args.run_id, args.rating, args.note)
+        except ValueError as exc:
+            print(f"coach: {exc}", file=sys.stderr)
+            return 2
+        print(f"rated run #{args.run_id}: {args.rating:+d}")
         return 0
     if args.coach_cmd == "profile":
         lang = resolve_language(config, None)
@@ -313,7 +332,7 @@ def cmd_coach(args: argparse.Namespace, config: Config) -> int:
         from datetime import date
 
         today = parse_date(args.date) if args.date else date.today()
-        backend = make_backend(config, model=args.model, backend=args.backend)
+        backend = make_backend(config, model=args.model, backend=args.backend, kind=args.coach_cmd)
         result = run_coach(conn, config, args.coach_cmd, today=today, language=args.lang, question=getattr(args, "question", None), backend=backend, dry_run=args.dry_run, force=args.force, log=log)
     except (CoachError, ValueError) as exc:
         print(f"coach: {exc}", file=sys.stderr)

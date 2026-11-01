@@ -131,3 +131,33 @@ def parse_sections(answer: str, kind: str, lang: str) -> dict[str, str]:
                 continue
         sections.setdefault(current, []).append(line)
     return {key: "\n".join(lines).strip() for key, lines in sections.items() if "\n".join(lines).strip()}
+
+
+NUMBER = re.compile(r"(?<![\w.])-?\d+(?:[.,]\d+)?(?![\w.])")
+
+
+def _normal(token: str) -> str:
+    return token.replace(",", ".").lstrip("-").rstrip("0").rstrip(".") if "." in token.replace(",", ".") else token.lstrip("-")
+
+
+def verify_numbers(answer: str, data_md: str, *, section: str | None = None) -> list[str]:
+    """Numbers the answer mentions (its 'numbers used' section when given) that do not occur in the data package.
+
+    Comparison is textual after normalising decimal commas and trailing zeros; small integers up to 10
+    are ignored because they usually count things (zones, list items) rather than quote data.
+    """
+    haystack = {_normal(m.group(0)) for m in NUMBER.finditer(data_md)}
+    # also accept the integer part of decimals in the data ("7.4 h" quoted as "7 h")
+    haystack |= {h.split(".")[0] for h in haystack}
+    missing: list[str] = []
+    for m in NUMBER.finditer(section if section is not None else answer):
+        raw = m.group(0)
+        norm = _normal(raw)
+        try:
+            if abs(float(norm)) <= 10 and "." not in norm:
+                continue
+        except ValueError:
+            continue
+        if norm not in haystack and norm not in missing:
+            missing.append(norm)
+    return missing
