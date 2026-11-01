@@ -14,7 +14,7 @@
 - Undocumented Garmin FIT fields: check `FitCodeGenerator/src/main/resources/fit_profile.json` in the
   Gadgetbridge repo (Codeberg, use `git clone --sparse`, the web UI blocks fetches) before guessing.
 - Verify assumptions about the fenix 6 with `wristpull inspect <file.fit>` once the watch is connected.
-- TUI (`src/wristpull/tui/`, Textual, optional extra `tui`): only library calls, no SQL/FIT parsing
+- TUI (`src/wristpull/tui/`, Textual, optional extra `tui`; nine screens, order in `tui/nav.py`): only library calls, no SQL/FIT parsing
   (`tests/test_tui_boundary.py`). Strings via `_()` from `tui/i18n.py` at render time, never at module level;
   German catalog in `tui/locale/de/LC_MESSAGES/wristpull.po`, recompile with
   `uv run pybabel compile -d src/wristpull/tui/locale -D wristpull` (a test checks the `.mo`). Long jobs go

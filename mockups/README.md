@@ -14,7 +14,7 @@ suggested otherwise (for example the sleep screen lists every source instead of 
 
 | File | Screen | Shows |
 |------|--------|-------|
-| `00-navigation.txt` | Screen map | How the eight screens, the command palette and the detail views connect |
+| `00-navigation.txt` | Screen map | How the first eight screens, the command palette and the detail views connect (screen 9 Coach came later) |
 | `01-dashboard-de.txt` | 1 Overview (German) | Device status, last import per source, 7-day KPIs with sparklines, recent activities, notes |
 | `01-dashboard-en.txt` | 1 Overview (English) | Same screen in English, demonstrating the i18n switch (`F12`) |
 | `02-sync.txt` | 2 Devices & Sync | Import/pull forms, a running `pull phone` job with live log, last result, CLI equivalent |

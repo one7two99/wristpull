@@ -243,6 +243,7 @@ model is told to use only those numbers. Every run (prompts, answer, tokens, cos
 
 ```sh
 wristpull coach profile                          # where to edit the goal profile
+wristpull coach profile --wizard --lang de       # answer the goal questions, generate the profile block
 wristpull coach daily --dry-run                  # look at what would be sent
 wristpull coach daily                            # gemma3:4b via Ollama by default
 wristpull coach weekly --backend claude          # Sunday review with Claude (ANTHROPIC_API_KEY)

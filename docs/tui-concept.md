@@ -32,6 +32,10 @@ only through individual commands and `sqlite3`. The TUI should
 
 ## Screens
 
+A ninth screen, **9 Coach**, was added with the training-coach concept (`coach-concept.md`): it runs the
+daily check, the weekly review and questions through the job runner, lists the runs with tokens, cost and
+rating, shows the answer, and hosts the goal wizard and the profile editor.
+
 ```
             ┌──────────────┐
             │ 1 Overview   │  status, 7-day KPIs, recent activities, notes
