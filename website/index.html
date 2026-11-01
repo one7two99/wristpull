@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>wristpull</title>
+<meta name="description" content="wristpull pulls your wearable data off the watch and the phone, keeps it in a local SQLite and lets you pick the LLM that coaches you. No cloud, no subscription.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,600;1,500&display=swap">
+<style>
+/* Layout: a terminal session narrated like a field manual. Left-aligned, one measure, mono labels, amber as the only loud colour. */
+:root {
+  --bg: #0e1218;
+  --bg-2: #141a23;
+  --panel: #1a2230;
+  --line: #2a3443;
+  --fg: #dfe6ee;
+  --fg-2: #9aa7b6;
+  --accent: #f2b45a;        /* amber: the watch face backlight */
+  --accent-ink: #1a1206;
+  --data: #6fc3c9;          /* teal for data and links */
+  --good: #7fcf8a;
+  --warn: #e9a06c;
+  --display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f3ec; --bg-2: #efebe1; --panel: #ffffff; --line: #d9d2c3; --fg: #1b2028; --fg-2: #58606c;
+    --accent: #b86f0e; --accent-ink: #fff7e8; --data: #0f7f86; --good: #2d8a46; --warn: #b4651a;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f6f3ec; --bg-2: #efebe1; --panel: #ffffff; --line: #d9d2c3; --fg: #1b2028; --fg-2: #58606c;
+  --accent: #b86f0e; --accent-ink: #fff7e8; --data: #0f7f86; --good: #2d8a46; --warn: #b4651a;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 17px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0;
+}
+a { color: var(--data); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+.measure { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); }
+h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); }
+h3 { font-size: 1.2rem; font-family: var(--body); font-weight: 600; }
+p { margin: 0; }
+.eyebrow { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+code, pre, .mono { font-family: var(--mono); font-size: 0.92em; }
+code { background: var(--bg-2); padding: 0.1em 0.4em; border-radius: 3px; }
+pre { background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 1rem 1.2rem; overflow-x: auto; line-height: 1.5; font-size: 0.86rem; margin: 0; }
+pre code { background: none; padding: 0; }
+.prompt { color: var(--accent); }
+.dim { color: var(--fg-2); }
+section { padding-block: clamp(3rem, 7vw, 5.5rem); border-top: 1px solid var(--line); }
+section.hero { border-top: 0; padding-top: clamp(3rem, 8vw, 6rem); }
+.stack { display: grid; gap: 1.2rem; }
+.grid { display: grid; gap: 1.2rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.grid > * { min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.2rem 1.3rem; display: grid; gap: 0.5rem; align-content: start; }
+.card h3 { margin-top: 0.1rem; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-block: 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.brand { font-family: var(--mono); font-weight: 600; letter-spacing: 0.04em; }
+.brand span { color: var(--accent); }
+nav a { margin-left: 1rem; font-family: var(--mono); font-size: 0.85rem; text-decoration: none; color: var(--fg-2); }
+nav a:hover { color: var(--fg); }
+.hero-grid { display: grid; gap: 2.5rem; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 820px) { .hero-grid { grid-template-columns: 1fr; } }
+.lede { font-size: 1.2rem; color: var(--fg-2); max-width: 58ch; }
+.cta { display: inline-flex; gap: 0.6rem; align-items: center; font-family: var(--mono); font-size: 0.9rem; padding: 0.7rem 1.1rem; border-radius: 4px; text-decoration: none; }
+.cta.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.cta.ghost { border: 1px solid var(--line); color: var(--fg); }
+.ctas { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 0.6rem; }
+.terminal { border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); overflow: hidden; }
+.terminal .bar { display: flex; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 0.75rem; color: var(--fg-2); }
+.terminal pre { border: 0; border-radius: 0; background: transparent; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem; }
+.fact { border-left: 2px solid var(--accent); padding-left: 0.8rem; }
+.fact b { display: block; font-family: var(--mono); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.fact span { color: var(--fg-2); font-size: 0.9rem; }
+.manifesto { display: grid; gap: 1.6rem; counter-reset: reason; }
+.reason { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); gap: 1rem; }
+.reason::before { counter-increment: reason; content: counter(reason, decimal-leading-zero); font-family: var(--mono); color: var(--accent); font-size: 1.1rem; padding-top: 0.2rem; }
+.reason h3 { margin-bottom: 0.3rem; }
+.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.8rem; font-family: var(--mono); font-size: 0.82rem; }
+.node { border: 1px solid var(--line); border-radius: 6px; padding: 0.8rem 0.9rem; background: var(--panel); min-width: 0; }
+.node b { display: block; color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
+.node .dim { font-size: 0.78rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-2); background: var(--bg-2); }
+tr:last-child td { border-bottom: 0; }
+.tag { display: inline-block; font-family: var(--mono); font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid var(--line); color: var(--fg-2); }
+.tag.local { border-color: var(--good); color: var(--good); }
+.tag.cloud { border-color: var(--warn); color: var(--warn); }
+.shots { display: grid; gap: 1.6rem; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+figure { margin: 0; display: grid; gap: 0.5rem; min-width: 0; }
+figure img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: #0b0f14; display: block; }
+figcaption { font-size: 0.9rem; color: var(--fg-2); }
+figcaption b { color: var(--fg); font-family: var(--mono); font-size: 0.85rem; }
+.wide { grid-column: 1 / -1; }
+.note { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; padding: 1rem 1.2rem; background: var(--panel); }
+.support { display: grid; gap: 1.2rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--fg-2); font-size: 0.9rem; display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.kbd { font-family: var(--mono); font-size: 0.8em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 0.4em; background: var(--bg-2); }
+@media (prefers-reduced-motion: no-preference) {
+  .cursor { animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="topbar">
+  <div class="brand">wrist<span>pull</span></div>
+  <nav aria-label="Sections">
+    <a href="#why">Why</a><a href="#how">How</a><a href="#features">Features</a><a href="#llm">LLMs</a><a href="#screens">Screens</a><a href="#support">Support</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-grid">
+    <div class="stack">
+      <p class="eyebrow">Local-first wearable data · Python · SQLite · your choice of LLM</p>
+      <h1>Your body produces the data. Your machine should hold it.</h1>
+      <p class="lede">wristpull pulls the raw files off a Garmin watch over USB and the Gadgetbridge export off your phone over ADB, normalises everything into one local SQLite database and lets a language model of <em>your</em> choosing coach you. No vendor cloud. No subscription. No account.</p>
+      <div class="ctas">
+        <a class="cta primary" href="https://github.com/one7two99/wristpull">Source on GitHub</a>
+        <a class="cta ghost" href="#how">How the pipeline works</a>
+      </div>
+      <div class="facts">
+        <div class="fact"><b>0</b><span>accounts, trackers or telemetry</span></div>
+        <div class="fact"><b>20</b><span>normalised SQLite tables</span></div>
+        <div class="fact"><b>3</b><span>LLM backends, one of them fully offline</span></div>
+        <div class="fact"><b>MIT</b><span>licensed, tests with synthetic data only</span></div>
+      </div>
+    </div>
+    <div class="terminal" aria-label="Terminal session">
+      <div class="bar">alice@laptop — fish — 100×24</div>
+<pre><code><span class="prompt">$</span> wristpull import garmin
+  mounted mtp://091e_4cdb_&lt;id&gt;/
+  + Sleep/GB171544.fit: sleep=1, sleep_stages=15
+  + HRVStatus/GB171539.fit: hrv=1, hrv_values=91
+  + Monitor/MB171500.FIT: heart_rate=428, stress=520, body_battery=520
+/run/user/1000/gvfs/mtp:host=…/GARMIN: 41 FIT files, 5 new, 36 already archived, 0 errors
+
+<span class="prompt">$</span> wristpull pull phone
+  Intent TRIGGER_DATABASE_EXPORT sent, export written at 06:17 UTC
+  Gadgetbridge.db: imported, heart_rate=689, hrv_values=400, sleep=1, temperature=811
+  device: fenix 6X Pro [AA:BB:…] -&gt; gadgetbridge_garmin
+  device: Amazfit Helio Strap [AA:BB:…] -&gt; gadgetbridge_zepp
+
+<span class="prompt">$</span> wristpull coach daily --backend ollama --model gemma3:12b --lang en
+## Status
+Recovered: resting HR 47 bpm is below your 7-day mean of 52 …
+<span class="dim">[run #4, ollama/gemma3:12b, 385 s, 1141 in / 433 out tokens, $0.0000]</span><span class="cursor">▌</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<section id="why">
+  <div class="stack">
+    <p class="eyebrow">Why this exists</p>
+    <h2>Reclaim the data you already paid for with your heartbeat</h2>
+    <p class="measure">I am an IT consultant. I own a Garmin fenix and a cheap heart-rate strap. Both are excellent sensors and both want to be gateways to a subscription. wristpull is the result of refusing that deal. These are the reasons, in the order they annoyed me.</p>
+  </div>
+  <div class="manifesto" style="margin-top:2.5rem">
+    <div class="reason"><div><h3>The sensor is yours, the data should be too</h3><p>Every FIT file the watch writes is already on the device. wristpull reads it over a USB cable and keeps the byte-identical original in a read-only archive, hashed with SHA-256. Nothing is uploaded to be looked at.</p></div></div>
+    <div class="reason"><div><h3>No subscription for a graph of your own sleep</h3><p>Vendors move sleep scores, HRV status and training readiness behind paywalls one feature at a time. wristpull parses the same fields from the same files and stores them as plain columns you can query with <code>sqlite3</code>.</p></div></div>
+    <div class="reason"><div><h3>Independence from the device you wear today</h3><p>Sources are a column, not an architecture decision. Garmin over USB, Garmin via Gadgetbridge, a Zepp strap via Gadgetbridge: three sources already, merged by a documented rule. Switch watches and the history stays.</p></div></div>
+    <div class="reason"><div><h3>You decide which model reads your health</h3><p>A fully local Ollama model, the Claude API, or any model on OpenRouter. The backend choice is the privacy choice, made explicitly in the config, and a dry run shows the exact bytes that would be sent before anything leaves the machine.</p></div></div>
+    <div class="reason"><div><h3>Numbers are computed, not hallucinated</h3><p>Baselines, deltas, the acute-to-chronic workload ratio and recovery flags are calculated in Python. The model only interprets, must quote the numbers it used, and every quoted number is checked against the data package.</p></div></div>
+    <div class="reason"><div><h3>Verified against the device, not against marketing</h3><p>Sleep stages, HRV and SpO2 mappings were cross-checked row by row with Gadgetbridge's own tables and the watch display. Where a mapping is still unconfirmed, the UI says so.</p></div></div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="stack">
+    <p class="eyebrow">How it works</p>
+    <h2>A pipeline you can read in an afternoon</h2>
+    <p class="measure">Around 4,000 lines of Python 3.14 with two runtime dependencies (<code>fitdecode</code>, <code>polars</code>). Every function has a test and every test runs on synthetic FIT files, so the repository never contains a single real heartbeat.</p>
+  </div>
+  <div class="flow" style="margin-top:2rem">
+    <div class="node"><b>watch over USB</b>GARMIN/Activity, Monitor, Sleep, Metrics, HRVStatus<div class="dim">gio-mounts the MTP device, even on KDE</div></div>
+    <div class="node"><b>phone over ADB</b>Gadgetbridge.db + the FIT files it fetched over Bluetooth<div class="dim">triggers the export by intent, hashes files remotely, pulls only what is new</div></div>
+    <div class="node"><b>raw archive</b>raw/&lt;source&gt;/&lt;year&gt;/&lt;kind&gt;/&lt;sha8&gt;_name<div class="dim">immutable, deduplicated, never overwritten</div></div>
+    <div class="node"><b>parsers</b>FIT profile + Gadgetbridge layouts<div class="dim">re-parse anytime with <code>wristpull reparse</code></div></div>
+    <div class="node"><b>SQLite</b>20 tables, UTC + local date on every row<div class="dim">daily_summary per source, merged on read</div></div>
+    <div class="node"><b>outputs</b>TUI, Markdown + CSV export, reports, coach<div class="dim">everything also works from cron</div></div>
+  </div>
+  <div class="grid" style="margin-top:2rem">
+    <div class="card"><p class="eyebrow">Data layout</p>
+<pre><code>~/Health/wristpull/
+├── wristpull.sqlite
+├── raw/&lt;source&gt;/&lt;year&gt;/&lt;kind&gt;/&lt;sha8&gt;_&lt;name&gt;
+├── exports/&lt;from&gt;_&lt;to&gt;/summary.md + *.csv
+├── reports/week-2026-W44/report.md + *.svg
+└── coach/profile.md · dryrun/*.md</code></pre></div>
+    <div class="card"><p class="eyebrow">Merge rule, written down</p><p><code>garmin_usb</code> wins over <code>gadgetbridge_garmin</code> column by column; the strap stays a separate source with its own <code>strap_*</code> columns. Activities and nights are deduplicated by start minute. One rule, one place (<code>merge.py</code>), one test.</p></div>
+    <div class="card"><p class="eyebrow">Time, done properly</p><p>Every sample row carries <code>ts_utc</code> in ISO-8601, the IANA zone and a <code>local_date</code>. Midnight step counters are attributed to the day they belong to. DST changes are a test case, not a surprise.</p></div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="stack">
+    <p class="eyebrow">Features</p>
+    <h2>What you get today</h2>
+  </div>
+  <div class="grid" style="margin-top:2rem">
+    <div class="card"><h3>Import that respects the device</h3><p>Finds the mounted watch, copies only files whose SHA-256 is unknown, parses activities (sessions, laps, per-second records, HR zones), monitoring (HR, steps, stress, body battery, respiration, SpO2), sleep (stages, assessment scores) and HRV status. Never deletes anything on the watch.</p></div>
+    <div class="card"><h3>Phone pull without a vendor app</h3><p>Talks to Gadgetbridge over ADB: triggers the database export, compares file hashes on the phone, pulls only new files. Reads the Zepp strap's per-minute HR, stress, temperature, HRV and the band's own sleep sessions.</p></div>
+    <div class="card"><h3>Terminal UI in German and English</h3><p>Nine screens: overview with 7-day KPIs, sync with live job log and cancel, days, activities with HR zones and laps, sleep with stage bars, files with FIT inspection, export, settings and the coach. <span class="kbd">F12</span> switches the language at runtime.</p></div>
+    <div class="card"><h3>Exports made for a chat window</h3><p><code>wristpull export --for-claude</code> writes a compact Markdown summary plus CSVs for a date range, sized to paste into any assistant. <code>report week|month</code> renders deltas against the previous period with SVG charts.</p></div>
+    <div class="card"><h3>A coach that shows its working</h3><p>Daily recovery check, weekly review with a plan for the next week, free questions. Goal wizard with multiple choice, an editable profile, ratings and notes that the coach sees next time. Every run with prompt, answer, tokens and cost in the database.</p></div>
+    <div class="card"><h3>Repairable by design</h3><p>Found a wrong field mapping? Fix the parser and run <code>wristpull reparse --kind sleep</code>. Raw files are the truth; tables are derived. Nothing is ever fetched twice.</p></div>
+  </div>
+</section>
+
+<section id="llm">
+  <div class="stack">
+    <p class="eyebrow">Choose the model, own the decision</p>
+    <h2>On premise, in the cloud, or none at all</h2>
+    <p class="measure">The coach never sees raw records, GPS or serial numbers, only daily and weekly aggregates. What it sees is identical for every backend, so you can start local and move up only when you want better answers.</p>
+  </div>
+  <div class="tablewrap" style="margin-top:2rem">
+    <table>
+      <thead><tr><th>Backend</th><th>Data leaves the machine</th><th>Typical model</th><th>Daily check</th><th>Cost per run</th></tr></thead>
+      <tbody>
+        <tr><td><b>Ollama</b> <span class="tag local">local</span></td><td>No. Runs on your CPU or GPU.</td><td>gemma3:4b / gemma3:12b</td><td>1–6 min on a 4-core laptop CPU</td><td>electricity</td></tr>
+        <tr><td><b>Claude API</b> <span class="tag cloud">cloud</span></td><td>Yes, to Anthropic, over the official SDK.</td><td>claude-opus-5-5 / sonnet-5-5</td><td>about 20 s</td><td>2–5 cents</td></tr>
+        <tr><td><b>OpenRouter</b> <span class="tag cloud">cloud</span></td><td>Yes, to the provider you pick.</td><td>anything, e.g. deepseek-v4.1-flash</td><td>about 7 s</td><td>0.2 cents and up</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="grid" style="margin-top:1.5rem">
+    <div class="card"><p class="eyebrow">Before anything is sent</p><pre><code><span class="prompt">$</span> wristpull coach daily --dry-run
+  dry run: prompt written to
+  ~/Health/wristpull/coach/dryrun/20261101T162623Z_daily.md (~950 tokens)</code></pre><p class="dim">Read the exact prompt. Then decide.</p></div>
+    <div class="card"><p class="eyebrow">What the model is told</p><p>Use only the numbers in the package and list them at the end. Missing is not zero. Be conservative when the flags say so. No diagnoses. Answer with these headings, in this order. The parser enforces the headings; the number check enforces the rest.</p></div>
+    <div class="card"><p class="eyebrow">Memory stays local too</p><p><code>coach_runs</code> and <code>coach_feedback</code> live in the same SQLite file as your heart rate. Delete the file and the coach forgets everything. No account to close.</p></div>
+  </div>
+</section>
+
+<section id="screens">
+  <div class="stack">
+    <p class="eyebrow">Screens</p>
+    <h2>The terminal UI</h2>
+    <p class="measure">All screenshots are rendered headlessly from the synthetic test fixtures. The numbers, dates and the athlete are invented; the layout is the real thing.</p>
+  </div>
+  <div class="shots" style="margin-top:2rem">
+    <figure class="wide"><img src="../screenshots/01-overview.svg" alt="Overview screen with device status, data store, 7-day KPIs with sparklines, recent activities and notes" loading="lazy"><figcaption><b>1 Overview</b> — device state, last import per source, seven-day KPIs with sparklines and week-over-week deltas, recent activities, notes about unverified mappings.</figcaption></figure>
+    <figure><img src="../screenshots/02-sync.svg" alt="Devices and sync screen with import and pull forms and a live job log" loading="lazy"><figcaption><b>2 Devices &amp; Sync</b> — forms for the USB import and the phone pull, live log, last result and the equivalent CLI command to copy into cron.</figcaption></figure>
+    <figure><img src="../screenshots/03-days.svg" alt="Days screen with a table of daily summaries and a detail pane" loading="lazy"><figcaption><b>3 Days</b> — one row per day from the merged Garmin data and the strap, detail pane side by side.</figcaption></figure>
+    <figure><img src="../screenshots/04-activities.svg" alt="Activities screen with list, HR zones, HR curve and laps" loading="lazy"><figcaption><b>4 Activities</b> — filterable list, time in heart-rate zones, the HR curve as a sparkline, laps.</figcaption></figure>
+    <figure><img src="../screenshots/05-sleep.svg" alt="Sleep screen with nights of every source and a stage bar" loading="lazy"><figcaption><b>5 Sleep</b> — nights of every source, stage bar across the night, HRV, SpO2, breathing and heart rate inside the sleep window.</figcaption></figure>
+    <figure><img src="../screenshots/06-files.svg" alt="Files screen with the raw archive tree and FIT inspection" loading="lazy"><figcaption><b>6 Files</b> — the raw archive as a tree, metadata of the archived file and the FIT message types inside it.</figcaption></figure>
+    <figure><img src="../screenshots/07-export.svg" alt="Export and report screen with form, result list and Markdown preview" loading="lazy"><figcaption><b>7 Export &amp; Report</b> — pick a period and a kind, get the files and a Markdown preview.</figcaption></figure>
+    <figure><img src="../screenshots/08-settings.svg" alt="Settings screen editing storage, Garmin, phone, interface and coach options" loading="lazy"><figcaption><b>8 Settings</b> — every config value including the coach backend, validated before it is written.</figcaption></figure>
+    <figure class="wide"><img src="../screenshots/09-coach.svg" alt="Coach screen with a table of runs and the answer of the daily check" loading="lazy"><figcaption><b>9 Coach</b> — runs with tokens, cost and your rating; the answer beside it; goal wizard and profile editor one key away.</figcaption></figure>
+  </div>
+</section>
+
+<section id="honest">
+  <div class="stack">
+    <p class="eyebrow">What it is not</p>
+    <h2>Read this before you trust a number</h2>
+  </div>
+  <div class="grid" style="margin-top:2rem">
+    <div class="note"><h3>Not a medical device</h3><p>The coach is told to refuse diagnoses and to send you to a doctor when values look pathological. Treat it as a training partner with a good memory, not as a clinician.</p></div>
+    <div class="note"><h3>Early and opinionated</h3><p>Verified on one fenix 6X Pro, one Amazfit Helio Strap and a handful of nights. Other watches will need parser work. Field mappings that are still unconfirmed are listed in the README and shown in the UI.</p></div>
+    <div class="note"><h3>Sync is a race</h3><p>A Garmin watch deletes monitoring files once any app has fetched them. If Garmin Connect syncs first, those hours are gone for everyone else. wristpull documents the order that keeps your data complete, but it cannot win a race you let the vendor app start.</p></div>
+  </div>
+</section>
+
+<section id="support">
+  <div class="stack">
+    <p class="eyebrow">Why support projects like this</p>
+    <h2>Small tools keep big platforms honest</h2>
+    <p class="measure">Every wearable vendor ships the same bargain: a good sensor, a mandatory cloud, a monthly fee for the analysis layer. Projects such as Gadgetbridge made the sensors readable. wristpull builds the analysis layer on top, locally, with an LLM of your choice. It only stays viable if people use it, break it and report what they find.</p>
+  </div>
+  <div class="support" style="margin-top:2rem">
+    <div class="card"><h3>Run it on your devices</h3><p>Another Garmin model, a different Zepp band, a Polar or Coros export via Gadgetbridge: every new device teaches the parsers something. Open an issue with <code>wristpull inspect</code> output of a file that parsed wrong.</p></div>
+    <div class="card"><h3>Add a source</h3><p>Nutrition, scales, a manual journal: the <code>source</code> column is the extension point. The merge rule and the coach package are built to grow.</p></div>
+    <div class="card"><h3>Improve a prompt, keep the numbers</h3><p>Coach prompts, goal fragments and the German catalog are plain text. Better wording helps every user; the number check keeps the honesty.</p></div>
+    <div class="card"><h3>Star, fork, talk about it</h3><p>Visibility is the currency that lets a side project survive its first winter. If you share the same fatigue with subscriptions, say so where the next person will read it.</p></div>
+  </div>
+  <div class="ctas" style="margin-top:2rem">
+    <a class="cta primary" href="https://github.com/one7two99/wristpull">github.com/one7two99/wristpull</a>
+    <a class="cta ghost" href="https://codeberg.org/Freeyourgadget/Gadgetbridge">Gadgetbridge, the project that makes the phone side possible</a>
+  </div>
+</section>
+
+<footer>
+  <div>wristpull · MIT licence · Python 3.14 · built for people who read their own logs</div>
+  <div class="mono">no cookies · no analytics · no cloud</div>
+</footer>
+
+</div>
+</body>
+</html>

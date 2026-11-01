@@ -400,6 +400,13 @@ Folder layout verified on a fenix 6X Pro (firmware 28.02): `Activity/` holds one
 and `HRVStatus/` (not `HRV`) the rest. The watch keeps wellness files only for a short time (on
 first contact `Monitor/` held just the current day), so import regularly, ideally daily.
 
+## Website and screenshots
+
+`website/index.html` is a static one-page presentation of the project (reasons, pipeline, features,
+LLM choice, screens, how to support it); `screenshots/` holds the pseudonymised TUI renders it uses,
+produced from the synthetic test fixtures only. Open the page locally with
+`python3 -m http.server 8000` from the repository root and visit `/website/`.
+
 ## Data layout
 
 ```
