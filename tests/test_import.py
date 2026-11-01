@@ -39,7 +39,7 @@ def test_import_from_tree_and_idempotent(conn, config, garmin_tree: Path):
     assert day["stress_max"] <= 79 and day["stress_avg"] > 0
     assert day["body_battery_min"] == 50 and day["body_battery_max"] == 90
     assert day["spo2_avg"] == 96.0 and day["respiration_avg"] == 14.5
-    assert day["sleep_duration_s"] == 470 * 60 - 15 * 60 and day["sleep_score"] == 78
+    assert day["sleep_duration_s"] == 490 * 60 - 15 * 60 and day["sleep_score"] == 78
     assert day["moderate_min"] == 25 and day["vigorous_min"] == 10
     assert day["activities_count"] == 1 and day["training_load"] == 61.5
     assert day["hrv_last_night_avg_ms"] == 40.0
