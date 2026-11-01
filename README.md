@@ -218,7 +218,8 @@ wristpull reparse --errors                     # retry what failed last time
 
 A terminal UI over the same library functions (needs the optional extra: `uv sync --extra tui`).
 It runs the commands above as background jobs with a live log, shows the data per day and browses
-the data directory. German and English, switchable at runtime with `F12`; the language comes from
+the data directory. A tab row under the header lists the eight screens with their digit keys and
+marks the active one; tabs can also be clicked. German and English, switchable at runtime with `F12`; the language comes from
 `[ui] language`, else from `LANGUAGE`/`LC_ALL`/`LANG`, else English.
 
 | Key | Screen / action |

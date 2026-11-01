@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from textual.widgets import RichLog, Static
+from textual.widgets import RichLog, Static, Tab, Tabs
+
+from .nav import NAV, nav_label, tab_id
 
 from .queries import Kpi
 
@@ -65,3 +67,16 @@ class JobLog(RichLog):
 
     def append(self, text: str) -> None:
         self.write(text)
+
+
+class NavBar(Tabs):
+    """Top tab row with the eight screens; the active one is underlined, digits show the hotkeys."""
+
+    DEFAULT_CSS = """
+    NavBar { height: 2; background: $surface; }
+    NavBar Tab { padding: 0 1; }
+    """
+
+    def __init__(self, active: str, **kwargs) -> None:
+        super().__init__(*[Tab(nav_label(digit, label), id=tab_id(name)) for digit, name, label in NAV], active=tab_id(active), **kwargs)
+        self.can_focus = False  # keys stay with the screen content; mouse clicks still switch tabs

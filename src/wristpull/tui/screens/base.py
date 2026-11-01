@@ -13,7 +13,8 @@ from ..format import fmt_date
 from ..jobs import last_days
 
 from ..i18n import _
-from ..widgets import KeyBar
+from ..nav import tab_id
+from ..widgets import KeyBar, NavBar
 
 APP_KEYS: list[tuple[str, str]] = []  # filled at render time by keys()
 
@@ -34,12 +35,18 @@ class WristpullScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
+        yield NavBar(self.NAME, id="navbar")
         yield from self.body()
         yield KeyBar(self.keys() + [("/", _("palette")), ("?", _("help")), ("F12", _("language")), ("q", _("quit"))], id="keybar")
 
     def on_mount(self) -> None:
         self.app.sub_title = self.screen_title()
         self.refresh_data()
+
+    def on_tabs_tab_activated(self, event: NavBar.TabActivated) -> None:
+        name = (event.tab.id or "").removeprefix("nav-")
+        if name and name != self.NAME and tab_id(name) == event.tab.id:
+            self.app.action_goto(name)
 
     def refresh_data(self) -> None:  # noqa: B027 - optional hook
         """Reload data from the database; called on mount and after a job finished."""

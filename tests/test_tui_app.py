@@ -14,7 +14,7 @@ from wristpull.tui.screens.help import HelpScreen  # noqa: E402
 from wristpull.tui.screens.home import HomeScreen  # noqa: E402
 from wristpull.tui.screens.settings import SettingsScreen  # noqa: E402
 from wristpull.tui.screens.sync import SyncScreen  # noqa: E402
-from wristpull.tui.widgets import KeyBar, Panel  # noqa: E402
+from wristpull.tui.widgets import KeyBar, NavBar, Panel  # noqa: E402
 
 
 def test_start_navigate_and_switch_language(config: Config, tmp_path: Path):
@@ -27,10 +27,19 @@ def test_start_navigate_and_switch_language(config: Config, tmp_path: Path):
             assert isinstance(app.screen, HomeScreen)
             assert app.sub_title == "Übersicht"
             assert "Beenden" in app.screen.query_one(KeyBar).content
-            for key, cls in (("2", SyncScreen), ("3", DaysScreen), ("6", FilesScreen), ("8", SettingsScreen), ("1", HomeScreen)):
+            assert app.screen.query_one(NavBar).active == "nav-home"
+            assert "1 Übersicht" in str(app.screen.query_one(NavBar).query_one("#nav-home").label)
+            for key, cls, tab in (("2", SyncScreen, "nav-sync"), ("3", DaysScreen, "nav-days"), ("6", FilesScreen, "nav-files"), ("8", SettingsScreen, "nav-config"), ("1", HomeScreen, "nav-home")):
                 await pilot.press(key)
                 await pilot.pause()
                 assert isinstance(app.screen, cls), key
+                assert app.screen.query_one(NavBar).active == tab
+            # activating a tab (mouse) switches the screen too
+            app.screen.query_one(NavBar).active = "nav-days"
+            await pilot.pause()
+            assert isinstance(app.screen, DaysScreen)
+            await pilot.press("1")
+            await pilot.pause()
             await pilot.press("question_mark")
             await pilot.pause()
             assert isinstance(app.screen, HelpScreen)
