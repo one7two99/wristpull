@@ -83,3 +83,13 @@ def test_build_weekly_sections(conn, config, garmin_tree: Path, tmp_path: Path):
     assert body["Previous coaching"] == "- earlier plan" and "Only 2 of 7 days" in body["Data caveats"]
     empty = build_weekly(conn, config, date(2026, 12, 6))
     assert {s.title: s.body for s in empty.sections}["Week vs previous week"] == "No daily data in the review week."
+
+
+def test_meaningful_frame_filters_blips(conn, config, tmp_path: Path):
+    import polars as pl
+
+    from wristpull.coach.context import meaningful_frame
+
+    frame = pl.DataFrame({"duration_min": [3.0, 3.0, 45.0, None], "distance_km": [None, None, None, 2.0], "avg_hr": [None, 110, None, None]})
+    assert meaningful_frame(frame)["duration_min"].to_list() == [3.0, 45.0, None]
+    assert meaningful_frame(frame.clear()).is_empty()

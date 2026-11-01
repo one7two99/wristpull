@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
+import polars as pl
+
 from ..aggregate import activities_frame, daily_frame, period_overview, sleep_frame, week_bounds, weekly_frame
 from ..config import Config
 from ..export import _fmt
@@ -45,6 +47,13 @@ def meaningful_activity(a: dict[str, Any]) -> bool:
     """Skip accidental starts: under 5 minutes without distance or heart rate (e.g. the strap's 'kind_0' blips)."""
     duration = a.get("duration_min") or 0
     return duration >= 5 or bool(a.get("distance_km")) or a.get("avg_hr") is not None
+
+
+def meaningful_frame(acts: pl.DataFrame) -> pl.DataFrame:
+    """The same rule as meaningful_activity, applied to an activities_frame."""
+    if acts.is_empty():
+        return acts
+    return acts.filter((pl.col("duration_min").fill_null(0) >= 5) | pl.col("distance_km").is_not_null() | pl.col("avg_hr").is_not_null())
 
 
 def day_rows(conn: sqlite3.Connection, start: date, end: date) -> list[dict[str, Any]]:
@@ -202,8 +211,8 @@ def build_weekly(conn: sqlite3.Connection, config: Config, day: date, *, digest:
     week_rows = [r for r in rows_all if start.isoformat() <= r["date"] <= end.isoformat()]
     daily = daily_frame(conn, start.isoformat(), end.isoformat())
     prev_daily = daily_frame(conn, prev_start.isoformat(), prev_end.isoformat())
-    acts = activities_frame(conn, start.isoformat(), end.isoformat(), tz)
-    prev_acts = activities_frame(conn, prev_start.isoformat(), prev_end.isoformat(), tz)
+    acts = meaningful_frame(activities_frame(conn, start.isoformat(), end.isoformat(), tz))
+    prev_acts = meaningful_frame(activities_frame(conn, prev_start.isoformat(), prev_end.isoformat(), tz))
     now, prev = period_overview(daily, acts), period_overview(prev_daily, prev_acts)
     pkg.facts.update(week=f"{start.isoformat()} to {end.isoformat()}", days_with_data=now.get("days", 0), previous_days_with_data=prev.get("days", 0))
     pkg.add("Coverage", f"Review of {start.isoformat()} to {end.isoformat()} (ISO week {start.isocalendar().week}), run on {day.isoformat()}, time zone {config.timezone}. Days with data: {now.get('days', 0)} (previous week {prev.get('days', 0)}).", 100)
@@ -220,7 +229,7 @@ def build_weekly(conn: sqlite3.Connection, config: Config, day: date, *, digest:
     else:
         pkg.add("Week vs previous week", "No daily data in the review week.", 95)
     pkg.add("Days of the week", _row_table(week_rows) if week_rows else "No daily rows.", 85)
-    acts_rows = [a for a in acts.iter_rows(named=True) if meaningful_activity(a)][:15]
+    acts_rows = list(acts.iter_rows(named=True))[:15]
     if acts_rows:
         lines = [
             f"- {a['start_local']} {a['sport'] or '-'}{(' (' + a['name'] + ')') if a['name'] else ''}: {_fmt(a['duration_min'], 0)} min, {_fmt(a['distance_km'], 1)} km, "
