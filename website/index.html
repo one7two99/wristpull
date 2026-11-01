@@ -135,6 +135,7 @@ footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--
       <p class="eyebrow">Local-first wearable data · Python · SQLite · your choice of LLM</p>
       <h1>Your body produces the data. Your machine should hold it.</h1>
       <p class="lede">wristpull pulls the raw files off a Garmin watch over USB and the Gadgetbridge export off your phone over ADB, normalises everything into one local SQLite database and lets a language model of <em>your</em> choosing coach you. No vendor cloud. No subscription. No account.</p>
+      <p class="measure dim">It currently runs every day with a <b>Garmin fenix 6X Pro</b> <em>and</em> an <b>Amazfit Helio Strap</b> worn side by side. Those two are examples, not requirements: they are simply the devices the project owner wears. Anything Gadgetbridge can read, or any watch that exposes its FIT files, is a candidate source.</p>
       <div class="ctas">
         <a class="cta primary" href="https://github.com/one7two99/wristpull">Source on GitHub</a>
         <a class="cta ghost" href="#how">How the pipeline works</a>
@@ -178,7 +179,7 @@ Recovered: resting HR 47 bpm is below your 7-day mean of 52 …
   <div class="manifesto" style="margin-top:2.5rem">
     <div class="reason"><div><h3>The sensor is yours, the data should be too</h3><p>Every FIT file the watch writes is already on the device. wristpull reads it over a USB cable and keeps the byte-identical original in a read-only archive, hashed with SHA-256. Nothing is uploaded to be looked at.</p></div></div>
     <div class="reason"><div><h3>No subscription for a graph of your own sleep</h3><p>Vendors move sleep scores, HRV status and training readiness behind paywalls one feature at a time. wristpull parses the same fields from the same files and stores them as plain columns you can query with <code>sqlite3</code>.</p></div></div>
-    <div class="reason"><div><h3>Independence from the device you wear today</h3><p>Sources are a column, not an architecture decision. Garmin over USB, Garmin via Gadgetbridge, a Zepp strap via Gadgetbridge: three sources already, merged by a documented rule. Switch watches and the history stays.</p></div></div>
+    <div class="reason"><div><h3>Independence from the device you wear today</h3><p>Sources are a column, not an architecture decision. Garmin over USB, Garmin via Gadgetbridge, a Zepp strap via Gadgetbridge: three sources already, merged by a documented rule, two of them worn at the same time on the same wrist. Switch watches and the history stays; add a second device and the data sits side by side instead of in two apps.</p></div></div>
     <div class="reason"><div><h3>You decide which model reads your health</h3><p>A fully local Ollama model, the Claude API, or any model on OpenRouter. The backend choice is the privacy choice, made explicitly in the config, and a dry run shows the exact bytes that would be sent before anything leaves the machine.</p></div></div>
     <div class="reason"><div><h3>Numbers are computed, not hallucinated</h3><p>Baselines, deltas, the acute-to-chronic workload ratio and recovery flags are calculated in Python. The model only interprets, must quote the numbers it used, and every quoted number is checked against the data package.</p></div></div>
     <div class="reason"><div><h3>Verified against the device, not against marketing</h3><p>Sleep stages, HRV and SpO2 mappings were cross-checked row by row with Gadgetbridge's own tables and the watch display. Where a mapping is still unconfirmed, the UI says so.</p></div></div>
@@ -278,7 +279,7 @@ Recovered: resting HR 47 bpm is below your 7-day mean of 52 …
   </div>
   <div class="grid" style="margin-top:2rem">
     <div class="note"><h3>Not a medical device</h3><p>The coach is told to refuse diagnoses and to send you to a doctor when values look pathological. Treat it as a training partner with a good memory, not as a clinician.</p></div>
-    <div class="note"><h3>Early and opinionated</h3><p>Verified on one fenix 6X Pro, one Amazfit Helio Strap and a handful of nights. Other watches will need parser work. Field mappings that are still unconfirmed are listed in the README and shown in the UI.</p></div>
+    <div class="note"><h3>Early and opinionated</h3><p>Verified on one Garmin fenix 6X Pro and one Amazfit Helio Strap, worn together, over a handful of nights, because that is what the project owner has on the wrist. Other watches will need parser work and real files to test against. Field mappings that are still unconfirmed are listed in the README and shown in the UI.</p></div>
     <div class="note"><h3>Sync is a race</h3><p>A Garmin watch deletes monitoring files once any app has fetched them. If Garmin Connect syncs first, those hours are gone for everyone else. wristpull documents the order that keeps your data complete, but it cannot win a race you let the vendor app start.</p></div>
   </div>
 </section>
