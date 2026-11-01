@@ -61,10 +61,14 @@ def acute_chronic(rows: list[Row], *, acute_days: int = 7, chronic_days: int = 2
 
 def deltas(rows: list[Row], metric: str) -> dict[str, float | None]:
     """Latest value and its 7-/28-day baselines (baselines exclude the latest day)."""
+    empty = {"latest": None, "mean_7d": None, "mean_28d": None, "delta_7d": None, "delta_28d": None, "n_7d": 0, "n_28d": 0}
     if not rows:
-        return {"latest": None, "mean_7d": None, "mean_28d": None, "delta_7d": None, "delta_28d": None}
+        return empty
     latest_row = rows[-1]
     latest = value(latest_row, metric)
+    earlier = [r for r in rows if r["date"] < latest_row["date"]]
+    n7 = sum(1 for r in earlier[-7:] if value(r, metric) is not None)
+    n28 = sum(1 for r in earlier[-28:] if value(r, metric) is not None)
     m7 = baseline(rows, metric, 7, before=latest_row["date"])
     m28 = baseline(rows, metric, 28, before=latest_row["date"])
     return {
@@ -73,6 +77,8 @@ def deltas(rows: list[Row], metric: str) -> dict[str, float | None]:
         "mean_28d": round(m28, 1) if m28 is not None else None,
         "delta_7d": round(latest - m7, 1) if latest is not None and m7 is not None else None,
         "delta_28d": round(latest - m28, 1) if latest is not None and m28 is not None else None,
+        "n_7d": n7,
+        "n_28d": n28,
     }
 
 

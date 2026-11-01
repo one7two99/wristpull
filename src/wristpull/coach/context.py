@@ -86,9 +86,11 @@ def _delta_line(label: str, d: dict[str, float | None], unit: str) -> str:
         return f"- {label}: no value for the latest day"
     parts = [f"{d['latest']:.0f}{unit}"]
     if d["mean_7d"] is not None:
-        parts.append(f"7-day mean {d['mean_7d']:.0f}{unit}")
+        parts.append(f"7-day mean {d['mean_7d']:.0f}{unit} from {d['n_7d']} earlier day{'s' if d['n_7d'] != 1 else ''}")
     if d["mean_28d"] is not None:
-        parts.append(f"28-day mean {d['mean_28d']:.0f}{unit} (Δ {d['delta_28d']:+.0f})")
+        parts.append(f"28-day mean {d['mean_28d']:.0f}{unit} from {d['n_28d']} day{'s' if d['n_28d'] != 1 else ''} (Δ {d['delta_28d']:+.0f})")
+    if d["mean_7d"] is None:
+        parts.append("no earlier days to compare with")
     return f"- {label}: " + ", ".join(parts)
 
 

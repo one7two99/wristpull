@@ -40,6 +40,8 @@ def test_deltas_and_flags():
     rows[-1].update(garmin_resting_hr=58, garmin_hrv_last_night_avg_ms=30.0, garmin_sleep_duration_s=5 * 3600, garmin_sleep_score=55, garmin_body_battery_max=40)
     d = metrics.deltas(rows, "resting_hr")
     assert d["latest"] == 58 and d["mean_28d"] == 52.0 and d["delta_28d"] == 6.0
+    assert d["n_7d"] == 7 and d["n_28d"] == 28
+    assert metrics.deltas(rows[:1], "resting_hr")["n_7d"] == 0
     flags = metrics.recovery_flags(rows)
     assert any("HRV 30 ms" in f for f in flags)
     assert any("resting HR 58 bpm is +6 bpm" in f for f in flags)
