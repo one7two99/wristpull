@@ -73,8 +73,8 @@ section.hero { border-top: 0; padding-top: clamp(3rem, 8vw, 6rem); }
 .brand span { color: var(--accent); }
 nav a { margin-left: 1rem; font-family: var(--mono); font-size: 0.85rem; text-decoration: none; color: var(--fg-2); }
 nav a:hover { color: var(--fg); }
-.hero-grid { display: grid; gap: 2.5rem; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
-@media (max-width: 820px) { .hero-grid { grid-template-columns: 1fr; } }
+.hero-grid { display: grid; gap: 2.5rem; grid-template-columns: 1fr; }
+.hero-grid h1 { max-width: 18ch; }
 .lede { font-size: 1.2rem; color: var(--fg-2); max-width: 58ch; }
 .cta { display: inline-flex; gap: 0.6rem; align-items: center; font-family: var(--mono); font-size: 0.9rem; padding: 0.7rem 1.1rem; border-radius: 4px; text-decoration: none; }
 .cta.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
@@ -82,8 +82,8 @@ nav a:hover { color: var(--fg); }
 .ctas { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 0.6rem; }
 .terminal { border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); overflow: hidden; }
 .terminal .bar { display: flex; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 0.75rem; color: var(--fg-2); }
-.terminal pre { border: 0; border-radius: 0; background: transparent; }
-.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem; }
+.terminal pre { border: 0; border-radius: 0; background: transparent; white-space: pre-wrap; overflow-wrap: anywhere; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-top: 1rem; max-width: 820px; }
 .fact { border-left: 2px solid var(--accent); padding-left: 0.8rem; }
 .fact b { display: block; font-family: var(--mono); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
 .fact span { color: var(--fg-2); font-size: 0.9rem; }
@@ -147,17 +147,17 @@ footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--
       </div>
     </div>
     <div class="terminal" aria-label="Terminal session">
-      <div class="bar">alice@laptop — fish — 100×24</div>
+      <div class="bar">alice@laptop — fish — three commands, one morning</div>
 <pre><code><span class="prompt">$</span> wristpull import garmin
   mounted mtp://091e_4cdb_&lt;id&gt;/
   + Sleep/GB171544.fit: sleep=1, sleep_stages=15
   + HRVStatus/GB171539.fit: hrv=1, hrv_values=91
-  + Monitor/MB171500.FIT: heart_rate=428, stress=520, body_battery=520
-/run/user/1000/gvfs/mtp:host=…/GARMIN: 41 FIT files, 5 new, 36 already archived, 0 errors
+  + Monitor/MB171500.FIT: heart_rate=428, stress=520
+  GARMIN: 41 FIT files, 5 new, 36 already archived, 0 errors
 
 <span class="prompt">$</span> wristpull pull phone
   Intent TRIGGER_DATABASE_EXPORT sent, export written at 06:17 UTC
-  Gadgetbridge.db: imported, heart_rate=689, hrv_values=400, sleep=1, temperature=811
+  Gadgetbridge.db: imported, heart_rate=689, hrv_values=400, sleep=1
   device: fenix 6X Pro [AA:BB:…] -&gt; gadgetbridge_garmin
   device: Amazfit Helio Strap [AA:BB:…] -&gt; gadgetbridge_zepp
 
