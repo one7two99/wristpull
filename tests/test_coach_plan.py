@@ -53,4 +53,4 @@ def test_plan_to_ics():
     assert "DTSTART;VALUE=DATE:20261007" in ics  # rest day as all-day event
     assert "SUMMARY:wristpull: Intervals 6×400 m (45 min)" in ics and "DESCRIPTION:hard" in ics
     assert "SUMMARY:wristpull: Long run (75 min)" in ics
-    assert plan_to_ics([PlanRow(0, "a; b, c", 10, "")], date(2026, 10, 5), TZ).count("a\; b\\, c") == 1
+    assert plan_to_ics([PlanRow(0, "a; b, c", 10, "")], date(2026, 10, 5), TZ).count("a\\; b\\, c") == 1
