@@ -1,5 +1,7 @@
 <img src="docs/logos/wristpull-g-logo.svg" alt="wristpull" width="260">
 
+Project page: <https://one7two99.github.io/wristpull/>
+
 # wristpull
 
 Collects health and training data from wearables **without any vendor cloud**, stores the raw
