@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
 from typing import Any
 
 from textual.app import ComposeResult
@@ -10,13 +9,11 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import DataTable
 
-from ...aggregate import month_bounds, week_bounds
 from ..format import fmt_date, fmt_duration, fmt_float, fmt_int
 from ..i18n import _
-from ..jobs import last_days
 from ..queries import day_rows
 from ..widgets import Panel
-from .base import WristpullScreen
+from .base import PeriodMixin, WristpullScreen
 
 DETAIL_FIELDS: tuple[tuple[str, str, str], ...] = (
     # (label msgid, garmin column, kind) kind: int | float | duration | km
@@ -77,7 +74,7 @@ def detail_lines(row: dict[str, Any]) -> list[str]:
     return lines
 
 
-class DaysScreen(WristpullScreen):
+class DaysScreen(PeriodMixin, WristpullScreen):
     NAME = "days"
     BINDINGS = [
         Binding("left", "shift(-1)", "Earlier", show=False),
@@ -90,15 +87,13 @@ class DaysScreen(WristpullScreen):
 
     def __init__(self) -> None:
         super().__init__()
-        self.period_start: date | None = None
-        self.period_end: date | None = None
         self.rows: dict[str, dict[str, Any]] = {}
 
     def screen_title(self) -> str:
         return _("Days")
 
     def keys(self) -> list[tuple[str, str]]:
-        return [("←→", _("shift period")), ("w", _("this week")), ("m", _("this month")), ("d", _("default range")), ("↑↓", _("day")), ("Esc", _("back"))]
+        return self.period_keys() + [("↑↓", _("day")), ("Esc", _("back"))]
 
     def body(self) -> ComposeResult:
         with Vertical(id="days"):
@@ -107,36 +102,11 @@ class DaysScreen(WristpullScreen):
                 yield DataTable(id="daytable", cursor_type="row", zebra_stripes=True)
                 yield Panel(_("Detail"), id="detail")
 
-    def _ensure_period(self) -> None:
-        if self.period_start is None or self.period_end is None:
-            self.period_start, self.period_end = last_days(self.app.deps.today(), self.app.config.ui_range_days)
-
-    def action_shift(self, direction: int) -> None:
-        self._ensure_period()
-        assert self.period_start and self.period_end
-        span = (self.period_end - self.period_start).days + 1
-        self.period_start += timedelta(days=direction * span)
-        self.period_end += timedelta(days=direction * span)
-        self.refresh_data()
-
-    def action_preset(self, which: str) -> None:
-        today = self.app.deps.today()
-        if which == "week":
-            self.period_start, self.period_end = week_bounds(today)
-        elif which == "month":
-            self.period_start, self.period_end = month_bounds(today)
-        else:
-            self.period_start, self.period_end = last_days(today, self.app.config.ui_range_days)
-        self.refresh_data()
-
     def refresh_data(self) -> None:
-        self._ensure_period()
-        assert self.period_start and self.period_end
-        rows = day_rows(self.app.conn, self.period_start, self.period_end)
+        start, end = self.ensure_period()
+        rows = day_rows(self.app.conn, start, end)
         self.rows = {r["date"]: r for r in rows}
-        self.query_one("#period", Panel).set_lines(
-            [f"{fmt_date(self.period_start, year=True)} – {fmt_date(self.period_end, year=True)}   " + _("{n} days with data").format(n=len(rows))]
-        )
+        self.query_one("#period", Panel).set_lines([self.period_label() + "   " + _("{n} days with data").format(n=len(rows))])
         table = self.query_one("#daytable", DataTable)
         table.clear(columns=True)
         table.add_columns(_("Date"), _("Steps"), _("RHR"), _("Sleep"), _("BB"), _("Stress"), _("Int."), _("Strap steps"), _("Src"))

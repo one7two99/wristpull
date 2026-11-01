@@ -117,3 +117,37 @@ def fmt_delta(current: float | None, previous: float | None, *, digits: int = 0,
     arrow = "▲" if diff > 0 else "▼"
     sign = "+" if diff > 0 else "−"
     return f"{arrow} {sign}{fmt_float(abs(diff), digits, lang) if digits else fmt_int(abs(diff), lang)}{suffix}"
+
+
+STAGE_GLYPHS = {"deep": "▓", "light": "▒", "rem": "░", "awake": "·", "unmeasurable": " "}
+
+
+def stage_bar(stages: list[tuple[datetime, datetime, str]], start: datetime, end: datetime, width: int) -> str:
+    """One character per slot between start and end, showing the stage that covers most of the slot."""
+    if width <= 0 or end <= start:
+        return ""
+    total = (end - start).total_seconds()
+    slot = total / width
+    out = []
+    for i in range(width):
+        s0 = start.timestamp() + i * slot
+        s1 = s0 + slot
+        best, best_overlap = " ", 0.0
+        for st, en, kind in stages:
+            overlap = min(en.timestamp(), s1) - max(st.timestamp(), s0)
+            if overlap > best_overlap:
+                best, best_overlap = STAGE_GLYPHS.get(kind, "?"), overlap
+        out.append(best)
+    return "".join(out)
+
+
+def fmt_pct(value: float | None, digits: int = 0, lang: str | None = None) -> str:
+    return DASH if value is None else fmt_float(value, digits, lang) + " %"
+
+
+def bar(value: float | None, maximum: float | None, width: int = 20) -> str:
+    """A simple proportional bar of block characters."""
+    if not value or not maximum or maximum <= 0:
+        return ""
+    filled = max(1, round(width * min(value, maximum) / maximum))
+    return "█" * filled

@@ -8,11 +8,11 @@ from textual.widgets import DataTable  # noqa: E402
 
 from tui_helpers import make_app, make_deps, run  # noqa: E402
 from wristpull.config import Config  # noqa: E402
-from wristpull.tui.screens.config_view import ConfigScreen  # noqa: E402
 from wristpull.tui.screens.days import DaysScreen  # noqa: E402
 from wristpull.tui.screens.files import FilesScreen  # noqa: E402
 from wristpull.tui.screens.help import HelpScreen  # noqa: E402
 from wristpull.tui.screens.home import HomeScreen  # noqa: E402
+from wristpull.tui.screens.settings import SettingsScreen  # noqa: E402
 from wristpull.tui.screens.sync import SyncScreen  # noqa: E402
 from wristpull.tui.widgets import KeyBar, Panel  # noqa: E402
 
@@ -27,7 +27,7 @@ def test_start_navigate_and_switch_language(config: Config, tmp_path: Path):
             assert isinstance(app.screen, HomeScreen)
             assert app.sub_title == "Übersicht"
             assert "Beenden" in app.screen.query_one(KeyBar).content
-            for key, cls in (("2", SyncScreen), ("3", DaysScreen), ("6", FilesScreen), ("8", ConfigScreen), ("1", HomeScreen)):
+            for key, cls in (("2", SyncScreen), ("3", DaysScreen), ("6", FilesScreen), ("8", SettingsScreen), ("1", HomeScreen)):
                 await pilot.press(key)
                 await pilot.pause()
                 assert isinstance(app.screen, cls), key
@@ -41,9 +41,6 @@ def test_start_navigate_and_switch_language(config: Config, tmp_path: Path):
             await pilot.pause()
             assert app.language == "en"
             assert app.sub_title == "Overview"
-            await pilot.press("4")  # planned screen only notifies
-            await pilot.pause()
-            assert isinstance(app.screen, HomeScreen)
 
     run(scenario())
 
@@ -133,7 +130,7 @@ def test_config_screen_renders_values(config: Config, tmp_path: Path):
         async with app.run_test(size=(120, 40)) as pilot:
             await pilot.press("8")
             await pilot.pause()
-            text = str(app.screen.query_one("#config-text", Panel).content)
+            text = str(app.screen.query_one("#settings-preview", Panel).content)
             assert "[ui]" in text and 'language = "de"' in text
 
     run(scenario())

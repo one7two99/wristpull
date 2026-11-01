@@ -27,7 +27,7 @@ timezone = "{timezone}"
 # Folders below GARMIN/ on the watch that are imported.
 folders = {folders}
 # Additional directories to search for a mounted watch (a directory that contains GARMIN/).
-mount_hints = []
+mount_hints = {mount_hints}
 
 [phone]
 # ADB serial of the phone running Gadgetbridge.
@@ -76,10 +76,12 @@ class Config:
 
     def render(self) -> str:
         folders = "[" + ", ".join(f'"{f}"' for f in self.garmin_folders) + "]"
+        hints = "[" + ", ".join(f'"{str(h).replace(str(Path.home()), "~", 1)}"' for h in self.garmin_mount_hints) + "]"
         return EXAMPLE_CONFIG.format(
             data_dir=str(self.data_dir).replace(str(Path.home()), "~", 1),
             timezone=self.timezone,
             folders=folders,
+            mount_hints=hints,
             phone_serial=self.phone_serial or "",
             ui_language=self.ui_language or "",
             ui_theme=self.ui_theme,
@@ -131,4 +133,38 @@ def write_default_config(path: Path | None = None, *, overwrite: bool = False) -
         raise FileExistsError(cfg_path)
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(Config().render(), "utf-8")
+    return cfg_path
+
+
+def validate_config(cfg: Config) -> list[str]:
+    """Problems a settings editor should refuse to save (empty list = fine)."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    problems: list[str] = []
+    try:
+        ZoneInfo(cfg.timezone)
+    except (ZoneInfoNotFoundError, ValueError, TypeError):
+        problems.append(f"unknown timezone: {cfg.timezone!r}")
+    if not str(cfg.data_dir).strip():
+        problems.append("data_dir must not be empty")
+    if not cfg.garmin_folders:
+        problems.append("at least one Garmin folder is needed")
+    if cfg.ui_language and cfg.ui_language not in UI_LANGUAGES:
+        problems.append(f"ui language must be one of {', '.join(UI_LANGUAGES)} or empty")
+    if cfg.ui_range_days < 1:
+        problems.append("range_days must be at least 1")
+    if not cfg.phone_export_dir.startswith("/"):
+        problems.append("phone export_dir must be an absolute path on the phone")
+    return problems
+
+
+def write_config(cfg: Config, path: Path | None = None) -> Path:
+    """Write the config file from the dataclass (comments of a hand-edited file are not preserved)."""
+    problems = validate_config(cfg)
+    if problems:
+        raise ValueError("; ".join(problems))
+    cfg_path = path or cfg.path or default_config_path()
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg_path.write_text(cfg.render(), "utf-8")
+    cfg.path = cfg_path
     return cfg_path

@@ -115,3 +115,65 @@ Screen {
 #config {
     height: 1fr;
 }
+
+#activities, #sleep, #export, #settings {
+    height: 1fr;
+}
+
+#act-top {
+    height: 3;
+}
+
+#act-top Panel {
+    width: 1fr;
+}
+
+#filter {
+    width: 36;
+}
+
+#acttable, #nights {
+    width: 1fr;
+    border: round $primary;
+}
+
+#actdetail {
+    width: 58;
+}
+
+#nightdetail {
+    width: 62;
+}
+
+#exportform, #settingsform {
+    width: 46;
+    border: round $primary;
+    padding: 0 1;
+}
+
+#export-side, #settings-side {
+    width: 1fr;
+}
+
+#export-result, #settings-status {
+    height: auto;
+    max-height: 14;
+}
+
+#export-preview, #settings-preview {
+    height: 1fr;
+}
+
+Button.small {
+    width: auto;
+    min-width: 8;
+    margin: 0 1 0 0;
+}
+
+#exportform Button, #settingsform Button {
+    margin-top: 1;
+}
+
+RadioSet {
+    width: 100%;
+}

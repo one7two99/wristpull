@@ -32,6 +32,7 @@ class ImportStats:
     rows: dict[str, int] = field(default_factory=dict)
     error_files: list[tuple[str, str]] = field(default_factory=list)
     mount_message: str | None = None
+    stopped: bool = False  # the caller asked to stop before all files were handled
 
     def add_rows(self, counts: dict[str, int]) -> None:
         for key, value in counts.items():
@@ -177,8 +178,13 @@ def import_garmin(
     log: Log = lambda _msg: None,
     roots: Callable[[], list[Path]] | None = None,
     mounter: Callable[[], tuple[bool, str]] = try_mount_garmin,
+    stop: Callable[[], bool] | None = None,
 ) -> ImportStats:
-    """Find the watch, copy every new FIT file into the archive and parse it."""
+    """Find the watch, copy every new FIT file into the archive and parse it.
+
+    ``stop`` is polled between files; when it returns True the import ends early with
+    ``stats.stopped`` set (files already imported stay imported).
+    """
     stats = ImportStats()
     root, stats.mount_message = locate_garmin(config, path, roots=roots, mounter=mounter)
     if root is None:
@@ -190,6 +196,10 @@ def import_garmin(
     stats.found = len(files)
     archive = RawArchive(config.raw_dir, conn)
     for df in files:
+        if stop is not None and stop():
+            stats.stopped = True
+            log("  stopped on request")
+            break
         try:
             data = df.path.read_bytes()
         except OSError as exc:

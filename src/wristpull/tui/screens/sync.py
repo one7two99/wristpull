@@ -22,6 +22,7 @@ class SyncScreen(WristpullScreen):
     BINDINGS = [
         Binding("i", "import_garmin", "Import", show=False),
         Binding("p", "pull_phone", "Pull", show=False),
+        Binding("x", "app.cancel_job", "Stop job", show=False),
         Binding("l", "clear_log", "Clear log", show=False),
         Binding("c", "copy_cli", "Copy CLI", show=False),
         Binding("escape", "app.goto('home')", "Back", show=False),
@@ -31,7 +32,7 @@ class SyncScreen(WristpullScreen):
         return _("Devices & Sync")
 
     def keys(self) -> list[tuple[str, str]]:
-        return [("i", _("import")), ("p", _("pull")), ("l", _("clear log")), ("c", _("copy CLI")), ("Esc", _("back"))]
+        return [("i", _("import")), ("p", _("pull")), ("x", _("stop job")), ("l", _("clear log")), ("c", _("copy CLI")), ("Esc", _("back"))]
 
     def body(self) -> ComposeResult:
         config = self.app.config
@@ -53,6 +54,7 @@ class SyncScreen(WristpullScreen):
                     yield Input(value="60", id="phone-wait", type="number")
                     yield Checkbox(_("Dry run (show only)"), id="phone-dry")
                     yield Button(_("p  Pull phone"), id="btn-pull", variant="primary")
+                yield Button(_("x  Stop running job"), id="btn-stop", variant="error")
             with Vertical(id="log-side"):
                 log = JobLog(self.app.runner.lines, id="log")
                 log.border_title = _("Log")
@@ -64,6 +66,7 @@ class SyncScreen(WristpullScreen):
         busy = self.app.runner.busy
         self.query_one("#btn-import", Button).disabled = busy
         self.query_one("#btn-pull", Button).disabled = busy
+        self.query_one("#btn-stop", Button).disabled = not busy
 
     def _show_last(self, record: JobRecord | None) -> None:
         panel = self.query_one("#result", Panel)
@@ -84,7 +87,7 @@ class SyncScreen(WristpullScreen):
     def _garmin_spec(self):
         path_text = self.query_one("#garmin-path", Input).value.strip()
         dry = self.query_one("#garmin-dry", Checkbox).value
-        return garmin_import_job(self.app.config, self.app.deps, path=Path(path_text).expanduser() if path_text else None, dry_run=dry)
+        return garmin_import_job(self.app.config, self.app.deps, path=Path(path_text).expanduser() if path_text else None, dry_run=dry, stop=self.app.runner.should_stop)
 
     def _phone_spec(self):
         serial = self.query_one("#phone-serial", Input).value.strip() or None
@@ -95,7 +98,7 @@ class SyncScreen(WristpullScreen):
             wait = float(self.query_one("#phone-wait", Input).value or 60)
         except ValueError:
             wait = 60.0
-        return phone_pull_job(self.app.config, self.app.deps, serial=serial, trigger=trigger, sync=sync, wait=wait, dry_run=dry)
+        return phone_pull_job(self.app.config, self.app.deps, serial=serial, trigger=trigger, sync=sync, wait=wait, dry_run=dry, stop=self.app.runner.should_stop)
 
     def action_import_garmin(self) -> None:
         self.app.start_job(self._garmin_spec())
@@ -125,3 +128,7 @@ class SyncScreen(WristpullScreen):
     @on(Button.Pressed, "#btn-pull")
     def _on_pull(self) -> None:
         self.action_pull_phone()
+
+    @on(Button.Pressed, "#btn-stop")
+    def _on_stop(self) -> None:
+        self.app.action_cancel_job()

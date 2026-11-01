@@ -75,3 +75,20 @@ def test_rebuild_daily_summary_subset(conn, config, garmin_tree: Path):
     conn.execute("DELETE FROM daily_summary")
     assert rebuild_daily_summary(conn, source="garmin_usb", days=["2026-10-06"]) == 1
     assert table_count(conn, "daily_summary") == 1
+
+
+def test_import_stops_on_request(conn, config, garmin_tree: Path):
+    seen = {"n": 0}
+
+    def stop() -> bool:
+        seen["n"] += 1
+        return seen["n"] > 2  # allow two files
+
+    logs: list[str] = []
+    stats = import_garmin(conn, config, path=garmin_tree, log=logs.append, stop=stop)
+    assert stats.stopped and stats.new == 2 and stats.found == 5
+    assert logs[-1].strip() == "stopped on request"
+    assert table_count(conn, "raw_files") == 2
+    # the rest comes in on the next run
+    stats = import_garmin(conn, config, path=garmin_tree)
+    assert not stats.stopped and stats.new == 3 and stats.skipped == 2

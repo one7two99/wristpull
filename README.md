@@ -224,15 +224,16 @@ the data directory. German and English, switchable at runtime with `F12`; the la
 | Key | Screen / action |
 |---|---|
 | `1` | Overview: device status, data store, 7-day KPIs with sparklines, recent activities, notes |
-| `2` | Devices & Sync: forms for `import garmin` and `pull phone`, live log, last result, CLI equivalent (`c` copies it) |
+| `2` | Devices & Sync: forms for `import garmin` and `pull phone`, live log, last result, CLI equivalent (`c` copies it), `x` stops the running job after the current file |
 | `3` | Days: `daily_summary` per day (Garmin merged + strap), `←`/`→` shift the period, `w` week, `m` month, `d` default range; detail pane for the highlighted day |
+| `4` | Activities: list of the period with a text filter (`f`), detail with laps, time in HR zones and the HR curve; `o` opens the raw FIT file |
+| `5` | Sleep: nights of every source with a stage bar, durations, score, HRV, SpO2, breathing and HR of the night; `g` cycles all / Garmin / strap |
 | `6` | Files: tree of the data directory; `Enter` on a `.fit` runs `inspect`, Markdown/CSV preview, `o` opens with `xdg-open`, `y` copies the path |
-| `8` | Settings: the active configuration (read-only for now) |
+| `7` | Export & Report: Claude export or weekly/monthly report for a period with presets, result file list and Markdown preview; `o` opens the folder, `y`/`c` copy path or CLI |
+| `8` | Settings: edit every config value including `[ui]`, `Ctrl+S` validates and writes `config.toml` (language switches immediately, `data_dir` after a restart) |
 | `i` `p` `e` `r` | on the overview: import Garmin, pull phone, export the default range for Claude, weekly report with charts |
 | `/` `?` `F12` `q` | command palette, help, language, quit |
 
-Screens 4 (activities), 5 (sleep) and 7 (export & report form) are planned; see
-[docs/tui-concept.md](docs/tui-concept.md) and the mockups in [mockups/](mockups/README.md).
 Jobs run in a worker thread with their own SQLite connection; only one job runs at a time.
 
 ### Configuration file
@@ -457,5 +458,5 @@ real health data is needed or allowed in the repository. Code, comments and comm
 2. ~~`pull phone`: Gadgetbridge database and FIT files via ADB, Helio Strap parsing~~ (done before wave 2 because the devices were set up first)
 3. ~~`export --for-claude --from --to` (compact Markdown + CSV) and `report week|month`, merging the Garmin sources~~
 4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
-5. ~~Terminal UI MVP (`wristpull tui`: overview, sync jobs, days, files, settings view; German/English)~~ — next: activities, sleep and export/report screens, editable settings, cancel; concept in [docs/tui-concept.md](docs/tui-concept.md), mockups in [mockups/](mockups/README.md)
+5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), mockups in [mockups/](mockups/README.md)
 6. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)

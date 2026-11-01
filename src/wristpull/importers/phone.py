@@ -50,6 +50,7 @@ class PullStats:
     errors: int = 0
     rows: dict[str, int] = field(default_factory=dict)
     messages: list[str] = field(default_factory=list)
+    stopped: bool = False
 
     def add_rows(self, counts: dict[str, int]) -> None:
         for key, value in counts.items():
@@ -71,7 +72,7 @@ def pick_device(adb: Adb, serial: str | None) -> str:
     raise NoDeviceError("several devices connected, set [phone] serial in the config")
 
 
-def trigger_export(adb: Adb, db_path: str, *, wait: float, sync: bool, log: Log, sleep=time.sleep, clock=time.monotonic) -> bool:
+def trigger_export(adb: Adb, db_path: str, *, wait: float, sync: bool, log: Log, sleep=time.sleep, clock=time.monotonic, stop: Callable[[], bool] | None = None) -> bool:
     """Ask Gadgetbridge (Intent API) to sync and export; wait until the export file changes."""
     before = adb.stat_mtime(db_path)
     if sync:
@@ -79,6 +80,9 @@ def trigger_export(adb: Adb, db_path: str, *, wait: float, sync: bool, log: Log,
     adb.broadcast(ACTION_EXPORT)
     deadline = clock() + wait
     while clock() < deadline:
+        if stop is not None and stop():
+            log("  stopped on request while waiting for the export")
+            return False
         sleep(2)
         now = adb.stat_mtime(db_path)
         if now is not None and now != before:
@@ -176,6 +180,7 @@ def pull_phone(
     dry_run: bool = False,
     log: Log = lambda _m: None,
     sleep=time.sleep,
+    stop: Callable[[], bool] | None = None,
 ) -> PullStats:
     stats = PullStats()
     adb = adb or Adb(binary="adb")
@@ -186,7 +191,10 @@ def pull_phone(
     db_remote = f"{config.phone_export_dir.rstrip('/')}/{DB_NAME}"
     if trigger and not dry_run:
         try:
-            trigger_export(adb, db_remote, wait=wait, sync=sync, log=log, sleep=sleep)
+            trigger_export(adb, db_remote, wait=wait, sync=sync, log=log, sleep=sleep, stop=stop)
+            if stop is not None and stop():
+                stats.stopped = True
+                return stats
         except AdbError as exc:
             stats.messages.append(f"export trigger failed: {exc}")
             log(f"  ! export trigger failed: {exc}")
@@ -232,6 +240,10 @@ def pull_phone(
         if to_pull:
             fit_dir = tmp_dir / "files"
             for remote in to_pull:
+                if stop is not None and stop():
+                    stats.stopped = True
+                    log("  stopped on request")
+                    break
                 rel = Path(remote[len(GB_FILES_DIR) :].lstrip("/"))
                 local = fit_dir / rel
                 local.parent.mkdir(parents=True, exist_ok=True)

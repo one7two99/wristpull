@@ -47,6 +47,7 @@ class JobRecord:
     error: BaseException | None = None
     duration_s: float = 0.0
     lines: list[str] = field(default_factory=list)
+    cancelled: bool = False
 
     @property
     def ok(self) -> bool:
@@ -71,15 +72,29 @@ class JobRunner:
         self.started_at: float = 0.0
         self.lines: list[str] = []
         self.last: JobRecord | None = None
+        self.cancel_requested = False
 
     @property
     def busy(self) -> bool:
         return self.active is not None
 
+    def should_stop(self) -> bool:
+        """Polled by the running job between files (cooperative cancel)."""
+        return self.cancel_requested
+
+    def cancel(self) -> bool:
+        """Ask the running job to stop at the next opportunity; returns False when nothing runs."""
+        if self.active is None:
+            return False
+        self.cancel_requested = True
+        self.lines.append("⏹ " + _("stop requested, finishing the current file …"))
+        return True
+
     def start(self, spec: JobSpec) -> bool:
         if self.active is not None:
             return False
         self.active = spec
+        self.cancel_requested = False
         self.started_at = time.monotonic()
         self.lines.append(f"▶ {spec.title}   $ {spec.cli}")
         self.app.run_worker(partial(self._work, spec), name=spec.key, group="job", thread=True, exit_on_error=False)
@@ -103,7 +118,7 @@ class JobRunner:
         if self.active is None or worker.state not in FINISHED:
             return None
         spec, self.active = self.active, None
-        record = JobRecord(spec, duration_s=time.monotonic() - self.started_at)
+        record = JobRecord(spec, duration_s=time.monotonic() - self.started_at, cancelled=self.cancel_requested)
         if worker.state == WorkerState.SUCCESS:
             record.result = worker.result
         else:
@@ -120,6 +135,8 @@ def describe_result(record: JobRecord) -> list[str]:
         return [f"✗ {record.spec.title}: {record.error}"]
     result = record.result
     lines: list[str] = []
+    if getattr(result, "stopped", False) or record.cancelled:
+        lines.append("⏹ " + _("stopped on request; files handled so far are kept"))
     if isinstance(result, ImportStats):
         if result.root is None:
             lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
@@ -166,11 +183,14 @@ def describe_result(record: JobRecord) -> list[str]:
 # ---- job factories -------------------------------------------------------------------
 
 
-def garmin_import_job(config: Config, deps: TuiDeps, *, path: Path | None = None, dry_run: bool = False) -> JobSpec:
+Stop = Callable[[], bool] | None
+
+
+def garmin_import_job(config: Config, deps: TuiDeps, *, path: Path | None = None, dry_run: bool = False, stop: Stop = None) -> JobSpec:
     cli = "wristpull import garmin" + (f" --path {path}" if path else "") + (" --dry-run" if dry_run else "")
 
     def run(conn: sqlite3.Connection, log: Log) -> ImportStats:
-        return import_garmin(conn, config, path=path, dry_run=dry_run, log=log, roots=deps.roots, mounter=deps.mounter)
+        return import_garmin(conn, config, path=path, dry_run=dry_run, log=log, roots=deps.roots, mounter=deps.mounter, stop=stop)
 
     return JobSpec("import_garmin", _("Import Garmin"), cli, run)
 
@@ -184,6 +204,7 @@ def phone_pull_job(
     sync: bool = True,
     wait: float = 60.0,
     dry_run: bool = False,
+    stop: Stop = None,
 ) -> JobSpec:
     cfg = replace(config, phone_serial=serial) if serial else config
     cli = "wristpull pull phone"
@@ -199,19 +220,19 @@ def phone_pull_job(
         cli += " --dry-run"
 
     def run(conn: sqlite3.Connection, log: Log) -> PullStats:
-        return pull_phone(conn, cfg, adb=deps.adb_factory(), trigger=trigger, sync=sync, wait=wait, dry_run=dry_run, log=log, sleep=deps.sleep)
+        return pull_phone(conn, cfg, adb=deps.adb_factory(), trigger=trigger, sync=sync, wait=wait, dry_run=dry_run, log=log, sleep=deps.sleep, stop=stop)
 
     return JobSpec("pull_phone", _("Pull phone"), cli, run)
 
 
-def export_job(config: Config, start: date, end: date) -> JobSpec:
+def export_job(config: Config, start: date, end: date, *, write_csv: bool = True) -> JobSpec:
     from ..export import export_for_claude
 
-    cli = f"wristpull export --for-claude --from {start.isoformat()} --to {end.isoformat()}"
+    cli = f"wristpull export --for-claude --from {start.isoformat()} --to {end.isoformat()}" + ("" if write_csv else " --no-csv")
 
     def run(conn: sqlite3.Connection, log: Log) -> ExportResult:
         log(_("exporting {start} to {end} …").format(start=start.isoformat(), end=end.isoformat()))
-        return export_for_claude(conn, config, start.isoformat(), end.isoformat())
+        return export_for_claude(conn, config, start.isoformat(), end.isoformat(), write_csv=write_csv)
 
     return JobSpec("export", _("Export for Claude"), cli, run)
 

@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from wristpull.config import Config, load_config, write_default_config
+import pytest
+
+from wristpull.config import Config, load_config, validate_config, write_config, write_default_config
 
 
 def test_defaults_without_file(tmp_path: Path):
@@ -46,3 +48,19 @@ def test_ui_section_defaults_and_values(tmp_path: Path):
     assert cfg.ui_language == "de" and cfg.ui_theme == "nord" and cfg.ui_range_days == 1
     rendered = cfg.render()
     assert '[ui]' in rendered and 'language = "de"' in rendered and "range_days = 1" in rendered
+
+
+def test_validate_and_write_config_roundtrip(tmp_path: Path):
+    cfg = Config(data_dir=tmp_path / "H", timezone="Europe/Berlin", garmin_mount_hints=[Path("/mnt/watch")], phone_serial="ABC", ui_language="de", ui_range_days=14)
+    assert validate_config(cfg) == []
+    path = write_config(cfg, tmp_path / "cfg" / "config.toml")
+    assert cfg.path == path
+    loaded = load_config(path)
+    assert loaded.garmin_mount_hints == [Path("/mnt/watch")] and loaded.phone_serial == "ABC"
+    assert loaded.ui_language == "de" and loaded.ui_range_days == 14 and loaded.data_dir == tmp_path / "H"
+    bad = Config(timezone="Mars/Olympus", garmin_folders=[], ui_language="xx", ui_range_days=0, phone_export_dir="relative")
+    problems = validate_config(bad)
+    assert len(problems) == 5 and any("timezone" in p for p in problems)
+    with pytest.raises(ValueError):
+        write_config(bad, tmp_path / "bad.toml")
+    assert not (tmp_path / "bad.toml").exists()

@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Header
+
+from ...aggregate import month_bounds, week_bounds
+from ..format import fmt_date
+from ..jobs import last_days
 
 from ..i18n import _
 from ..widgets import KeyBar
@@ -43,3 +49,39 @@ class WristpullScreen(Screen):
 
     def job_finished(self, record) -> None:
         self.refresh_data()
+
+
+class PeriodMixin:
+    """Shared period handling for the data screens: ←/→ shift, w week, m month, d default range."""
+
+    period_start: date | None = None
+    period_end: date | None = None
+
+    def ensure_period(self) -> tuple[date, date]:
+        if self.period_start is None or self.period_end is None:
+            self.period_start, self.period_end = last_days(self.app.deps.today(), self.app.config.ui_range_days)  # type: ignore[attr-defined]
+        return self.period_start, self.period_end
+
+    def period_label(self) -> str:
+        start, end = self.ensure_period()
+        return f"{fmt_date(start, year=True)} – {fmt_date(end, year=True)}"
+
+    def action_shift(self, direction: int) -> None:
+        start, end = self.ensure_period()
+        span = (end - start).days + 1
+        self.period_start, self.period_end = start + timedelta(days=direction * span), end + timedelta(days=direction * span)
+        self.refresh_data()  # type: ignore[attr-defined]
+
+    def action_preset(self, which: str) -> None:
+        today = self.app.deps.today()  # type: ignore[attr-defined]
+        if which == "week":
+            self.period_start, self.period_end = week_bounds(today)
+        elif which == "month":
+            self.period_start, self.period_end = month_bounds(today)
+        else:
+            self.period_start, self.period_end = last_days(today, self.app.config.ui_range_days)  # type: ignore[attr-defined]
+        self.refresh_data()  # type: ignore[attr-defined]
+
+    @staticmethod
+    def period_keys() -> list[tuple[str, str]]:
+        return [("←→", _("shift period")), ("w", _("this week")), ("m", _("this month")), ("d", _("default range"))]

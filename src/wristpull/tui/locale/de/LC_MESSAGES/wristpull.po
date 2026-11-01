@@ -477,3 +477,282 @@ msgstr "Aktivitäten"
 
 msgid "Training load"
 msgstr "Trainingsbelastung"
+
+msgid "'To' must not be before 'From'"
+msgstr "„Bis“ darf nicht vor „Von“ liegen"
+
+msgid "(takes effect after a restart)"
+msgstr "(wirkt nach einem Neustart)"
+
+msgid "7 days"
+msgstr "7 Tage"
+
+msgid "Ascent"
+msgstr "Anstieg"
+
+msgid "Awake"
+msgstr "Wach"
+
+msgid "Awakenings"
+msgstr "Aufwachphasen"
+
+msgid "Bed"
+msgstr "Zu Bett"
+
+msgid "Breathing"
+msgstr "Atmung"
+
+msgid "Cadence avg"
+msgstr "Kadenz Ø"
+
+msgid "Calories"
+msgstr "Kalorien"
+
+msgid "Charts as SVG (reports)"
+msgstr "Charts als SVG (Reports)"
+
+msgid "Claude export (Markdown + CSV)"
+msgstr "Claude-Export (Markdown + CSV)"
+
+msgid "Dates must be YYYY-MM-DD"
+msgstr "Datum im Format JJJJ-MM-TT"
+
+msgid "Deep"
+msgstr "Tief"
+
+msgid "Export & Report"
+msgstr "Export & Report"
+
+msgid "From (YYYY-MM-DD); reports use the week/month of 'To'"
+msgstr "Von (JJJJ-MM-TT); Reports nehmen Woche/Monat von „Bis“"
+
+msgid "HR"
+msgstr "HF"
+
+msgid "HR avg / max"
+msgstr "HF Ø / max"
+
+msgid "Heart rate over time"
+msgstr "Herzfrequenz im Verlauf"
+
+msgid "INTERFACE"
+msgstr "OBERFLÄCHE"
+
+msgid "Lap"
+msgstr "Runde"
+
+msgid "Light"
+msgstr "Leicht"
+
+msgid "Load"
+msgstr "Belastung"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "Night"
+msgstr "Nacht"
+
+msgid "No activities in this period."
+msgstr "Keine Aktivitäten in diesem Zeitraum."
+
+msgid "No data"
+msgstr "Keine Daten"
+
+msgid "No job is running"
+msgstr "Es läuft kein Job"
+
+msgid "No nights in this period."
+msgstr "Keine Nächte in diesem Zeitraum."
+
+msgid "No raw file for this activity"
+msgstr "Keine Rohdatei zu dieser Aktivität"
+
+msgid "Not saved: {n} problems"
+msgstr "Nicht gespeichert: {n} Probleme"
+
+msgid "Nothing generated yet"
+msgstr "Noch nichts erzeugt"
+
+msgid "Nothing generated yet. Choose what and when, then press e."
+msgstr "Noch nichts erzeugt. Art und Zeitraum wählen, dann e drücken."
+
+msgid "OPTIONS"
+msgstr "OPTIONEN"
+
+msgid "PERIOD"
+msgstr "ZEITRAUM"
+
+msgid "Pace"
+msgstr "Tempo"
+
+msgid "Preview (TOML)"
+msgstr "Vorschau (TOML)"
+
+msgid "Quality"
+msgstr "Qualität"
+
+msgid "REM"
+msgstr "REM"
+
+msgid "Recovery"
+msgstr "Erholung"
+
+msgid "Reset"
+msgstr "Zurücksetzen"
+
+msgid "Result"
+msgstr "Ergebnis"
+
+msgid "STORAGE"
+msgstr "SPEICHER"
+
+msgid "Save"
+msgstr "Speichern"
+
+msgid "Saved to {path}"
+msgstr "Gespeichert nach {path}"
+
+msgid "Score"
+msgstr "Score"
+
+msgid "Stop requested; the job ends after the current file"
+msgstr "Stopp angefordert; der Job endet nach der aktuellen Datei"
+
+msgid "Stress in sleep"
+msgstr "Stress im Schlaf"
+
+msgid "Time"
+msgstr "Zeit"
+
+msgid "Time in HR zones"
+msgstr "Zeit in HF-Zonen"
+
+msgid "To"
+msgstr "Bis"
+
+msgid "Training effect"
+msgstr "Trainingseffekt"
+
+msgid "WHAT"
+msgstr "WAS"
+
+msgid "Wake"
+msgstr "Aufwachen"
+
+msgid "Wake-up"
+msgstr "Aufwachtag"
+
+msgid "Write CSV files (export)"
+msgstr "CSV-Dateien schreiben (Export)"
+
+msgid "avg"
+msgstr "Ø"
+
+msgid "awake"
+msgstr "wach"
+
+msgid "deep"
+msgstr "tief"
+
+msgid "default"
+msgstr "Standard"
+
+msgid "default range (days)"
+msgstr "Standardzeitraum (Tage)"
+
+msgid "e  Generate"
+msgstr "e  Erzeugen"
+
+msgid "filter"
+msgstr "Filter"
+
+msgid "filter: sport or name"
+msgstr "Filter: Sportart oder Name"
+
+msgid "folders, comma-separated"
+msgstr "Ordner, kommagetrennt"
+
+msgid "generate"
+msgstr "erzeugen"
+
+msgid "kcal"
+msgstr "kcal"
+
+msgid "light"
+msgstr "leicht"
+
+msgid "lines"
+msgstr "Zeilen"
+
+msgid "max HR"
+msgstr "max HF"
+
+msgid "min"
+msgstr "min"
+
+msgid "mount hints, comma-separated"
+msgstr "Mount-Hinweise, kommagetrennt"
+
+msgid "next field"
+msgstr "nächstes Feld"
+
+msgid "night avg"
+msgstr "Nacht-Ø"
+
+msgid "no data"
+msgstr "keine Daten"
+
+msgid "open file"
+msgstr "Datei öffnen"
+
+msgid "open folder"
+msgstr "Ordner öffnen"
+
+msgid "reset"
+msgstr "zurücksetzen"
+
+msgid "save"
+msgstr "speichern"
+
+msgid "source"
+msgstr "Quelle"
+
+msgid "source: {group}"
+msgstr "Quelle: {group}"
+
+msgid "stop job"
+msgstr "Job stoppen"
+
+msgid "stop requested, finishing the current file …"
+msgstr "Stopp angefordert, aktuelle Datei wird beendet …"
+
+msgid "stopped on request; files handled so far are kept"
+msgstr "auf Wunsch gestoppt; bisher verarbeitete Dateien bleiben"
+
+msgid "system"
+msgstr "System"
+
+msgid "theme"
+msgstr "Theme"
+
+msgid "unknown theme: {theme}"
+msgstr "unbekanntes Theme: {theme}"
+
+msgid "values"
+msgstr "Werte"
+
+msgid "x  Stop running job"
+msgstr "x  Laufenden Job stoppen"
+
+msgid "{n} activities"
+msgstr "{n} Aktivitäten"
+
+msgid "{n} nights"
+msgstr "{n} Nächte"
+
+msgid "…"
+msgstr "…"
+
+msgid "… {n} laps in total"
+msgstr "… insgesamt {n} Runden"

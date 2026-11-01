@@ -111,3 +111,13 @@ def test_import_gadgetbridge_fit_dir_local_copy(conn, config, phone: FakeAdb, tm
     found, new, skipped, errors, counts = import_gadgetbridge_fit_dir(conn, config, local)
     assert (found, new, skipped, errors) == (2, 2, 0, 1)
     assert counts["heart_rate"] == 672
+
+
+def test_pull_phone_stops_on_request(conn, config, phone: FakeAdb):
+    logs: list[str] = []
+    stats = pull_phone(conn, config, adb=phone, trigger=True, sync=False, wait=30, log=logs.append, sleep=lambda _s: None, stop=lambda: True)
+    assert stats.stopped and not stats.db_pulled and phone.pulled == []
+    assert any("stopped on request" in line for line in logs)
+    # without a trigger the database is pulled first, the FIT loop honours the stop before the first file
+    stats = pull_phone(conn, config, adb=phone, trigger=False, log=logs.append, stop=lambda: True)
+    assert stats.db_pulled and stats.stopped and stats.fit_new == 0 and len(phone.pulled) == 1

@@ -12,22 +12,27 @@ from ..db import connect
 from .deps import TuiDeps
 from .i18n import _, next_language, resolve_language, set_language
 from .jobs import JobLine, JobRunner, JobSpec, export_job, garmin_import_job, last_days, phone_pull_job, report_job
-from .screens.config_view import ConfigScreen
+from .screens.activities import ActivitiesScreen
 from .screens.days import DaysScreen
+from .screens.export import ExportScreen
 from .screens.files import FilesScreen
 from .screens.help import HelpScreen
 from .screens.home import HomeScreen
+from .screens.settings import SettingsScreen
+from .screens.sleep import SleepScreen
 from .screens.sync import SyncScreen
 
 SCREEN_FACTORIES = {
     "home": HomeScreen,
     "sync": SyncScreen,
     "days": DaysScreen,
+    "activities": ActivitiesScreen,
+    "sleep": SleepScreen,
     "files": FilesScreen,
-    "config": ConfigScreen,
+    "export": ExportScreen,
+    "config": SettingsScreen,
 }
-SCREEN_KEYS = {"1": "home", "2": "sync", "3": "days", "6": "files", "8": "config"}
-PLANNED_KEYS = {"4": "Activities", "5": "Sleep", "7": "Export & Report"}
+SCREEN_KEYS = {"1": "home", "2": "sync", "3": "days", "4": "activities", "5": "sleep", "6": "files", "7": "export", "8": "config"}
 
 
 class WristpullApp(App):
@@ -37,10 +42,10 @@ class WristpullApp(App):
         Binding("1", "goto('home')", "Overview", show=False),
         Binding("2", "goto('sync')", "Devices & Sync", show=False),
         Binding("3", "goto('days')", "Days", show=False),
-        Binding("4", "planned('Activities')", "Activities", show=False),
-        Binding("5", "planned('Sleep')", "Sleep", show=False),
+        Binding("4", "goto('activities')", "Activities", show=False),
+        Binding("5", "goto('sleep')", "Sleep", show=False),
         Binding("6", "goto('files')", "Files", show=False),
-        Binding("7", "planned('Export & Report')", "Export & Report", show=False),
+        Binding("7", "goto('export')", "Export & Report", show=False),
         Binding("8", "goto('config')", "Settings", show=False),
         Binding("question_mark", "help", "Help", show=False),
         Binding("f12", "toggle_language", "Language", show=False),
@@ -83,9 +88,6 @@ class WristpullApp(App):
             self.pop_screen()
         self.switch_screen(factory())
 
-    def action_planned(self, name: str) -> None:
-        self.notify(_("{screen} comes in the next wave").format(screen=name), severity="warning")
-
     def action_help(self) -> None:
         if not isinstance(self.screen, HelpScreen):
             self.push_screen(HelpScreen())
@@ -111,10 +113,17 @@ class WristpullApp(App):
         return True
 
     def action_import_garmin(self) -> None:
-        self.start_job(garmin_import_job(self.config, self.deps))
+        self.start_job(garmin_import_job(self.config, self.deps, stop=self.runner.should_stop))
 
     def action_pull_phone(self) -> None:
-        self.start_job(phone_pull_job(self.config, self.deps))
+        self.start_job(phone_pull_job(self.config, self.deps, stop=self.runner.should_stop))
+
+    def action_cancel_job(self) -> None:
+        if self.runner.cancel():
+            self.notify(_("Stop requested; the job ends after the current file"), severity="warning")
+            self._screen_hook("job_line", self.runner.lines[-1])
+        else:
+            self.notify(_("No job is running"))
 
     def action_export(self) -> None:
         start, end = last_days(self.deps.today(), self.config.ui_range_days)

@@ -18,7 +18,7 @@
   (`tests/test_tui_boundary.py`). Strings via `_()` from `tui/i18n.py` at render time, never at module level;
   German catalog in `tui/locale/de/LC_MESSAGES/wristpull.po`, recompile with
   `uv run pybabel compile -d src/wristpull/tui/locale -D wristpull` (a test checks the `.mo`). Long jobs go
-  through `tui/jobs.py` (worker thread, own connection). Tests: `App.run_test()` + `tests/tui_helpers.py`,
+  through `tui/jobs.py` (worker thread, own connection, cooperative `stop` polled between files). Tests: `App.run_test()` + `tests/tui_helpers.py`,
   inject `TuiDeps` (FakeAdb, `garmin_tree`, fixed `today`); every TUI test module starts with
   `pytest.importorskip("textual")`.
 - After changing a parser: `uv run wristpull reparse --source ... | --kind ... | --all` replaces the rows of
