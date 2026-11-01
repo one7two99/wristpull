@@ -13,7 +13,7 @@ from datetime import date
 from pathlib import Path
 
 from ..adb import Adb
-from ..garmin_usb import try_mount_garmin
+from ..garmin_usb import gio_garmin_mtp_urls, try_mount_garmin
 
 
 def open_with_desktop(path: Path) -> None:
@@ -30,6 +30,7 @@ class TuiDeps:
     adb_factory: Callable[[], Adb] = real_adb
     roots: Callable[[], list[Path]] | None = None  # None: the system mount points
     mounter: Callable[[], tuple[bool, str]] = try_mount_garmin
+    mtp_urls: Callable[[], list[str]] = gio_garmin_mtp_urls  # attached-but-unmounted Garmin devices
     sleep: Callable[[float], None] = time.sleep
     today: Callable[[], date] = date.today
     open_path: Callable[[Path], None] = open_with_desktop

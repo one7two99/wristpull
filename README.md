@@ -193,6 +193,27 @@ Setting up Gadgetbridge on the phone (install, pairing both devices, the Helio S
 authentication key, export and Intent API settings, ADB commands) is documented in
 [docs/gadgetbridge.md](docs/gadgetbridge.md).
 
+#### `wristpull reparse`
+
+Re-parses files that are already in the archive, replacing the rows that came from them. Use it
+after a parser change (new field mapping, new table) instead of re-importing from the device:
+the raw files never change, only their interpretation. Daily summaries of the touched sources
+are rebuilt. A file that fails to parse ends up with no rows and `parse_status = 'error'`.
+
+| Option | Effect |
+|---|---|
+| `--id N` | one raw file by `raw_files.id` (repeatable) |
+| `--source S` | every file of a source: `garmin_usb`, `gadgetbridge_garmin`, `gadgetbridge` (the database export) |
+| `--kind K` | every file of a kind: `activity`, `monitor`, `sleep`, `metrics`, `hrv`, `database` |
+| `--errors` | only files whose last parse failed |
+| `--all` | everything |
+
+```sh
+wristpull reparse --source gadgetbridge        # strap tables after a Gadgetbridge parser change
+wristpull reparse --kind sleep                 # all Garmin sleep files
+wristpull reparse --errors                     # retry what failed last time
+```
+
 #### `wristpull tui`
 
 A terminal UI over the same library functions (needs the optional extra: `uv sync --extra tui`).
@@ -321,6 +342,22 @@ can be re-run at any time.
 | `gadgetbridge_garmin` | fenix | the same FIT files, fetched by Gadgetbridge over Bluetooth and pulled from the phone | same parser; the watch splits them into smaller files |
 | `gadgetbridge_zepp` | Helio Strap | tables of the exported Gadgetbridge database | per-minute samples, no raw files exist |
 
+Two things seen on the first real night (2026-11-01) shape how the sources complement each other:
+
+- The watch **removes monitoring files once Gadgetbridge has synced them**. After an overnight
+  Bluetooth sync the USB `Monitor/` folder only holds what was recorded since; the night's
+  wellness data then arrives through `pull phone` (`gadgetbridge_garmin`). Importing over USB
+  before the phone syncs keeps both paths complete; otherwise the merge rule covers it.
+- Sleep, HRV status and metrics files stay on the watch and come through both paths.
+- Between the evening Gadgetbridge sync and wake-up the watch wrote no monitoring samples at all
+  (no HR, stress, body battery or respiration from 00:10 to 06:51 local), while the HRV file has a
+  value every 5 minutes for the whole night. Gadgetbridge's own tables show the same gap, so it is
+  the watch, not the parser; whether the data appears with a later sync is still being watched.
+- The Helio Strap's sleep comes from the band's own **sleep session reports**
+  (`HUAMI_SLEEP_SESSION_SAMPLE`, stages light/deep/REM/awake with a score), exactly as
+  Gadgetbridge displays it. The per-minute flags are only a fallback for databases without such
+  reports, interpreted with Gadgetbridge's thresholds.
+
 `garmin_usb` and `gadgetbridge_garmin` describe the same watch, so their readings overlap. They
 are kept apart in the sample tables and in `daily_summary` (one row per source and day). The
 export and report layer merges them (`merge.py`): daily metrics are coalesced column by column,
@@ -351,12 +388,18 @@ All timestamps are ISO-8601 UTC strings (`2026-10-31T06:12:33Z`). Every sample r
 | `metrics` | sparse metrics: `vo2_max` (Garmin `max_met_data`), `pai_total` / `pai_today` (Helio Strap) |
 | `daily_summary` | derived per day and source, rebuilt after every import |
 
-Verification status (fenix 6X Pro, 2026-10-31): activity files (sessions, records with
-GPS/altitude/HR, laps, HR zone times, training load) and the wellness fields steps, all-day HR,
-stress, body battery, resting HR and respiration are confirmed against real data; body battery was
-cross-checked with Gadgetbridge's own import. Sleep stages, HRV and SpO2 (Garmin) and the Helio
-Strap's sleep, stress and SpO2 tables follow the FIT profile and Gadgetbridge's layout but still
-await a real night; use `wristpull inspect` on a fresh `Sleep/` file to check.
+Verification status (fenix 6X Pro and Helio Strap, 2026-11-01): activity files (sessions, records
+with GPS/altitude/HR, laps, HR zone times, training load) and the wellness fields steps, all-day
+HR, stress, body battery, resting HR and respiration are confirmed against real data. After the
+first real night the following were cross-checked row by row against Gadgetbridge's own tables
+from the same export: Garmin SpO2 (28 samples, identical), Garmin HRV (91 five-minute RMSSD
+values plus the nightly summary: weekly average, last night, 5-minute high, baseline, status),
+strap HRV (400 values, identical), strap stress and resting HR (identical), strap sleep sessions
+(stages and score as Gadgetbridge computes them). Garmin sleep stages are read from
+`sleep_level` exactly as Gadgetbridge does; the night's stage sequence and the sleep assessment
+scores (overall, quality, recovery, awakenings, average stress) were confirmed against the FIT
+file. Still open: whether the Garmin sleep window should start at the watch's `sleep` event
+(bedtime) rather than at the first stage record, and the Helio Strap's SpO2 table (no samples yet).
 
 Conventions worth knowing:
 
@@ -404,6 +447,6 @@ real health data is needed or allowed in the repository. Code, comments and comm
 1. ~~Garmin USB import, FIT to SQLite (activities, monitoring, sleep), `status`~~
 2. ~~`pull phone`: Gadgetbridge database and FIT files via ADB, Helio Strap parsing~~ (done before wave 2 because the devices were set up first)
 3. ~~`export --for-claude --from --to` (compact Markdown + CSV) and `report week|month`, merging the Garmin sources~~
-4. Next: verify sleep/HRV/SpO2 mappings against real nights, udev/systemd trigger for automatic imports
+4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
 5. ~~Terminal UI MVP (`wristpull tui`: overview, sync jobs, days, files, settings view; German/English)~~ — next: activities, sleep and export/report screens, editable settings, cancel; concept in [docs/tui-concept.md](docs/tui-concept.md), mockups in [mockups/](mockups/README.md)
 6. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)

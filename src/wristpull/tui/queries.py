@@ -15,6 +15,7 @@ from ..config import Config
 from ..fit.decode import decode_fit, summarize
 from ..merge import merged_activities
 from ..status import collect_status
+from .deps import TuiDeps
 from .format import fmt_delta, fmt_duration, fmt_float, fmt_int, sparkline
 from .i18n import _
 
@@ -128,11 +129,12 @@ def build_notes(status: dict[str, Any]) -> list[str]:
     return notes
 
 
-def load_overview(conn: sqlite3.Connection, config: Config, today: date, *, days: int = 7) -> Overview:
+def load_overview(conn: sqlite3.Connection, config: Config, today: date, *, days: int = 7, deps: TuiDeps | None = None) -> Overview:
     start = today - timedelta(days=days - 1)
     rows = day_rows(conn, start, today)
     previous = day_rows(conn, start - timedelta(days=days), start - timedelta(days=1))
-    status = collect_status(conn, config)
+    deps = deps or TuiDeps()
+    status = collect_status(conn, config, roots=deps.roots, mtp_urls=deps.mtp_urls)
     return Overview(
         status=status,
         start=start,

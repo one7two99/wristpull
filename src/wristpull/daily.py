@@ -61,6 +61,14 @@ def summarize_day(conn: sqlite3.Connection, source: str, day: str) -> dict[str, 
     hrv = conn.execute(
         "SELECT last_night_avg_ms FROM hrv WHERE source = ? AND local_date = ? ORDER BY ts_utc DESC LIMIT 1", p
     ).fetchone()
+    if not hrv or hrv[0] is None:
+        # no nightly summary (e.g. the strap): average the 5-minute RMSSD samples inside that day's sleep
+        hrv = conn.execute(
+            """SELECT AVG(v.rmssd_ms) FROM hrv_values v JOIN sleep s ON s.source = v.source
+               AND v.ts_utc BETWEEN s.start_utc AND s.end_utc
+               WHERE s.source = ? AND s.local_date = ?""",
+            p,
+        ).fetchone()
     acts = conn.execute(
         """SELECT COUNT(*), SUM(COALESCE(timer_s, elapsed_s)), SUM(distance_m), SUM(training_load)
            FROM activities WHERE source = ? AND local_date = ?""",
@@ -87,7 +95,7 @@ def summarize_day(conn: sqlite3.Connection, source: str, day: str) -> dict[str, 
         "temperature_avg": round(temp[0], 2) if temp[0] is not None else None,
         "sleep_duration_s": sleep[0],
         "sleep_score": sleep[1],
-        "hrv_last_night_avg_ms": hrv[0] if hrv else None,
+        "hrv_last_night_avg_ms": round(hrv[0], 1) if hrv and hrv[0] is not None else None,
         "activities_count": acts[0] or 0,
         "activities_duration_s": acts[1],
         "activities_distance_m": acts[2],

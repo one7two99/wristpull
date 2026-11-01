@@ -65,6 +65,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_report.add_argument("--stdout", action="store_true", help="also print the Markdown")
 
     sub.add_parser("tui", help="open the terminal UI (requires the 'tui' extra: uv sync --extra tui)")
+
+    p_reparse = sub.add_parser("reparse", help="re-parse archived raw files after a parser change (rows are replaced)")
+    p_reparse.add_argument("--id", type=int, action="append", dest="ids", help="raw_files.id (repeatable)")
+    p_reparse.add_argument("--source", help="only this source, e.g. gadgetbridge or garmin_usb")
+    p_reparse.add_argument("--kind", help="only this kind, e.g. sleep, monitor, database")
+    p_reparse.add_argument("--errors", action="store_true", help="only files whose last parse failed")
+    p_reparse.add_argument("--all", action="store_true", help="everything (required when no other filter is given)")
     return parser
 
 
@@ -243,6 +250,21 @@ def cmd_report(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+def cmd_reparse(args: argparse.Namespace, config: Config) -> int:
+    from .importers.reparse import reparse
+
+    if not (args.ids or args.source or args.kind or args.errors or args.all):
+        print("pass --id, --source, --kind, --errors or --all", file=sys.stderr)
+        return 2
+    conn = _open(config)
+    log = (lambda _m: None) if args.quiet else print
+    stats = reparse(conn, config, ids=args.ids, source=args.source, kind=args.kind, errors_only=args.errors, log=log)
+    print(f"{stats.selected} files selected, {stats.ok} re-parsed, {stats.errors} errors; removed {stats.deleted} rows, inserted: {_fmt(stats.rows)}")
+    if stats.sources:
+        print("daily summaries rebuilt for: " + ", ".join(sorted(stats.sources)))
+    return 0 if not stats.errors else 2
+
+
 def _load_tui():
     """Import the TUI lazily so the core CLI works without the optional 'tui' extra."""
     from .tui.app import run_tui
@@ -279,4 +301,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_export(args, config)
     if args.command == "tui":
         return cmd_tui(args, config)
+    if args.command == "reparse":
+        return cmd_reparse(args, config)
     return cmd_report(args, config)

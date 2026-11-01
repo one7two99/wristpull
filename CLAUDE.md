@@ -21,3 +21,6 @@
   through `tui/jobs.py` (worker thread, own connection). Tests: `App.run_test()` + `tests/tui_helpers.py`,
   inject `TuiDeps` (FakeAdb, `garmin_tree`, fixed `today`); every TUI test module starts with
   `pytest.importorskip("textual")`.
+- After changing a parser: `uv run wristpull reparse --source ... | --kind ... | --all` replaces the rows of
+  archived files (raw files are never re-fetched). Gadgetbridge's own tables in the archived `Gadgetbridge.db`
+  are the reference for cross-checking strap and Garmin-via-Gadgetbridge values.

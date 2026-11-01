@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 
 from .config import Config
@@ -34,7 +35,18 @@ def _range(conn: sqlite3.Connection, table: str, column: str) -> tuple[str | Non
     return (row[0], row[1]) if row else (None, None)
 
 
-def collect_status(conn: sqlite3.Connection, config: Config) -> dict[str, object]:
+def collect_status(
+    conn: sqlite3.Connection,
+    config: Config,
+    *,
+    roots: Callable[[], list[Path]] | None = None,
+    mtp_urls: Callable[[], list[str]] = gio_garmin_mtp_urls,
+) -> dict[str, object]:
+    """Counts per table and raw file plus the device state.
+
+    ``roots`` lists the directories to search for a mounted watch (default: the system
+    mount points) and ``mtp_urls`` the attached-but-unmounted MTP devices; tests inject both.
+    """
     raw_by = conn.execute(
         "SELECT source, kind, COUNT(*), SUM(parse_status = 'error') FROM raw_files GROUP BY source, kind ORDER BY source, kind"
     ).fetchall()
@@ -52,7 +64,8 @@ def collect_status(conn: sqlite3.Connection, config: Config) -> dict[str, object
         else:
             rng = _range(conn, table, "ts_utc")
         tables[table] = {"count": count, "first": rng[0], "last": rng[1]}
-    garmin_root = find_garmin_root(candidate_roots(extra=config.garmin_mount_hints))
+    search = roots or (lambda: candidate_roots(extra=config.garmin_mount_hints))
+    garmin_root = find_garmin_root(search())
     return {
         "config_path": str(config.path) if config.path else None,
         "db_path": str(config.db_path),
@@ -65,7 +78,7 @@ def collect_status(conn: sqlite3.Connection, config: Config) -> dict[str, object
         "garmin_connected": garmin_root is not None,
         "garmin_root": str(garmin_root) if garmin_root else None,
         "garmin_device": read_device_info(garmin_root) if garmin_root else {},
-        "garmin_unmounted": gio_garmin_mtp_urls() if garmin_root is None else [],
+        "garmin_unmounted": mtp_urls() if garmin_root is None else [],
     }
 
 

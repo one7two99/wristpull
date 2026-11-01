@@ -28,6 +28,13 @@ SOURCE_GARMIN = "gadgetbridge_garmin"
 HUAMI_HR_INVALID = {0, 255, -1, None}
 SLEEP_GAP = timedelta(minutes=30)
 SLEEP_MIN_MINUTES = 20
+# Huami extended activity samples: RAW_KIND and the sleep flag thresholds Gadgetbridge uses as fallback
+HUAMI_KIND_SLEEP = 120
+HUAMI_DEEP_THRESHOLD = 42
+HUAMI_REM_THRESHOLD = 55
+# HUAMI_SLEEP_SESSION_SAMPLE blobs (594 bytes): layout from Gadgetbridge's HuamiSleepSessionSampleProvider
+SLEEP_SESSION_LEN = 594
+SLEEP_SESSION_STAGES = {4: "light", 5: "deep", 7: "awake", 8: "rem"}
 
 # Gadgetbridge ActivityKind codes that matter for sport names (subset; unknown codes become kind_<n>)
 ACTIVITY_KINDS = {
@@ -106,6 +113,97 @@ def _rows(conn: sqlite3.Connection, table: str, device_id: int, order: str = "TI
     if table not in tables(conn):
         return []
     return conn.execute(f'SELECT * FROM "{table}" WHERE DEVICE_ID = ? ORDER BY {order}', (device_id,)).fetchall()
+
+
+def decode_sleep_session(data: bytes) -> dict[str, Any] | None:
+    """Decode one Huami sleep session report; None when it carries no stages.
+
+    Minutes count from midnight (user's zone) of the previous day; each stage includes both
+    endpoint minutes, so the end is exclusive after adding one minute.
+    """
+    if len(data) < SLEEP_SESSION_LEN:
+        return None
+    midnight = int.from_bytes(data[4:8], "little")
+    base = datetime.fromtimestamp(midnight - 86400, UTC)
+    count = data[0x54]
+    stages: list[tuple[datetime, datetime, str]] = []
+    for i in range(count):
+        offset = 0x56 + 5 * i
+        if offset + 5 > len(data):
+            break
+        start = int.from_bytes(data[offset : offset + 2], "little")
+        end = int.from_bytes(data[offset + 2 : offset + 4], "little")
+        kind = SLEEP_SESSION_STAGES.get(data[offset + 4], "light")
+        stages.append((base + timedelta(minutes=start), base + timedelta(minutes=end + 1), kind))
+    if not stages:
+        return None
+    return {
+        "reported": datetime.fromtimestamp(int.from_bytes(data[0:4], "little"), UTC),
+        "avg_hr": data[0x15] or None,
+        "score": data[0x16] or None,
+        "stages": stages,
+        "totals_min": {
+            "rem": int.from_bytes(data[0x24A:0x24C], "little"),
+            "light": int.from_bytes(data[0x24C:0x24E], "little"),
+            "deep": int.from_bytes(data[0x24E:0x250], "little"),
+            "awake": int.from_bytes(data[0x250:0x252], "little"),
+        },
+    }
+
+
+def _sleep_from_sessions(blobs: list[bytes], tz: ZoneInfo, source: str) -> list[ParsedSleep]:
+    """Sleep sessions the band computed itself; a later report that overlaps an earlier one replaces it."""
+    sessions: list[dict[str, Any]] = []
+    for blob in blobs:
+        decoded = decode_sleep_session(bytes(blob))
+        if decoded is None:
+            continue
+        start, end = decoded["stages"][0][0], decoded["stages"][-1][1]
+        sessions = [s for s in sessions if not (s["start"] < end and start < s["end"])]
+        sessions.append({**decoded, "start": start, "end": end})
+    out: list[ParsedSleep] = []
+    for session in sorted(sessions, key=lambda s: s["start"]):
+        durations: dict[str, int] = defaultdict(int)
+        stages = []
+        for s_start, s_end, kind in session["stages"]:
+            durations[kind] += int((s_end - s_start).total_seconds())
+            stages.append({"start_utc": iso_utc(s_start), "end_utc": iso_utc(s_end), "stage": kind})
+        start, end = session["start"], session["end"]
+        out.append(
+            ParsedSleep(
+                row={
+                    "source": source,
+                    "start_utc": iso_utc(start),
+                    "end_utc": iso_utc(end),
+                    "tz": tz.key,
+                    "local_date": local_date(end, tz),
+                    "duration_s": int((end - start).total_seconds()) - durations.get("awake", 0),
+                    "deep_s": durations.get("deep", 0),
+                    "light_s": durations.get("light", 0),
+                    "rem_s": durations.get("rem", 0),
+                    "awake_s": durations.get("awake", 0),
+                    "unmeasurable_s": 0,
+                    "score": session["score"],
+                    "quality_score": None,
+                    "recovery_score": None,
+                    "awakenings": sum(1 for _, _, k in session["stages"] if k == "awake"),
+                    "avg_stress": None,
+                },
+                stages=stages,
+            )
+        )
+    return out
+
+
+def huami_flag_stage(raw_kind: int | None, deep: int | None, rem: int | None) -> str | None:
+    """Fallback stage from the per-minute flags (Gadgetbridge's thresholds); None when not asleep."""
+    if raw_kind != HUAMI_KIND_SLEEP:
+        return None
+    if rem is not None and (int(rem) & 127) > HUAMI_REM_THRESHOLD:
+        return "rem"
+    if deep is not None and (int(deep) & 127) > HUAMI_DEEP_THRESHOLD:
+        return "deep"
+    return "light"
 
 
 def _sleep_from_minutes(minutes: list[tuple[datetime, str]], tz: ZoneInfo, source: str) -> list[ParsedSleep]:
@@ -194,12 +292,14 @@ def parse_zepp_device(conn: sqlite3.Connection, device: GbDevice, tz: ZoneInfo, 
                     "active_calories": None,
                 }
             )
-        if r["SLEEP"]:
-            stage = "deep" if r["DEEP_SLEEP"] else ("rem" if r["REM_SLEEP"] else "light")
+        stage = huami_flag_stage(r["RAW_KIND"], r["DEEP_SLEEP"], r["REM_SLEEP"])
+        if stage is not None:
             sleep_minutes.append((ts, stage))
     if out.steps:
         out.replace_tables.add("steps")
-    out.sleep.extend(_sleep_from_minutes(sleep_minutes, tz, src))
+    # the band's own sleep sessions (with stages) win; the per-minute flags are only a fallback
+    sessions = _sleep_from_sessions([r["DATA"] for r in _rows(conn, "HUAMI_SLEEP_SESSION_SAMPLE", did) if r["DATA"]], tz, src)
+    out.sleep.extend(sessions if sessions else _sleep_from_minutes(sleep_minutes, tz, src))
 
     for r in _rows(conn, "HUAMI_STRESS_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])

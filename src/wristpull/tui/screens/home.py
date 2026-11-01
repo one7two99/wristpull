@@ -51,7 +51,7 @@ class HomeScreen(WristpullScreen):
 
     def refresh_data(self) -> None:
         app = self.app
-        overview = load_overview(app.conn, app.config, app.deps.today())
+        overview = load_overview(app.conn, app.config, app.deps.today(), deps=app.deps)
         self._show_overview(overview)
 
     def _show_overview(self, ov: Overview) -> None:

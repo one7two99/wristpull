@@ -23,6 +23,7 @@ def make_deps(tmp_path: Path, garmin_tree: Path | None = None, *, phone_root: Pa
         adb_factory=lambda: FakeAdb(phone_root or tmp_path / "phone"),
         roots=(lambda: [garmin_tree]) if garmin_tree else (lambda: []),
         mounter=lambda: (False, "no mounter in tests"),
+        mtp_urls=lambda: [],
         sleep=lambda _s: None,
         today=lambda: TODAY,
         open_path=opened.append,
