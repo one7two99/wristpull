@@ -81,9 +81,8 @@ only through individual commands and `sqlite3`. The TUI should
   steps (the known midnight carry-over).
 - **Source comparison**: diff `garmin_usb` vs `gadgetbridge_garmin` vs strap for one day (steps,
   resting HR, sleep) as a table, to build trust in the merge rule.
-- **Coach hook**: "Ask the coach" builds the Claude export for the chosen period and hands it to
-  Ollama (local) or stages it as a file for Claude; the answer renders as Markdown. Needs a
-  `[coach]` config section (`backend`, `model`).
+- **Coach hook**: realised as the `coach` module and CLI (see `coach-concept.md`); the TUI screen for it is
+  wave C3 of that concept.
 - **Calendar heatmap** (intensity minutes or steps per day, GitHub style) on the overview.
 - **Read-only SQL console** (`SELECT` enforced) with table/column completion for ad-hoc questions.
 - **Desktop notification** after a finished import (`notify-send`), optional.

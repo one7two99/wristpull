@@ -24,6 +24,7 @@ uv run wristpull config --init     # writes ~/.config/wristpull/config.toml
 uv run wristpull status
 uv sync --extra tui                # optional: the terminal UI (Textual)
 uv run wristpull tui
+uv sync --extra coach              # optional: Claude API backend for the training coach (anthropic SDK)
 ```
 
 ## Usage
@@ -31,6 +32,19 @@ uv run wristpull tui
 Run every command as `uv run wristpull ...` from the repository, or install the script once with
 `uv tool install --editable .` and call `wristpull ...` directly. The examples below use the short
 form.
+
+| Command | Purpose |
+|---|---|
+| `import garmin` | copy and parse new FIT files from the USB-connected watch |
+| `pull phone` | trigger a Gadgetbridge export, pull database and FIT files over ADB, import them |
+| `import gadgetbridge` | import an already copied Gadgetbridge export |
+| `status` | what is stored, which device is connected |
+| `inspect FILE` | message types and fields of a FIT file |
+| `config` | show or create the configuration file |
+| `export`, `report` | Markdown + CSV for Claude, weekly/monthly reports |
+| `coach` | training coach: daily check, weekly review, questions, ratings via an LLM |
+| `reparse` | re-parse archived raw files after a parser change |
+| `tui` | the terminal UI over all of the above |
 
 ### Global options
 
@@ -271,7 +285,7 @@ marks the active one; tabs can also be clicked. German and English, switchable a
 | `5` | Sleep: nights of every source with a stage bar, durations, score, HRV, SpO2, breathing and HR of the night; `g` cycles all / Garmin / strap |
 | `6` | Files: tree of the data directory; `Enter` on a `.fit` runs `inspect`, Markdown/CSV preview, `o` opens with `xdg-open`, `y` copies the path |
 | `7` | Export & Report: Claude export or weekly/monthly report for a period with presets, result file list and Markdown preview; `o` opens the folder, `y`/`c` copy path or CLI |
-| `8` | Settings: edit every config value including `[ui]`, `Ctrl+S` validates and writes `config.toml` (language switches immediately, `data_dir` after a restart) |
+| `8` | Settings: edit every config value including `[ui]` and `[coach]`, `Ctrl+S` validates and writes `config.toml` (language switches immediately, `data_dir` after a restart); `Ctrl+T` checks whether the coach backend is reachable |
 | `i` `p` `e` `r` | on the overview: import Garmin, pull phone, export the default range for Claude, weekly report with charts |
 | `/` `?` `F12` `q` | command palette, help, language, quit |
 
@@ -347,7 +361,13 @@ uv run python -m sqlite3 ~/Health/wristpull/wristpull.sqlite \
    FROM daily_summary ORDER BY local_date DESC LIMIT 14"
 uv run python -m sqlite3 ~/Health/wristpull/wristpull.sqlite \
   "SELECT kind, parse_status, count(*) FROM raw_files GROUP BY 1, 2"
+uv run python -m sqlite3 ~/Health/wristpull/wristpull.sqlite \
+  "SELECT id, kind, created_at_utc, backend, model, input_tokens, output_tokens, cost_usd, status
+   FROM coach_runs ORDER BY id DESC LIMIT 10"
 ```
+
+The TUI shows the same data without SQL (`wristpull tui`: days, activities, sleep, files), and
+`wristpull coach show --last 3` prints the latest coach answers.
 
 ### Connecting the fenix 6
 
@@ -380,14 +400,19 @@ first contact `Monitor/` held just the current day), so import regularly, ideall
 ```
 ~/Health/wristpull/
 ├── wristpull.sqlite
-└── raw/<source>/<year>/<kind>/<sha256-prefix>_<original name>
+├── raw/<source>/<year>/<kind>/<sha256-prefix>_<original name>
+├── exports/<from>_<to>/            summary.md + CSVs (wristpull export)
+├── reports/<week|month>-<label>/   report.md (+ SVG charts)
+└── coach/
+    ├── profile.md                  the goal profile sent to the coach (edit it)
+    └── dryrun/<timestamp>_<kind>.md  full prompts written by --dry-run
 ```
 
 `source` is `garmin_usb`, `gadgetbridge_garmin` or `gadgetbridge_zepp`; the exported Gadgetbridge
-database itself is archived under `gadgetbridge/<year>/database/`. Exports land in
-`<data_dir>/exports/`, reports in `<data_dir>/reports/`. Every raw file is identified by
+database itself is archived under `gadgetbridge/<year>/database/`. Every raw file is identified by
 its SHA-256 (`raw_files` table), stored read-only and never overwritten; an import is idempotent and
-can be re-run at any time.
+can be re-run at any time. Coach answers are not files but rows in `coach_runs`
+(`wristpull coach show`).
 
 ### Sources and how they relate
 
@@ -488,7 +513,7 @@ Conventions worth knowing:
 ## Development
 
 ```sh
-uv sync --extra tui                      # create .venv and install dependencies incl. the TUI
+uv sync --extra tui --extra coach        # create .venv and install dependencies incl. TUI and Claude SDK
 uv run pytest -q                         # run the test suite (TUI tests skip without the extra)
 uv run pytest -q tests/test_fit_garmin.py -k sleep   # a subset
 uv run pyflakes src tests                # lint
@@ -503,6 +528,10 @@ uv run pybabel compile -d src/wristpull/tui/locale -D wristpull   # after editin
 The TUI (`src/wristpull/tui/`) only calls library functions: no SQL and no FIT parsing in there
 (`tests/test_tui_boundary.py` enforces it). Strings are wrapped in `_()` at render time; a test
 fails when the German catalog misses a string or the compiled `.mo` is stale.
+
+The coach (`src/wristpull/coach/`) keeps SQL in `store.py` and `context.py`; everything the model
+sees is built from the aggregate functions, and all tests talk to a `FakeBackend` (no network). The
+Claude backend is exercised against a fake client, Ollama and OpenRouter against a fake `urlopen`.
 
 Tests use **synthetic** FIT files generated by `tests/fitwriter.py` (a minimal FIT encoder), so no
 real health data is needed or allowed in the repository. Code, comments and commits are in English.

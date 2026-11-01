@@ -24,3 +24,8 @@
 - After changing a parser: `uv run wristpull reparse --source ... | --kind ... | --all` replaces the rows of
   archived files (raw files are never re-fetched). Gadgetbridge's own tables in the archived `Gadgetbridge.db`
   are the reference for cross-checking strap and Garmin-via-Gadgetbridge values.
+- Coach (`src/wristpull/coach/`): backends behind `Backend` (Ollama/OpenRouter via stdlib HTTP, Claude via the
+  `anthropic` SDK in the optional extra `coach`, default model `claude-opus-5-5`, no `temperature`); metrics and
+  flags are computed in Python before prompting; SQL only in `store.py`/`context.py`; every test uses `FakeBackend`
+  or fake transports, never the network. Goal profile and dry-run prompts live under `<data_dir>/coach/`.
+  Concept and waves: `docs/coach-concept.md`.
