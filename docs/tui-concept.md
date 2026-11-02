@@ -34,7 +34,9 @@ only through individual commands and `sqlite3`. The TUI should
 
 A ninth screen, **9 Coach**, was added with the training-coach concept (`coach-concept.md`): it runs the
 daily check, the weekly review and questions through the job runner, lists the runs with tokens, cost and
-rating, shows the answer, and hosts the goal wizard and the profile editor.
+rating, shows the answer, and hosts the goal wizard and the profile editor. A tenth, **0 Workouts**
+(2026-11-02), lists the Markdown workout files, previews the steps the way the watch shows them,
+opens them in `$EDITOR` and runs push/verify against the mounted watch as jobs.
 
 ```
             ┌──────────────┐
@@ -61,6 +63,8 @@ rating, shows the answer, and hosts the goal wizard and the profile editor.
 | 6 | Files | Tree of `raw/<source>/<year>/<kind>/`, `exports/`, `reports/`, config; details (SHA, status, size, message types); actions: inspect, copy path, open with `xdg-open`/`$EDITOR`, Markdown preview | `inspect FILE`, `config` |
 | 7 | Export & Report | Form: period (presets last week, last month, custom), kind (Claude export / weekly / monthly report), charts, CSV, output dir; result with file list and Markdown preview; copy path for chat | `export --for-claude`, `report week|month` |
 | 8 | Settings | Config fields (data_dir, timezone, garmin_folders, mount hints, phone_serial, export dir), new `[ui]` section (language, theme, default range), save writes `config.toml`; log view | `config --init`, editor |
+| 9 | Coach | Runs table (tokens, cost, rating), answer, question input, journal note, goal wizard, profile editor, `t` drafts workouts from the last weekly plan | `coach daily|weekly|ask|rate|note|profile` |
+| 0 | Workouts | Workout files of the period with status, preview (steps + Markdown), new from template (`$EDITOR`), edit, drafts from the plan, push selected / upcoming, dry run, verify, delete | `workout new|list|check|push|verify|from-plan` |
 | ? | Help | Key bindings, version and path info, link to docs/gadgetbridge.md | `--version` |
 | / | Command palette | Every action and screen via fuzzy search (built into Textual) | – |
 
@@ -116,12 +120,12 @@ src/wristpull/tui/
   queries.py       adapter library call -> rows for widgets (no SQL)
   i18n.py          _, ngettext, set_language, resolve_language
   styles.tcss
-  screens/         home, sync, data (tabs days/activities/sleep), files, inspect, export, settings
+  screens/         home, sync, days, activities, sleep, files, export, settings, coach (+ coach_wizard), workouts, help
   widgets/         job_log (RichLog + busy), frame_table (polars DataFrame -> DataTable), kpi, keybar
   locale/wristpull.pot, locale/de/LC_MESSAGES/wristpull.{po,mo}
 ```
 - `wristpull.tui` imports only `config`, `db.connect`, `status`, `aggregate`, `merge`, `export`,
-  `report`, `importers.*`, `fit.decode`, `adb.AdbError` and the new `detail`. No `sqlite3`, no
+  `report`, `importers.*`, `fit.decode`, `adb.AdbError`, `detail`, `coach.*` and `workouts.*`. No `sqlite3`, no
   `conn.execute`, no `fitdecode`. Enforced by `tests/test_tui_boundary.py` (regex scan).
 - New read-only helpers go into **`src/wristpull/detail.py`** (not `aggregate.py`, which stays
   about date-range frames): `hourly_heart_rate(conn, local_date, tz)`, `day_detail(conn, local_date)`,

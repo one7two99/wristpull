@@ -19,3 +19,8 @@ journalctl --user -u wristpull-pull.service -n 50
 
 Order matters for Garmin watches: import over USB **before** any phone app syncs, because the watch
 deletes monitoring files once a sync client has fetched them (see the README).
+
+Workouts: while the watch is mounted, `wristpull workout push --upcoming` copies the planned workouts
+(Markdown files under `<data_dir>/workouts/`) to `GARMIN/NewFiles/`; the watch imports them when the
+cable is unplugged. Add it as a second `ExecStart=` line to `wristpull-import.service` once the import
+on your watch is confirmed; it exits 2 when nothing is pending, so set `SuccessExitStatus=2` too.

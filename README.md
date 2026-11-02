@@ -47,6 +47,7 @@ form.
 | `config` | show or create the configuration file |
 | `export`, `report` | Markdown + CSV for Claude, weekly/monthly reports |
 | `coach` | training coach: daily check, weekly review, questions, ratings via an LLM |
+| `workout` | structured workouts as Markdown, pushed to the watch as FIT files |
 | `reparse` | re-parse archived raw files after a parser change |
 | `tui` | the terminal UI over all of the above |
 
@@ -451,7 +452,11 @@ wristpull import garmin
 Alternatively copy the folders with KIO (`kioclient copy "mtp:/fenix 6X Pro/Primary/GARMIN/Monitor" ...`)
 and import the copy with `--path`.
 
-Files on the watch are only read, never deleted or modified.
+Files on the watch are only read, never deleted or modified. The one exception is deliberate and
+additive: `wristpull workout push` writes new FIT files into `GARMIN/NewFiles/` (or `Workouts/`),
+never over an existing one. Whether this firmware imports them from `NewFiles` after unplugging, and
+whether a schedule file places them on the calendar date, is still to be confirmed on the fenix 6X
+Pro; until then the feature is marked experimental and `workout verify` reports what the watch took.
 
 Folder layout verified on a fenix 6X Pro (firmware 28.02): `Activity/` holds one
 `YYYY-MM-DD-hh-mm-ss.fit` per workout, `Monitor/` the daily wellness files, `Sleep/`, `Metrics/`
@@ -464,6 +469,8 @@ first contact `Monitor/` held just the current day), so import regularly, ideall
 daily` at 07:00) and a oneshot import service; `contrib/udev/` has the rule that starts that import
 when the watch is plugged in. Both READMEs explain installation. Keep the order the watch dictates:
 USB import before any phone app syncs, because Garmin deletes monitoring files once they were fetched.
+While the watch is on the cable anyway, `wristpull workout push --upcoming` copies the planned
+workouts over; the import service template shows where that step belongs.
 
 ## Website and screenshots
 
@@ -482,16 +489,19 @@ open `/docs/`.
 ├── raw/<source>/<year>/<kind>/<sha256-prefix>_<original name>
 ├── exports/<from>_<to>/            summary.md + CSVs (wristpull export)
 ├── reports/<week|month>-<label>/   report.md (+ SVG charts)
-└── coach/
-    ├── profile.md                  the goal profile sent to the coach (edit it)
-    └── dryrun/<timestamp>_<kind>.md  full prompts written by --dry-run
+├── coach/
+│   ├── profile.md                  the goal profile sent to the coach (edit it)
+│   └── dryrun/<timestamp>_<kind>.md  full prompts written by --dry-run
+└── workouts/
+    ├── <date>-<slug>.md            one workout per file (wristpull workout new / from-plan, or by hand)
+    └── out/                        FIT files of a dry-run push
 ```
 
 `source` is `garmin_usb`, `gadgetbridge_garmin` or `gadgetbridge_zepp`; the exported Gadgetbridge
 database itself is archived under `gadgetbridge/<year>/database/`. Every raw file is identified by
 its SHA-256 (`raw_files` table), stored read-only and never overwritten; an import is idempotent and
 can be re-run at any time. Coach answers are not files but rows in `coach_runs`
-(`wristpull coach show`).
+(`wristpull coach show`); pushes of workouts to the watch are rows in `workout_pushes`.
 
 ### Sources and how they relate
 
@@ -555,6 +565,7 @@ All timestamps are ISO-8601 UTC strings (`2026-10-31T06:12:33Z`). Every sample r
 | `metrics` | sparse metrics: `vo2_max` (Garmin `max_met_data`), `pai_total` / `pai_today` (Helio Strap) |
 | `daily_summary` | derived per day and source, rebuilt after every import |
 | `coach_runs`, `coach_feedback`, `journal` | training-coach runs (prompts, answer, tokens, cost), the user's ratings, a daily note |
+| `workout_pushes` | every workout FIT written to the watch: name, date, SHA-256, target path, watch serial, status `dry_run` / `pushed` / `verified` |
 
 Verification status (fenix 6X Pro and Helio Strap, 2026-11-01): activity files (sessions, records
 with GPS/altitude/HR, laps, HR zone times, training load) and the wellness fields steps, all-day

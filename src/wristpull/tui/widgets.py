@@ -70,7 +70,7 @@ class JobLog(RichLog):
 
 
 class NavBar(Tabs):
-    """Top tab row with the eight screens; the active one is underlined, digits show the hotkeys."""
+    """Top tab row with the ten screens; the active one is underlined, digits show the hotkeys."""
 
     DEFAULT_CSS = """
     NavBar { height: 2; background: $surface; }

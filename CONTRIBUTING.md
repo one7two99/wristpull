@@ -2,7 +2,7 @@
 
 Thanks for looking. A few rules keep the project safe to publish and easy to change.
 
-- **No health data in the repository.** Tests use synthetic FIT files from `tests/fitwriter.py` and a
+- **No health data in the repository.** Tests use synthetic FIT files built with `wristpull.fit.writer` and a
   synthetic Gadgetbridge database from `tests/gb_db.py`. Never commit `.fit`, `.sqlite`, `.db` or `.gpx`
   files, screenshots with real values, serial numbers or MAC addresses. Use `<serial>`, `<id>`,
   `AA:BB:CC:DD:EE:01` and the like.
