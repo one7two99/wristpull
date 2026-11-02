@@ -501,6 +501,8 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
                     print(result.mount_message, file=sys.stderr)
                 return 1
             print(f"{result.root}: {len(result.on_watch)} workouts on the watch, {len(result.verified)} newly confirmed, {len(result.missing)} pushed but not found")
+            if result.limit_warning:
+                print(f"warning: {result.limit_warning}", file=sys.stderr)
             return 0 if not result.missing else 2
         # push
         from .workouts.push import push

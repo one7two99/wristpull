@@ -1035,3 +1035,6 @@ msgstr "Uhr abstecken, wenn du fertig bist; sie übernimmt die Dateien und zeigt
 
 msgid "{on_watch} workouts on the watch, {verified} newly confirmed, {missing} pushed but not found"
 msgstr "{on_watch} Trainings auf der Uhr, {verified} neu bestätigt, {missing} übertragen, aber nicht gefunden"
+
+msgid "The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."
+msgstr "Die fenix 6 speichert 20–25 Trainings; darüber verwirft sie neue Dateien stillschweigend. Vorher alte unter GARMIN/Workouts löschen."

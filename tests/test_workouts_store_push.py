@@ -8,7 +8,7 @@ from wristpull.fit.decode import decode_fit
 from wristpull.workouts.model import Step, Workout, parse_markdown
 import errno
 
-from wristpull.workouts.push import device_folder, push, verify, workouts_on_watch, write_device_file
+from wristpull.workouts.push import WORKOUT_LIMIT_WARN, VerifyResult, device_folder, push, verify, workouts_on_watch, write_device_file
 from wristpull.workouts.store import existing_for_day, list_workouts, load, output_dir, pending_pushes, push_status, pushes, save, set_status, workouts_dir
 
 
@@ -149,3 +149,16 @@ def test_push_ejects_an_mtp_mount(config: Config, conn, garmin_tree: Path, monke
     assert result.ejected
     result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner, eject=False)
     assert not result.ejected and result.eject_message is None
+
+
+def test_verify_warns_near_the_watch_limit(config: Config, conn, garmin_tree: Path):
+    from wristpull.fit.workout import build_workout_fit
+
+    assert VerifyResult(on_watch=["a"] * (WORKOUT_LIMIT_WARN - 1)).limit_warning is None
+    assert "drops new files" in VerifyResult(on_watch=["a"] * WORKOUT_LIMIT_WARN).limit_warning
+    (garmin_tree / "Workouts").mkdir()
+    for i in range(WORKOUT_LIMIT_WARN):
+        (garmin_tree / "Workouts" / f"W{i}.fit").write_bytes(build_workout_fit(_w(date(2026, 11, 5), f"Old {i}")))
+    log: list[str] = []
+    result = verify(conn, config, roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), log=log.append)
+    assert len(result.on_watch) == WORKOUT_LIMIT_WARN and result.near_limit and any("20 workouts on the watch" in line for line in log)

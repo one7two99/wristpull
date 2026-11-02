@@ -204,6 +204,8 @@ def describe_result(record: JobRecord) -> list[str]:
                 lines.append("  " + result.mount_message)
             return lines
         lines.append("✓ " + _("{on_watch} workouts on the watch, {verified} newly confirmed, {missing} pushed but not found").format(on_watch=len(result.on_watch), verified=len(result.verified), missing=len(result.missing)))
+        if result.near_limit:
+            lines.append("  ! " + _("The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."))
     elif isinstance(result, str):
         lines.append("✓ " + result)
     else:

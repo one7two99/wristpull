@@ -32,5 +32,6 @@
 - Workouts (`src/wristpull/workouts/`): one Markdown file per workout under `<data_dir>/workouts/` (grammar in
   `model.py`), FIT encoding in `fit/workout.py` on top of `fit/writer.py`, push/verify in `push.py` via
   `importers.garmin.locate_garmin` (inject `roots`/`mounter`), SQL only in `store.py` (`workout_pushes`).
-  Files on the watch are only added under `GARMIN/NewFiles/` (or `Workouts/`), never overwritten. Whether the
-  fenix imports them and honours the schedule file is unconfirmed until tested on the device.
+  Files on the watch are only added under `GARMIN/NewFiles/` (or `Workouts/`), never overwritten. The fenix 6X Pro
+  imports them from `NewFiles` at unplug (confirmed 2026-11-02) but stores only 20–25 workouts and silently drops
+  new files above that; the schedule file (calendar date) is unverified. Writes go through `gio copy` on gvfs MTP.

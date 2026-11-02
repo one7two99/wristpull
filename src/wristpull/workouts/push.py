@@ -22,6 +22,9 @@ from .store import mark_verified, output_dir, pending_pushes, record_push, set_s
 
 Log = Callable[[str], None]
 FOLDERS = ("NewFiles", "Workouts")
+# Garmin states 25 stored workouts for the fenix 6 series; users hit the wall at about 20. Above the limit
+# the watch silently deletes every new file instead of importing it.
+WORKOUT_LIMIT_WARN = 20
 GVFS_ERRNOS = {errno.ENOTSUP, errno.EOPNOTSUPP, errno.EIO, errno.EINVAL}
 
 
@@ -72,6 +75,16 @@ class VerifyResult:
     verified: list[str] = field(default_factory=list)  # pending pushes now confirmed
     missing: list[str] = field(default_factory=list)  # pending pushes not (yet) on the watch
     mount_message: str | None = None
+
+    @property
+    def near_limit(self) -> bool:
+        return len(self.on_watch) >= WORKOUT_LIMIT_WARN
+
+    @property
+    def limit_warning(self) -> str | None:
+        if not self.near_limit:
+            return None
+        return f"{len(self.on_watch)} workouts on the watch: the fenix 6 stores 20-25; above that it drops new files silently. Delete old ones under GARMIN/Workouts before pushing more."
 
 
 def device_folder(root: Path, name: str) -> Path:
@@ -194,6 +207,8 @@ def verify(
     result.root = root
     present = workouts_on_watch(root)
     result.on_watch = [name for name, _created in present]
+    if result.limit_warning:
+        log(f"  ! {result.limit_warning}")
     keys = set(present)
     names = {name for name, _created in present}
     for row in pending_pushes(conn):

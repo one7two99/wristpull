@@ -237,6 +237,8 @@ A workout is one Markdown file under `<data_dir>/workouts/`, written by hand, fr
 drafted by the coach from its weekly plan. `workout push` encodes it as a FIT workout file and
 copies it to `GARMIN/NewFiles/` on the mounted watch; the watch imports it when the cable is
 unplugged and lists it under *Training → Workouts*, with the heart-rate targets guiding each step.
+Confirmed on a fenix 6X Pro (firmware 28.02) over MTP on 2026-11-02: the file appears under the Run
+activity's workouts right after unplugging, no restart, no eject needed.
 
 ```markdown
 ---
@@ -472,9 +474,9 @@ and import the copy with `--path`.
 
 Files on the watch are only read, never deleted or modified. The one exception is deliberate and
 additive: `wristpull workout push` writes new FIT files into `GARMIN/NewFiles/` (or `Workouts/`),
-never over an existing one. Whether this firmware imports them from `NewFiles` after unplugging, and
-whether a schedule file places them on the calendar date, is still to be confirmed on the fenix 6X
-Pro; until then the feature is marked experimental and `workout verify` reports what the watch took.
+never over an existing one. The fenix 6X Pro imports them from `NewFiles` when the cable is pulled
+(confirmed 2026-11-02); `workout verify` reports what the watch took and warns near the workout
+limit. Whether a schedule file places a workout on the calendar date is still open.
 
 Folder layout verified on a fenix 6X Pro (firmware 28.02): `Activity/` holds one
 `YYYY-MM-DD-hh-mm-ss.fit` per workout, `Monitor/` the daily wellness files, `Sleep/`, `Metrics/`
@@ -655,5 +657,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md); the licence is MIT ([LICENSE](LICENSE)).
 4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [docs/screenshots/](docs/screenshots/README.md)
 6. ~~Training coach via LLM: C1 daily check and questions with Ollama, goal profile, local memory; C2 weekly review, Claude API and OpenRouter backends, number check, ratings; C3 goal wizard, TUI coach screen; C4 journal, plan adherence, ICS export, systemd/udev templates~~ — concept in [docs/coach-concept.md](docs/coach-concept.md)
-7. ~~Workouts to the watch: Markdown workouts, FIT encoder, `workout push|verify|from-plan`, TUI screen 0~~ — next: confirm on the fenix that `NewFiles` imports and whether the schedule file sets the calendar date
+7. ~~Workouts to the watch: Markdown workouts, FIT encoder, `workout push|verify|from-plan`, TUI screen 0; `NewFiles` import confirmed on the fenix 6X Pro~~ — next: the schedule file (calendar date), interval blocks
 8. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)
