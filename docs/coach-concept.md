@@ -188,3 +188,11 @@ resting HR); a one-line daily `journal`; the weekly plan as an ICS calendar file
   catalog, README.
 - **C4:** journal, systemd timer for the morning run, plan adherence from the activities, ICS
   export, opt-in live test (skipped without an API key).
+- **C5 (2026-11-02): closing the loop onto the watch.** The weekly plan becomes structured
+  workouts: `workouts/drafts.py` turns each non-rest row into a Markdown file (warm-up, main part
+  by time or distance with the target named in the plan or guessed from its intensity words,
+  cool-down), `fit/workout.py` encodes them as FIT workout files (plus an optional schedule file)
+  and `workouts/push.py` copies them to `GARMIN/NewFiles/`; `verify` reads `GARMIN/Workouts/` to
+  confirm what the watch took over. CLI `wristpull workout …`, TUI screen 0, key `t` on the coach
+  screen. The push history (`workout_pushes`) is the next candidate for the weekly adherence
+  section: planned workout → pushed → recorded activity.

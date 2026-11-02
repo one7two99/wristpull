@@ -101,6 +101,33 @@ def build_parser() -> argparse.ArgumentParser:
     p_rate.add_argument("rating", type=int, choices=[-1, 0, 1])
     p_rate.add_argument("--note", help="optional comment, e.g. what you actually did")
 
+    p_workout = sub.add_parser("workout", help="structured workouts: write them as Markdown, push them to the watch as FIT files")
+    workout_sub = p_workout.add_subparsers(dest="workout_cmd", required=True)
+    p_wnew = workout_sub.add_parser("new", help="create a workout file from a template and print its path")
+    p_wnew.add_argument("--date", help="planned local date (default: tomorrow)")
+    p_wnew.add_argument("--name", help="workout name (max 30 characters)")
+    p_wnew.add_argument("--template", choices=["time", "distance"], default="time", help="main part by time (default) or by distance")
+    p_wnew.add_argument("--minutes", type=int, default=40, help="main part in minutes for --template time (default 40)")
+    p_wnew.add_argument("--metres", type=int, default=5000, help="main part in metres for --template distance (default 5000)")
+    p_wnew.add_argument("--edit", action="store_true", help="open the new file in $EDITOR")
+    p_wlist = workout_sub.add_parser("list", help="list the workout files with their status")
+    p_wlist.add_argument("--from", dest="date_from", help="first local date")
+    p_wlist.add_argument("--to", dest="date_to", help="last local date")
+    p_wcheck = workout_sub.add_parser("check", help="parse and validate workout files, show the steps as the watch will see them")
+    p_wcheck.add_argument("files", nargs="+", type=Path)
+    p_wpush = workout_sub.add_parser("push", help="build FIT files and copy them to the connected watch")
+    p_wpush.add_argument("files", nargs="*", type=Path, help="workout files (default: --date or --upcoming)")
+    p_wpush.add_argument("--date", help="push the workouts planned for this local date")
+    p_wpush.add_argument("--upcoming", action="store_true", help="push every valid workout from today on that was not pushed yet")
+    p_wpush.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_wpush.add_argument("--folder", choices=["NewFiles", "Workouts"], help="target folder below GARMIN/ (default: [workout] folder)")
+    p_wpush.add_argument("--schedule", action="store_true", help="also write a schedule file with the planned dates")
+    p_wpush.add_argument("--dry-run", action="store_true", help="write the FIT files to <data_dir>/workouts/out/ instead of the watch")
+    p_wverify = workout_sub.add_parser("verify", help="read GARMIN/Workouts on the watch and mark the pushed workouts it has taken over")
+    p_wverify.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_wplan = workout_sub.add_parser("from-plan", help="draft one workout per session of the coach's last weekly plan")
+    p_wplan.add_argument("--week", help="Monday of the week to plan (default: the week the plan was written for)")
+
     p_reparse = sub.add_parser("reparse", help="re-parse archived raw files after a parser change (rows are replaced)")
     p_reparse.add_argument("--id", type=int, action="append", dest="ids", help="raw_files.id (repeatable)")
     p_reparse.add_argument("--source", help="only this source, e.g. gadgetbridge or garmin_usb")
@@ -405,6 +432,121 @@ def cmd_coach(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+def cmd_workout(args: argparse.Namespace, config: Config) -> int:
+    from datetime import date, timedelta
+
+    from .aggregate import parse_date
+    from .workouts.model import describe_steps, template
+    from .workouts.store import list_workouts, load, push_status, save, workouts_dir
+
+    conn = _open(config)
+    log = (lambda _m: None) if args.quiet else print
+    try:
+        if args.workout_cmd == "new":
+            day = parse_date(args.date) if args.date else date.today() + timedelta(days=1)
+            workout = template(args.template, day, config.workout.defaults(), name=args.name, main_minutes=args.minutes, main_metres=args.metres)
+            path = save(config, workout)
+            print(path)
+            if args.edit:
+                open_in_editor(path)
+            return 0
+        if args.workout_cmd == "list":
+            start = parse_date(args.date_from) if args.date_from else None
+            end = parse_date(args.date_to) if args.date_to else None
+            items = list_workouts(config, start=start, end=end)
+            if not items:
+                print(f"no workout files in {workouts_dir(config)} (wristpull workout new)")
+                return 1
+            for w in items:
+                total = f"{w.total_seconds // 60} min" + (f" + {w.total_metres} m" if w.total_metres else "")
+                state = push_status(conn, w.path or "") or w.status
+                flag = "" if w.valid else "  ✗ " + "; ".join(w.errors)
+                print(f"{w.day.isoformat() if w.day else '----------'}  {w.name[:30]:<30}  {len(w.steps)} steps  {total:<16} {state}{flag}")
+            return 0
+        if args.workout_cmd == "check":
+            bad = 0
+            for file in args.files:
+                w = load(file)
+                print(f"{file}: {w.name} ({w.day}) {'ok' if w.valid else 'invalid'}")
+                for line in describe_steps(w):
+                    print(f"  {line}")
+                for error in w.errors:
+                    print(f"  ✗ {error}", file=sys.stderr)
+                bad += not w.valid
+            return 0 if not bad else 2
+        if args.workout_cmd == "from-plan":
+            from .workouts.drafts import drafts_from_plan
+
+            week = parse_date(args.week) if args.week else None
+            result = drafts_from_plan(conn, config, week_start=week)
+            if result.message:
+                print(result.message, file=sys.stderr)
+                return 1
+            for path in result.created:
+                print(f"  + {path}")
+            for reason in result.skipped:
+                print(f"  - {reason}")
+            print(f"week of {result.week_start}: {len(result.created)} drafts written, {len(result.skipped)} days skipped")
+            return 0
+        if args.workout_cmd == "verify":
+            from .workouts.push import verify
+
+            result = verify(conn, config, path=args.path, log=log)
+            if result.root is None:
+                print("No Garmin device found. Connect the watch (MTP) or pass --path <GARMIN folder>.", file=sys.stderr)
+                if result.mount_message:
+                    print(result.mount_message, file=sys.stderr)
+                return 1
+            print(f"{result.root}: {len(result.on_watch)} workouts on the watch, {len(result.verified)} newly confirmed, {len(result.missing)} pushed but not found")
+            return 0 if not result.missing else 2
+        # push
+        from .workouts.push import push
+
+        if args.files:
+            selected = [load(f) for f in args.files]
+        elif args.date:
+            day = parse_date(args.date)
+            selected = list_workouts(config, start=day, end=day)
+        elif args.upcoming:
+            today = date.today()
+            selected = [w for w in list_workouts(config, start=today) if w.valid and (push_status(conn, w.path or "") or w.status) not in ("pushed", "verified")]
+        else:
+            print("pass workout files, --date or --upcoming", file=sys.stderr)
+            return 2
+        if not selected:
+            print("nothing to push", file=sys.stderr)
+            return 2
+        result = push(conn, config, selected, path=args.path, folder=args.folder, schedule=True if args.schedule else None, dry_run=args.dry_run, log=log)
+        if result.root is None and not result.invalid:
+            print("No Garmin device found. Connect the watch (MTP) or pass --path <GARMIN folder>.", file=sys.stderr)
+            if result.mount_message:
+                print(result.mount_message, file=sys.stderr)
+            return 1
+        mode = "dry run: " if args.dry_run else ""
+        print(f"{mode}{len(result.written)} workout files written to {result.target}" + (f", schedule {result.schedule.name}" if result.schedule else ""))
+        if not args.dry_run and result.written:
+            print("Unplug the watch now; it imports the files from NewFiles and lists them under Training > Workouts." if (args.folder or config.workout.folder) == "NewFiles" else "The files are in GARMIN/Workouts; a restart of the watch may be needed.")
+        for name, errors in result.invalid:
+            print(f"  ✗ {name}: " + "; ".join(errors), file=sys.stderr)
+        return 0 if not result.invalid else 2
+    except ValueError as exc:
+        print(f"workout: {exc}", file=sys.stderr)
+        return 2
+    except FileExistsError as exc:
+        print(f"workout: file exists: {exc}", file=sys.stderr)
+        return 2
+
+
+def open_in_editor(path: Path) -> int:
+    """Open a file in $VISUAL / $EDITOR (nano as the fallback) and wait."""
+    import os
+    import shlex
+    import subprocess
+
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "nano"
+    return subprocess.call([*shlex.split(editor), str(path)])
+
+
 def _load_tui():
     """Import the TUI lazily so the core CLI works without the optional 'tui' extra."""
     from .tui.app import run_tui
@@ -445,4 +587,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_reparse(args, config)
     if args.command == "coach":
         return cmd_coach(args, config)
+    if args.command == "workout":
+        return cmd_workout(args, config)
     return cmd_report(args, config)

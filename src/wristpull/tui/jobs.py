@@ -25,6 +25,8 @@ from ..importers.garmin import ImportStats, import_garmin
 from ..importers.phone import PullStats, pull_phone
 from ..coach.runner import CoachResult
 from ..report import ReportResult
+from ..workouts.model import Workout
+from ..workouts.push import PushResult, VerifyResult
 from .deps import TuiDeps
 from .format import fmt_int
 from .i18n import _, ngettext
@@ -182,6 +184,26 @@ def describe_result(record: JobRecord) -> list[str]:
             lines.append("✓ " + _("coach {kind} answered in {seconds:.0f} s ({tokens}{cost})").format(kind=result.kind, seconds=result.duration_s, tokens=tokens, cost=cost))
         for warning in result.warnings:
             lines.append(f"  ! {warning}")
+    elif isinstance(result, PushResult):
+        if result.root is None and not result.invalid:
+            lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
+            if result.mount_message:
+                lines.append("  " + result.mount_message)
+            return lines
+        if result.written:
+            prefix = _("dry run: ") if result.dry_run else ""
+            lines.append("✓ " + prefix + ngettext("{n} workout file written to {dir}", "{n} workout files written to {dir}", len(result.written)).format(n=len(result.written), dir=result.target))
+            if not result.dry_run:
+                lines.append("  " + _("Unplug the watch; it imports the files and lists them under Training > Workouts."))
+        for name, errors in result.invalid:
+            lines.append(f"  ! {name}: " + "; ".join(errors))
+    elif isinstance(result, VerifyResult):
+        if result.root is None:
+            lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
+            if result.mount_message:
+                lines.append("  " + result.mount_message)
+            return lines
+        lines.append("✓ " + _("{on_watch} workouts on the watch, {verified} newly confirmed, {missing} pushed but not found").format(on_watch=len(result.on_watch), verified=len(result.verified), missing=len(result.missing)))
     elif isinstance(result, str):
         lines.append("✓ " + result)
     else:
@@ -280,3 +302,24 @@ def coach_job(config: Config, deps: TuiDeps, kind: str, *, today: date, question
         return run_coach(conn, config, kind, today=today, language=language, question=question, backend=backend, dry_run=dry_run, force=force, log=log)
 
     return JobSpec(f"coach_{kind}", titles.get(kind, kind), cli, run)
+
+
+def workout_push_job(config: Config, deps: TuiDeps, workouts: list[Workout], *, dry_run: bool = False, schedule: bool | None = None) -> JobSpec:
+    from ..workouts.push import push
+
+    files = " ".join(f'"{w.path}"' for w in workouts if w.path)
+    cli = f"wristpull workout push {files}" + (" --schedule" if schedule else "") + (" --dry-run" if dry_run else "")
+
+    def run(conn: sqlite3.Connection, log: Log) -> PushResult:
+        return push(conn, config, workouts, roots=deps.roots, mounter=deps.mounter, schedule=schedule, dry_run=dry_run, log=log)
+
+    return JobSpec("workout_push", _("Push workouts"), cli, run)
+
+
+def workout_verify_job(config: Config, deps: TuiDeps) -> JobSpec:
+    from ..workouts.push import verify
+
+    def run(conn: sqlite3.Connection, log: Log) -> VerifyResult:
+        return verify(conn, config, roots=deps.roots, mounter=deps.mounter, log=log)
+
+    return JobSpec("workout_verify", _("Verify workouts"), "wristpull workout verify", run)

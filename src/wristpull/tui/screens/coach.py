@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import shlex
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +14,7 @@ from textual.widgets import DataTable, Input
 from ...coach.profile import apply_wizard, load_profile, profile_path
 from ...coach.runner import CoachResult, resolve_language
 from ...coach.store import add_feedback, add_note, get_run, recent_notes, recent_runs
+from ...workouts.drafts import drafts_from_plan
 from ..format import fmt_datetime, fmt_float, fmt_int
 from ..i18n import _
 from ..jobs import JobRecord, coach_job
@@ -37,6 +35,7 @@ class CoachScreen(WristpullScreen):
         Binding("n", "note_mode", "Journal note", show=False),
         Binding("g", "wizard", "Goal wizard", show=False),
         Binding("e", "edit_profile", "Edit profile", show=False),
+        Binding("t", "draft_workouts", "Draft workouts", show=False),
         Binding("plus", "rate(1)", "Good", show=False),
         Binding("minus", "rate(-1)", "Bad", show=False),
         Binding("0", "rate(0)", "Neutral", show=False),
@@ -52,7 +51,7 @@ class CoachScreen(WristpullScreen):
         return _("Coach")
 
     def keys(self) -> list[tuple[str, str]]:
-        return [("d", _("daily")), ("w", _("weekly")), ("Enter", _("ask")), ("n", _("journal note")), ("p", _("dry run")), ("x", _("stop")), ("+ − 0", _("rate")), ("g", _("goal wizard")), ("e", _("edit profile")), ("Esc", _("back"))]
+        return [("d", _("daily")), ("w", _("weekly")), ("Enter", _("ask")), ("n", _("journal note")), ("p", _("dry run")), ("x", _("stop")), ("+ − 0", _("rate")), ("g", _("goal wizard")), ("e", _("edit profile")), ("t", _("draft workouts")), ("Esc", _("back"))]
 
     def body(self) -> ComposeResult:
         with Vertical(id="coach"):
@@ -189,14 +188,17 @@ class CoachScreen(WristpullScreen):
     def action_edit_profile(self) -> None:
         path = profile_path(self.app.config)
         load_profile(self.app.config, resolve_language(self.app.config, None))  # creates the template on first use
-        editor_hook = self.app.deps.editor
-        if editor_hook is not None:
-            editor_hook(path)
-        else:
-            editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "nano"
-            with self.app.suspend():
-                subprocess.call([*shlex.split(editor), str(path)])
+        self.app.edit_file(path)
         self.refresh_data()
+
+    def action_draft_workouts(self) -> None:
+        """One draft workout file per session of the last weekly plan, then switch to the workouts screen."""
+        result = drafts_from_plan(self.app.conn, self.app.config)
+        if result.message:
+            self.app.notify(result.message, severity="warning")
+            return
+        self.app.notify(_("{n} workout drafts written, {skipped} days skipped").format(n=len(result.created), skipped=len(result.skipped)))
+        self.app.action_goto("workouts")
 
     def job_finished(self, record: JobRecord) -> None:
         if isinstance(record.result, CoachResult):

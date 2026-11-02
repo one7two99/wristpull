@@ -930,3 +930,105 @@ msgstr "Für heute notiert"
 
 msgid "Journal for today (how you feel, what you did) and press Enter …"
 msgstr "Journal für heute (wie du dich fühlst, was du gemacht hast), dann Enter …"
+
+# --- workouts screen ---------------------------------------------------------
+msgid "Workouts"
+msgstr "Trainings"
+
+msgid "new"
+msgstr "neu"
+
+msgid "template"
+msgstr "Vorlage"
+
+msgid "edit"
+msgstr "bearbeiten"
+
+msgid "drafts from plan"
+msgstr "Entwürfe aus Plan"
+
+msgid "push"
+msgstr "auf die Uhr"
+
+msgid "push upcoming"
+msgstr "alle kommenden"
+
+msgid "verify"
+msgstr "prüfen"
+
+msgid "delete"
+msgstr "löschen"
+
+msgid "draft workouts"
+msgstr "Trainings entwerfen"
+
+msgid "time"
+msgstr "Zeit"
+
+msgid "distance"
+msgstr "Strecke"
+
+msgid "Total"
+msgstr "Gesamt"
+
+msgid "Folder {path} · {start} – {end}"
+msgstr "Ordner {path} · {start} – {end}"
+
+msgid "Watch connected"
+msgstr "Uhr verbunden"
+
+msgid "No watch mounted (push mounts it when possible)"
+msgstr "Keine Uhr eingebunden (der Push versucht es selbst)"
+
+msgid "{drafts} drafts, {pushed} pushed, {verified} verified, {invalid} invalid"
+msgstr "{drafts} Entwürfe, {pushed} übertragen, {verified} bestätigt, {invalid} ungültig"
+
+msgid "Template for n: {kind}"
+msgstr "Vorlage für n: {kind}"
+
+msgid "target folder {folder}"
+msgstr "Zielordner {folder}"
+
+msgid "Press Delete again to remove {path}"
+msgstr "Entf erneut drücken, um {path} zu löschen"
+
+msgid "No workouts in this period. Press n for a new one or c for drafts from the coach's weekly plan."
+msgstr "Keine Trainings in diesem Zeitraum. n legt ein neues an, c erzeugt Entwürfe aus dem Wochenplan des Coachs."
+
+msgid "Could not find a free file name"
+msgstr "Kein freier Dateiname gefunden"
+
+msgid "Select a workout first"
+msgstr "Zuerst ein Training auswählen"
+
+msgid "{n} workout drafts written, {skipped} days skipped"
+msgstr "{n} Trainingsentwürfe geschrieben, {skipped} Tage übersprungen"
+
+msgid "Nothing to push"
+msgstr "Nichts zu übertragen"
+
+msgid "{n} invalid workouts are skipped"
+msgstr "{n} ungültige Trainings werden übersprungen"
+
+msgid "Deleted {path}"
+msgstr "{path} gelöscht"
+
+msgid "Push workouts"
+msgstr "Trainings übertragen"
+
+msgid "Verify workouts"
+msgstr "Trainings prüfen"
+
+msgid "dry run: "
+msgstr "Probelauf: "
+
+msgid "{n} workout file written to {dir}"
+msgid_plural "{n} workout files written to {dir}"
+msgstr[0] "{n} Trainingsdatei nach {dir} geschrieben"
+msgstr[1] "{n} Trainingsdateien nach {dir} geschrieben"
+
+msgid "Unplug the watch; it imports the files and lists them under Training > Workouts."
+msgstr "Uhr abstecken; sie übernimmt die Dateien und zeigt sie unter Training > Trainings."
+
+msgid "{on_watch} workouts on the watch, {verified} newly confirmed, {missing} pushed but not found"
+msgstr "{on_watch} Trainings auf der Uhr, {verified} neu bestätigt, {missing} übertragen, aber nicht gefunden"

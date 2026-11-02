@@ -7,7 +7,7 @@ from collections.abc import Iterable, Mapping
 from importlib import resources
 from pathlib import Path
 
-SCHEMA_VERSION = "2"  # 2: coach_runs, coach_feedback, journal
+SCHEMA_VERSION = "3"  # 2: coach_runs, coach_feedback, journal; 3: workout_pushes
 
 
 def connect(path: Path | str) -> sqlite3.Connection:

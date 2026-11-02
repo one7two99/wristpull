@@ -1,4 +1,4 @@
-"""The eight screens in display order: digit key, screen name, label (translated at render time)."""
+"""The ten screens in display order: digit key, screen name, label (translated at render time)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ NAV: tuple[tuple[str, str, str], ...] = (
     ("7", "export", "Export & Report"),
     ("8", "config", "Settings"),
     ("9", "coach", "Coach"),
+    ("0", "workouts", "Workouts"),
 )
 
 

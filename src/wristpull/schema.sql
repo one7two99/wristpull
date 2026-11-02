@@ -364,3 +364,18 @@ CREATE TABLE IF NOT EXISTS journal (
     note            TEXT NOT NULL,
     created_at_utc  TEXT NOT NULL
 );
+
+-- Workouts pushed to the watch as FIT files (the Markdown sources live under <data_dir>/workouts/).
+CREATE TABLE IF NOT EXISTS workout_pushes (
+    id               INTEGER PRIMARY KEY,
+    path             TEXT,                       -- Markdown file the FIT was built from
+    name             TEXT NOT NULL,              -- wkt_name as written into the file
+    local_date       TEXT,                       -- planned day
+    sha256           TEXT NOT NULL,              -- of the FIT bytes
+    time_created_utc TEXT NOT NULL,              -- file_id.time_created (key for schedule files and verification)
+    target           TEXT NOT NULL,              -- where the file was written
+    watch_serial     TEXT,
+    status           TEXT NOT NULL,              -- dry_run | pushed | verified
+    pushed_at_utc    TEXT NOT NULL,
+    verified_at_utc  TEXT
+);

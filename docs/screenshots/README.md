@@ -16,6 +16,7 @@ number, date and name is invented, device identifiers are placeholders, the home
 | `07-export.svg` | 7 Export & Report after an export |
 | `08-settings.svg` | 8 Settings |
 | `09-coach.svg` | 9 Coach after a daily check (fake backend) |
+| `10-workouts.svg` | 0 Workouts after pushing one file to a fake watch folder |
 
 Regenerate with a script like the one used in the session (import the fixtures, run the app with
 `App.run_test`, call `save_screenshot`), then scrub paths: `sed -i 's#/home/<you>#/home/alice#g' *.svg`.

@@ -19,6 +19,7 @@ DAY_NAMES = {
 }
 REST_WORDS = ("rest", "ruhe", "pause", "off", "frei", "recovery day", "ruhetag")
 DURATION = re.compile(r"(\d+(?:[.,]\d+)?)\s*(h|hr|hrs|hour|hours|std|min|mins|minutes|minuten|m)\b", re.I)
+CLOCK_DURATION = re.compile(r"\b(\d{1,2}):(\d{2})\s*(?:h|hr|std)?\b", re.I)
 
 
 @dataclass
@@ -43,6 +44,10 @@ def _day_index(cell: str) -> int | None:
 
 
 def parse_duration(text: str) -> int | None:
+    """Minutes from ``45 min``, ``1.5 h``, ``1 h 15 min`` or the clock form ``1:30 h``."""
+    clock = CLOCK_DURATION.search(text)
+    if clock:
+        return int(clock.group(1)) * 60 + int(clock.group(2))
     total = 0.0
     found = False
     for m in DURATION.finditer(text):

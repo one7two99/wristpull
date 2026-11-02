@@ -26,7 +26,7 @@ def test_save_get_recent_and_feedback(conn):
         add_feedback(conn, 999, 1)
     with pytest.raises(ValueError):
         save_run(conn, bogus=1)
-    assert conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "2"
+    assert conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "3"
 
 
 def test_memory_digest_picks_suggestions_and_plans(conn):

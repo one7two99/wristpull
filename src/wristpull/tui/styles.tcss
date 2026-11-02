@@ -204,3 +204,25 @@ RadioSet {
     dock: bottom;
     margin-bottom: 1;
 }
+
+#workouts {
+    height: 1fr;
+}
+
+#workouts-status {
+    height: auto;
+    max-height: 6;
+}
+
+#workout-table {
+    width: 72;
+    border: round $primary;
+}
+
+#preview-scroll {
+    width: 1fr;
+}
+
+#workout-preview {
+    height: auto;
+}

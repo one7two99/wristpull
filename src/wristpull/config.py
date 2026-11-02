@@ -62,9 +62,23 @@ token_budget = {coach_token_budget}
 effort = "{coach_effort}"
 # Answer language: de | en | "" for the UI language
 language = "{coach_language}"
-{coach_prices}"""
+{coach_prices}
+[workout]
+# Shape of generated workouts (templates and drafts from the weekly plan): minutes and HR caps of the warm-up and cool-down.
+warmup_min = {workout_warmup_min}
+cooldown_min = {workout_cooldown_min}
+warmup_hr_max = {workout_warmup_hr_max}
+cooldown_hr_max = {workout_cooldown_hr_max}
+# Heart-rate target of a generated main part: a zone (Z2), a bpm range (135-150) or percent of max HR (70-80 %).
+default_target = "{workout_default_target}"
+# Also write a schedule file so the watch shows the workout in its calendar (experimental).
+schedule = {workout_schedule}
+# Folder below GARMIN/ the FIT files are copied to: NewFiles (processed when the cable is unplugged) or Workouts.
+folder = "{workout_folder}"
+"""
 
 UI_LANGUAGES = ("en", "de")
+WORKOUT_FOLDERS = ("NewFiles", "Workouts")
 COACH_BACKENDS = ("ollama", "claude", "openrouter")
 COACH_EFFORTS = ("low", "medium", "high")
 # USD per million input / output tokens; used for the cost estimate of a run (overridable in [coach.prices]).
@@ -95,6 +109,22 @@ class CoachConfig:
         return self.prices.get(model) or DEFAULT_PRICES.get(model)
 
 
+@dataclass
+class WorkoutConfig:
+    warmup_min: int = 10
+    cooldown_min: int = 5
+    warmup_hr_max: int = 130
+    cooldown_hr_max: int = 125
+    default_target: str = "Z2"
+    schedule: bool = False
+    folder: str = "NewFiles"
+
+    def defaults(self):
+        from .workouts.model import Defaults
+
+        return Defaults(self.warmup_min, self.cooldown_min, self.warmup_hr_max, self.cooldown_hr_max, self.default_target)
+
+
 def default_config_path() -> Path:
     base = os.environ.get("XDG_CONFIG_HOME")
     root = Path(base) if base else Path.home() / ".config"
@@ -113,6 +143,7 @@ class Config:
     ui_theme: str = "textual-dark"
     ui_range_days: int = 28
     coach: CoachConfig = field(default_factory=CoachConfig)
+    workout: WorkoutConfig = field(default_factory=WorkoutConfig)
     path: Path | None = None  # where this config was loaded from, if anywhere
 
     @property
@@ -151,6 +182,13 @@ class Config:
                 if self.coach.prices
                 else ""
             ),
+            workout_warmup_min=self.workout.warmup_min,
+            workout_cooldown_min=self.workout.cooldown_min,
+            workout_warmup_hr_max=self.workout.warmup_hr_max,
+            workout_cooldown_hr_max=self.workout.cooldown_hr_max,
+            workout_default_target=self.workout.default_target,
+            workout_schedule="true" if self.workout.schedule else "false",
+            workout_folder=self.workout.folder,
         )
 
 
@@ -206,6 +244,16 @@ def load_config(path: Path | None = None) -> Config:
         for model, entry in prices.items():
             if isinstance(entry, dict) and "input" in entry and "output" in entry:
                 cfg.coach.prices[str(model)] = (float(entry["input"]), float(entry["output"]))
+    workout = data.get("workout", {})
+    for key in ("warmup_min", "cooldown_min", "warmup_hr_max", "cooldown_hr_max"):
+        if key in workout:
+            setattr(cfg.workout, key, int(workout[key]))
+    if "default_target" in workout:
+        cfg.workout.default_target = str(workout["default_target"])
+    if "schedule" in workout:
+        cfg.workout.schedule = bool(workout["schedule"])
+    if workout.get("folder"):
+        cfg.workout.folder = str(workout["folder"])
     return cfg
 
 
@@ -254,6 +302,25 @@ def validate_config(cfg: Config) -> list[str]:
         problems.append(f"coach effort must be one of {', '.join(COACH_EFFORTS)}")
     if coach.language and coach.language not in UI_LANGUAGES:
         problems.append(f"coach language must be one of {', '.join(UI_LANGUAGES)} or empty")
+    problems.extend(validate_workout(cfg.workout))
+    return problems
+
+
+def validate_workout(w: WorkoutConfig) -> list[str]:
+    from .workouts.model import HR_BPM_MAX, HR_BPM_MIN, parse_target
+
+    problems: list[str] = []
+    if w.warmup_min < 0 or w.cooldown_min < 0:
+        problems.append("workout warmup_min and cooldown_min must not be negative")
+    for label, value in (("warmup_hr_max", w.warmup_hr_max), ("cooldown_hr_max", w.cooldown_hr_max)):
+        if not HR_BPM_MIN <= value <= HR_BPM_MAX:
+            problems.append(f"workout {label} must be between {HR_BPM_MIN} and {HR_BPM_MAX} bpm")
+    if w.default_target:
+        _hr, error = parse_target(w.default_target)
+        if error:
+            problems.append(f"workout default_target: {error}")
+    if w.folder not in WORKOUT_FOLDERS:
+        problems.append(f"workout folder must be one of {', '.join(WORKOUT_FOLDERS)}")
     return problems
 
 

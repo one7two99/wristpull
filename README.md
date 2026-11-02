@@ -230,6 +230,45 @@ The training coach sends an aggregated data package to an LLM and stores the ans
 | `coach plan-ics [--out F] [--hour H]` | the last weekly plan as an iCalendar file: timed events for sessions, all-day notes for rest days |
 | `coach profile [--wizard]` | path of the goal profile and its unfilled placeholders (exit 2 while some are open); `--wizard` asks multiple-choice questions and writes the generated block into the profile, keeping your own notes below it |
 
+#### `wristpull workout …` — structured workouts onto the watch, without Garmin Connect
+
+A workout is one Markdown file under `<data_dir>/workouts/`, written by hand, from a template or
+drafted by the coach from its weekly plan. `workout push` encodes it as a FIT workout file and
+copies it to `GARMIN/NewFiles/` on the mounted watch; the watch imports it when the cable is
+unplugged and lists it under *Training → Workouts*, with the heart-rate targets guiding each step.
+
+```markdown
+---
+date: 2026-11-05
+sport: running
+name: Easy run
+status: draft
+---
+# Easy run
+- warmup 10 min hr <= 130
+- run 40 min hr 135-150
+- cooldown 5 min hr <= 125
+```
+
+Each step is `- <intensity> <length> [hr <target>] [# note]`. Intensities: `warmup`, `run`,
+`recovery`, `cooldown`, `rest` (German words work too). Lengths: `40 min`, `1:15 h`, `5000 m`,
+`5 km`, `open` (until the lap key). Heart-rate targets: a bpm range `135-150`, a cap `<= 130`, a floor
+`>= 120`, a Garmin zone `Z2`, or percent of max HR `70-80 %`. `status` is maintained by wristpull:
+`draft` → `pushed` → `verified` (seen under `GARMIN/Workouts/`).
+
+| Command | What it does |
+|---|---|
+| `workout new [--date D] [--name N] [--template time\|distance] [--minutes M] [--metres M] [--edit]` | write a file from the template (warm-up, main part by time or distance, cool-down) and print its path; `--edit` opens `$EDITOR` |
+| `workout list [--from D --to D]` | date, name, steps, total, status and validation errors per file |
+| `workout check FILE…` | parse and validate, print the steps the way the watch will show them (exit 2 on errors) |
+| `workout push [FILE…] [--date D] [--upcoming] [--path P] [--folder NewFiles\|Workouts] [--schedule] [--dry-run]` | build the FIT files and copy them to the watch (`--dry-run`: to `<data_dir>/workouts/out/`); `--schedule` adds a schedule file with the planned dates (experimental); existing files on the watch are never overwritten |
+| `workout verify [--path P]` | read `GARMIN/Workouts/` and mark pushed workouts the watch has taken over as `verified` |
+| `workout from-plan [--week D]` | one draft per session of the coach's last weekly plan (rest days and days that already have a file are skipped) |
+
+Every push is recorded in `workout_pushes` (name, date, SHA-256 of the FIT bytes, target, watch
+serial, status). The `[workout]` section sets the shape of generated workouts (warm-up and cool-down
+minutes and HR caps, default target of the main part) and the target folder.
+
 Options for `daily`/`weekly`/`ask`: `--backend ollama|claude|openrouter`, `--model`, `--lang de|en`,
 `--date YYYY-MM-DD` (pretend today), `--dry-run` (write the full prompt to `<data_dir>/coach/dryrun/`
 instead of calling the model), `--force` (run although the profile still has placeholders).
@@ -285,7 +324,7 @@ wristpull reparse --errors                     # retry what failed last time
 
 A terminal UI over the same library functions (needs the optional extra: `uv sync --extra tui`).
 It runs the commands above as background jobs with a live log, shows the data per day and browses
-the data directory. A tab row under the header lists the nine screens with their digit keys and
+the data directory. A tab row under the header lists the ten screens with their digit keys and
 marks the active one; tabs can also be clicked. German and English, switchable at runtime with `F12`; the language comes from
 `[ui] language`, else from `LANGUAGE`/`LC_ALL`/`LANG`, else English.
 
@@ -299,7 +338,8 @@ marks the active one; tabs can also be clicked. German and English, switchable a
 | `6` | Files: tree of the data directory; `Enter` on a `.fit` runs `inspect`, Markdown/CSV preview, `o` opens with `xdg-open`, `y` copies the path |
 | `7` | Export & Report: Claude export or weekly/monthly report for a period with presets, result file list and Markdown preview; `o` opens the folder, `y`/`c` copy path or CLI |
 | `8` | Settings: edit every config value including `[ui]` and `[coach]`, `Ctrl+S` validates and writes `config.toml` (language switches immediately, `data_dir` after a restart); `Ctrl+T` checks whether the coach backend is reachable |
-| `9` | Coach: `d` daily check, `w` weekly review, type a question and press Enter, `p` dry run; runs table with tokens, cost and rating, the answer beside it; `+` `−` `0` rate the selected run, `g` goal wizard (multiple choice → profile), `e` edit the profile in `$EDITOR` |
+| `9` | Coach: `d` daily check, `w` weekly review, type a question and press Enter, `p` dry run; runs table with tokens, cost and rating, the answer beside it; `+` `−` `0` rate the selected run, `g` goal wizard (multiple choice → profile), `e` edit the profile in `$EDITOR`, `t` draft workouts from the last weekly plan |
+| `0` | Workouts: files of the next three weeks (and the last one) with status, preview of the steps as the watch shows them plus the Markdown; `n` new from the template (then `$EDITOR`), `t` template time/distance, `e` edit, `c` drafts from the coach plan, `p` push the selected one, `P` push every upcoming one, `d` dry run, `v` verify against `GARMIN/Workouts/`, `Del` twice deletes the file, `←`/`→` shift the period |
 | `i` `p` `e` `r` | on the overview: import Garmin, pull phone, export the default range for Claude, weekly report with charts |
 | `/` `?` `F12` `q` | command palette, help, language, quit |
 
@@ -341,6 +381,15 @@ timeout_s = 600
 token_budget = 6000                      # size of the data package (12000 is fine for Claude)
 effort = "medium"                        # Claude only
 language = ""                            # answer language, "" = UI language
+
+[workout]
+warmup_min = 10                          # shape of generated workouts (templates, drafts from the plan)
+cooldown_min = 5
+warmup_hr_max = 130
+cooldown_hr_max = 125
+default_target = "Z2"                    # main-part target when the plan names none: Z2, 135-150 or 70-80 %
+schedule = false                         # also write a schedule file with the planned dates (experimental)
+folder = "NewFiles"                      # NewFiles (imported when unplugged) or Workouts
 ```
 
 ### Helper commands around the watch
@@ -563,7 +612,8 @@ The coach (`src/wristpull/coach/`) keeps SQL in `store.py` and `context.py`; eve
 sees is built from the aggregate functions, and all tests talk to a `FakeBackend` (no network). The
 Claude backend is exercised against a fake client, Ollama and OpenRouter against a fake `urlopen`.
 
-Tests use **synthetic** FIT files generated by `tests/fitwriter.py` (a minimal FIT encoder), so no
+Tests use **synthetic** FIT files generated with `wristpull.fit.writer` (the minimal FIT encoder that
+also writes the workout files; `tests/fitwriter.py` re-exports it), so no
 real health data is needed or allowed in the repository. Code, comments and commits are in English.
 See [CONTRIBUTING.md](CONTRIBUTING.md); the licence is MIT ([LICENSE](LICENSE)). An opt-in live test
 (`WRISTPULL_LIVE=1`) calls a real LLM backend; everything else stays offline.
@@ -576,4 +626,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md); the licence is MIT ([LICENSE](LICENSE)).
 4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [docs/screenshots/](docs/screenshots/README.md)
 6. ~~Training coach via LLM: C1 daily check and questions with Ollama, goal profile, local memory; C2 weekly review, Claude API and OpenRouter backends, number check, ratings; C3 goal wizard, TUI coach screen; C4 journal, plan adherence, ICS export, systemd/udev templates~~ — concept in [docs/coach-concept.md](docs/coach-concept.md)
-7. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)
+7. ~~Workouts to the watch: Markdown workouts, FIT encoder, `workout push|verify|from-plan`, TUI screen 0~~ — next: confirm on the fenix that `NewFiles` imports and whether the schedule file sets the calendar date
+8. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)

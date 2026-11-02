@@ -22,6 +22,7 @@ from .screens.home import HomeScreen
 from .screens.settings import SettingsScreen
 from .screens.sleep import SleepScreen
 from .screens.sync import SyncScreen
+from .screens.workouts import WorkoutsScreen
 
 SCREEN_FACTORIES = {
     "home": HomeScreen,
@@ -33,8 +34,9 @@ SCREEN_FACTORIES = {
     "export": ExportScreen,
     "config": SettingsScreen,
     "coach": CoachScreen,
+    "workouts": WorkoutsScreen,
 }
-SCREEN_KEYS = {"1": "home", "2": "sync", "3": "days", "4": "activities", "5": "sleep", "6": "files", "7": "export", "8": "config", "9": "coach"}
+SCREEN_KEYS = {"1": "home", "2": "sync", "3": "days", "4": "activities", "5": "sleep", "6": "files", "7": "export", "8": "config", "9": "coach", "0": "workouts"}
 
 
 class WristpullApp(App):
@@ -50,6 +52,7 @@ class WristpullApp(App):
         Binding("7", "goto('export')", "Export & Report", show=False),
         Binding("8", "goto('config')", "Settings", show=False),
         Binding("9", "goto('coach')", "Coach", show=False),
+        Binding("0", "goto('workouts')", "Workouts", show=False),
         Binding("question_mark", "help", "Help", show=False),
         Binding("f12", "toggle_language", "Language", show=False),
         Binding("slash", "command_palette", "Palette", show=False),
@@ -103,6 +106,19 @@ class WristpullApp(App):
         if current in SCREEN_FACTORIES.values():
             self.switch_screen(current())
         self.notify(_("Language: {lang}").format(lang=self.language))
+
+    def edit_file(self, path) -> None:
+        """Open a file in the user's editor: the injected hook (tests) or $EDITOR in a suspended terminal."""
+        if self.deps.editor is not None:
+            self.deps.editor(path)
+            return
+        import os
+        import shlex
+        import subprocess
+
+        editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "nano"
+        with self.suspend():
+            subprocess.call([*shlex.split(editor), str(path)])
 
     # -- jobs ---------------------------------------------------------------------------
 

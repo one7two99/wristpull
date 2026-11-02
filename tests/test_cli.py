@@ -94,3 +94,49 @@ def test_tui_command_runs_app(cfg_file: Path, monkeypatch):
     monkeypatch.setattr(cli, "_load_tui", lambda: fake_run)
     assert main(["--config", str(cfg_file), "tui"]) == 0
     assert seen["data_dir"].name == "Health"
+
+
+def test_workout_commands(cfg_file: Path, tmp_path: Path, garmin_tree: Path, capsys):
+    base = ["--config", str(cfg_file), "workout"]
+    assert main([*base, "list"]) == 1
+    assert "no workout files" in capsys.readouterr().out
+    assert main([*base, "new", "--date", "2026-11-05", "--name", "Easy run"]) == 0
+    path = Path(capsys.readouterr().out.strip())
+    assert path.name == "2026-11-05-easy-run.md" and path.exists()
+    assert main([*base, "new", "--date", "2026-11-06", "--template", "distance", "--metres", "8000"]) == 0
+    capsys.readouterr()
+    assert main([*base, "new", "--date", "2026-11-06", "--template", "distance", "--metres", "8000"]) == 2  # exists
+    assert "file exists" in capsys.readouterr().err
+    assert main([*base, "check", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "Easy run (2026-11-05) ok" in out and "1 warmup 10:00  HR <= 130" in out and "2 active 40:00  HR Z2" in out
+    bad = path.parent / "bad.md"
+    bad.write_text("---\ndate: 2026-11-07\nname: Bad\n---\n- sprint 5 min\n", "utf-8")
+    assert main([*base, "check", str(bad)]) == 2
+    assert "unknown intensity" in capsys.readouterr().err
+    assert main([*base, "list"]) == 0
+    out = capsys.readouterr().out
+    assert "2026-11-05  Easy run" in out and "55 min" in out and "draft" in out and "✗ unknown intensity" in out and "8000 m" in out
+    assert main([*base, "push"]) == 2
+    assert main([*base, "push", "--date", "2026-11-05", "--dry-run", "--schedule"]) == 0
+    out = capsys.readouterr().out
+    assert "dry run: 1 workout files written to" in out and "schedule" in out
+    assert main([*base, "push", str(path), "--path", str(tmp_path / "nowhere")]) == 1
+    assert "No Garmin device found" in capsys.readouterr().err
+    assert main([*base, "push", str(path), str(bad), "--path", str(garmin_tree)]) == 2  # the bad one is reported
+    captured = capsys.readouterr()
+    assert "1 workout files written to" in captured.out and "Unplug the watch" in captured.out and "Bad:" in captured.err
+    assert len(list((garmin_tree / "NewFiles").glob("*.fit"))) == 1
+    assert main([*base, "list"]) == 0
+    assert "pushed" in capsys.readouterr().out
+    assert main([*base, "verify", "--path", str(garmin_tree)]) == 2  # pushed but not under Workouts yet
+    assert "1 pushed but not found" in capsys.readouterr().out
+    (garmin_tree / "Workouts").mkdir()
+    (garmin_tree / "Workouts" / "W.FIT").write_bytes(next((garmin_tree / "NewFiles").glob("*.fit")).read_bytes())
+    assert main([*base, "verify", "--path", str(garmin_tree)]) == 0
+    assert "1 newly confirmed" in capsys.readouterr().out
+    assert main([*base, "verify", "--path", str(tmp_path / "nowhere")]) == 1
+    capsys.readouterr()
+    assert main([*base, "from-plan"]) == 1
+    assert "no weekly plan" in capsys.readouterr().err
+    assert main([*base, "push", "--upcoming", "--dry-run"]) in (0, 2)
