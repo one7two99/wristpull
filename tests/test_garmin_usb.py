@@ -37,3 +37,17 @@ def test_read_device_info(garmin_tree: Path, tmp_path: Path):
     info = read_device_info(garmin_tree)
     assert info == {"part_number": "006-B3289-00", "model": "fenix 6 Pro", "unit_id": "3999999999"}
     assert read_device_info(tmp_path) == {}
+
+
+def test_eject_garmin_only_for_mtp_mounts(tmp_path):
+    from wristpull.garmin_usb import eject_garmin, mtp_url_of
+
+    mtp_root = Path("/run/user/1000/gvfs/mtp:host=091e_4cdb_0000<id>/Primary/GARMIN")
+    assert mtp_url_of(mtp_root) == "mtp://091e_4cdb_0000<id>/" and mtp_url_of(tmp_path) is None
+    calls = []
+    ok, msg = eject_garmin(mtp_root, lambda argv: (calls.append(argv), (0, "", ""))[1])
+    assert ok and calls == [["gio", "mount", "-u", "mtp://091e_4cdb_0000<id>/"]] and "ejected" in msg
+    ok, msg = eject_garmin(mtp_root, lambda argv: (1, "", "busy"))
+    assert not ok and "busy" in msg
+    ok, msg = eject_garmin(tmp_path, lambda argv: (0, "", ""))
+    assert not ok and "nothing to eject" in msg

@@ -14,7 +14,7 @@ from ..archive import sha256_bytes
 from ..config import Config
 from ..fit.decode import decode_fit
 from ..fit.workout import build_schedule_fit, build_workout_fit, workout_created
-from ..garmin_usb import Runner, read_device_info, run_command, try_mount_garmin
+from ..garmin_usb import Runner, eject_garmin, read_device_info, run_command, try_mount_garmin
 from ..importers.garmin import locate_garmin
 from ..timeutil import iso_utc
 from .model import Workout, slug
@@ -57,6 +57,8 @@ class PushResult:
     invalid: list[tuple[str, list[str]]] = field(default_factory=list)
     schedule: Path | None = None
     mount_message: str | None = None
+    ejected: bool = False
+    eject_message: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -94,13 +96,15 @@ def push(
     schedule: bool | None = None,
     folder: str | None = None,
     dry_run: bool = False,
+    eject: bool = True,
     log: Log = lambda _m: None,
     runner: Runner = run_command,
 ) -> PushResult:
     """Encode every valid workout and copy it to ``GARMIN/<folder>/`` (dry run: ``<data_dir>/workouts/out/``).
 
     Existing files on the watch are never overwritten or deleted; a changed workout gets a
-    new file name carrying its content hash.
+    new file name carrying its content hash. With ``eject`` (default) the MTP mount is unmounted
+    afterwards so the watch commits the files before the cable is pulled.
     """
     result = PushResult(dry_run=dry_run)
     schedule = config.workout.schedule if schedule is None else schedule
@@ -146,6 +150,9 @@ def push(
         result.schedule = result.target / f"schedule-{stamp}.fit"
         write_device_file(result.schedule, build_schedule_fit(valid), runner=runner)
         log(f"  + {result.schedule.name} ({len(valid)} scheduled)")
+    if eject and not dry_run and result.root is not None and (result.written or result.schedule):
+        result.ejected, result.eject_message = eject_garmin(result.root, runner)
+        log(f"  {'⏏' if result.ejected else '!'} {result.eject_message}")
     return result
 
 

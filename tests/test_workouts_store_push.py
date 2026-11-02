@@ -58,6 +58,7 @@ def test_push_dry_run_and_to_device(config: Config, conn, garmin_tree: Path):
     # real push to a fake watch: files land in NewFiles, status flips to pushed, history recorded
     result = push(conn, config, [easy, tempo], roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), schedule=True, log=log.append)
     assert result.ok and result.root == garmin_tree and result.target == garmin_tree / "NewFiles"
+    assert not result.ejected and "nothing to eject" in result.eject_message  # a plain directory, no MTP mount
     assert len(result.written) == 2 and result.schedule is not None and result.schedule.exists()
     assert decode_fit(result.written[0].read_bytes()).file_type == "workout" and decode_fit(result.schedule.read_bytes()).file_type == "schedules"
     assert load(Path(tempo.path)).status == "pushed" and push_status(conn, tempo.path) == "pushed"
@@ -130,3 +131,17 @@ def test_write_device_file_falls_back_to_gio_copy(tmp_path: Path):
         write_device_file(_NoWriteDir(tmp_path / "GARMIN" / "NewFiles" / "x.fit"), b"a", runner=lambda argv: (1, "", "boom"))
     with pytest.raises(OSError):
         write_device_file(tmp_path / "missing-dir" / "x.fit", b"a", runner=runner)  # ENOENT is not retried
+
+
+def test_push_ejects_an_mtp_mount(config: Config, conn, garmin_tree: Path, monkeypatch):
+    """The eject step is driven by the path of the mount; simulate it with a runner that records the call."""
+    from wristpull.workouts import push as push_module
+
+    save(config, _w(date(2026, 11, 5)))
+    calls: list[list[str]] = []
+    runner = lambda argv: (calls.append(argv), (0, "", ""))[1]  # noqa: E731
+    monkeypatch.setattr(push_module, "eject_garmin", lambda root, run: (True, "ejected mtp://x/") if run(["gio", "mount", "-u", "mtp://x/"])[0] == 0 else (False, "no"))
+    result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner)
+    assert result.ejected and result.eject_message == "ejected mtp://x/" and calls[-1] == ["gio", "mount", "-u", "mtp://x/"]
+    result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner, eject=False)
+    assert not result.ejected and result.eject_message is None

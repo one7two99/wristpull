@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import getpass
 import os
+import re
 import subprocess
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -201,3 +202,27 @@ def try_mount_garmin(runner: Runner = run_command) -> tuple[bool, str]:
             text += "\n" + KDE_HINT.format(url=url)
         messages.append(f"gio mount {url} failed: {text}")
     return False, "\n".join(messages)
+
+
+GVFS_MTP = re.compile(r"/gvfs/mtp:host=([^/]+)/")
+
+
+def mtp_url_of(path: Path) -> str | None:
+    """``mtp://<id>/`` for a path below a gvfs MTP mount, else None."""
+    m = GVFS_MTP.search(str(path))
+    return f"mtp://{m.group(1)}/" if m else None
+
+
+def eject_garmin(root: Path, runner: Runner = run_command) -> tuple[bool, str]:
+    """Unmount (eject) the gvfs MTP mount that holds ``root`` so the watch commits written files.
+
+    MTP devices may discard objects of a session that ends by unplugging; every Garmin guide ends
+    with "eject the device". Returns (ejected, message); a non-MTP path is left alone.
+    """
+    url = mtp_url_of(root)
+    if url is None:
+        return False, "not an MTP mount, nothing to eject"
+    code, out, err = runner(["gio", "mount", "-u", url])
+    if code == 0:
+        return True, f"ejected {url}"
+    return False, f"gio mount -u {url} failed: {(err or out).strip()}"

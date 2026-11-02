@@ -194,7 +194,7 @@ def describe_result(record: JobRecord) -> list[str]:
             prefix = _("dry run: ") if result.dry_run else ""
             lines.append("✓ " + prefix + ngettext("{n} workout file written to {dir}", "{n} workout files written to {dir}", len(result.written)).format(n=len(result.written), dir=result.target))
             if not result.dry_run:
-                lines.append("  " + _("Unplug the watch; it imports the files and lists them under Training > Workouts."))
+                lines.append("  " + (_("The watch was ejected; unplug it now. It lists the workouts under Training > Workouts.") if result.ejected else _("Eject the watch before unplugging, or it may discard the files.")))
         for name, errors in result.invalid:
             lines.append(f"  ! {name}: " + "; ".join(errors))
     elif isinstance(result, VerifyResult):
