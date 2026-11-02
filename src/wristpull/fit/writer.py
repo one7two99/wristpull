@@ -58,10 +58,14 @@ Field = tuple[int, str, object]  # (def_num, base type name, value)
 
 
 class FitWriter:
-    def __init__(self) -> None:
+    """``big_endian=True`` writes the byte order Garmin's own tools use (the watch accepts both)."""
+
+    def __init__(self, *, big_endian: bool = False) -> None:
         self._body = bytearray()
         self._locals: dict[tuple, int] = {}
         self._next_local = 0
+        self._arch = 1 if big_endian else 0
+        self._prefix = ">" if big_endian else "<"
 
     def _define(self, global_num: int, fields: list[Field]) -> int:
         key = (global_num, tuple((num, typ, self._size(typ, val)) for num, typ, val in fields))
@@ -74,8 +78,8 @@ class FitWriter:
             if v == local:
                 del self._locals[k]
         self._locals[key] = local
-        self._body += bytes([0x40 | local, 0, 0])  # definition header, reserved, little endian
-        self._body += struct.pack("<HB", global_num, len(fields))
+        self._body += bytes([0x40 | local, 0, self._arch])  # definition header, reserved, architecture
+        self._body += struct.pack(self._prefix + "HB", global_num, len(fields))
         for num, typ, val in fields:
             self._body += bytes([num, self._size(typ, val), BASE_TYPES[typ][0]])
         return local
@@ -98,9 +102,9 @@ class FitWriter:
             if typ == "string":
                 self._body += str(val).encode("utf-8") + b"\x00"
             elif isinstance(val, (list, tuple)):
-                self._body += struct.pack("<" + fmt * len(val), *val)
+                self._body += struct.pack(self._prefix + fmt * len(val), *val)
             else:
-                self._body += struct.pack("<" + fmt, val)
+                self._body += struct.pack(self._prefix + fmt, val)
 
     def finish(self) -> bytes:
         header = struct.pack("<BBHI4s", 14, 0x20, 2132, len(self._body), b".FIT")

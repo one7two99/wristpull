@@ -33,3 +33,15 @@ def test_writer_roundtrip_is_valid_fit():
     assert [r.get(3) for r in recs] == [123, 124]
     assert recs[1].timestamp() == created.replace(second=6)
     assert fit.warnings == []
+
+
+def test_big_endian_writer_roundtrip():
+    w = FitWriter(big_endian=True)
+    created = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+    w.message(0, [(0, "enum", 5), (1, "uint16", 1), (3, "uint32z", 123456789), (4, "uint32", ts(created)), (8, "string", "x")])
+    w.message(26, [(4, "enum", 1), (6, "uint16", 3), (8, "string", "Big")])
+    data = w.finish()
+    assert data[14 + 2] == 1  # architecture byte of the first definition
+    fit = decode_fit(data)
+    assert fit.file_type == "workout" and fit.serial_number == 123456789 and fit.time_created == created
+    assert fit.of("workout")[0].get("num_valid_steps") == 3 and fit.of("workout")[0].get("wkt_name") == "Big"

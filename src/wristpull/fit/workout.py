@@ -62,7 +62,7 @@ def build_workout_fit(workout: Workout, *, created: datetime | None = None) -> b
     if not workout.valid:
         raise ValueError("; ".join(workout.errors))
     created = created or workout_created(workout)
-    w = FitWriter()
+    w = FitWriter(big_endian=True)  # like the files Garmin Connect writes
     sport, sub_sport = SPORT_NUM.get(workout.sport, (0, 0))
     total_ms = workout.total_seconds * 1000
     total_cm = workout.total_metres * 100
@@ -133,7 +133,7 @@ def build_schedule_fit(workouts: list[Workout], *, created: datetime | None = No
     The watch's own ``Schedule/Schedule.fit`` stamps scheduled workouts at 12:00 local, so that is the default.
     """
     created = created or datetime.now(UTC).replace(microsecond=0)
-    w = FitWriter()
+    w = FitWriter(big_endian=True)
     w.message(0, [(0, "enum", FILE_SCHEDULE), (1, "uint16", MANUFACTURER_GARMIN), (2, "uint16", PRODUCT_CONNECT), (3, "uint32z", 1), (4, "uint32", utc_to_fit(created))])
     for workout in workouts:
         if workout.day is None:
