@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import errno
 import sqlite3
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -12,7 +14,7 @@ from ..archive import sha256_bytes
 from ..config import Config
 from ..fit.decode import decode_fit
 from ..fit.workout import build_schedule_fit, build_workout_fit, workout_created
-from ..garmin_usb import read_device_info, try_mount_garmin
+from ..garmin_usb import Runner, read_device_info, run_command, try_mount_garmin
 from ..importers.garmin import locate_garmin
 from ..timeutil import iso_utc
 from .model import Workout, slug
@@ -20,6 +22,30 @@ from .store import mark_verified, output_dir, pending_pushes, record_push, set_s
 
 Log = Callable[[str], None]
 FOLDERS = ("NewFiles", "Workouts")
+GVFS_ERRNOS = {errno.ENOTSUP, errno.EOPNOTSUPP, errno.EIO, errno.EINVAL}
+
+
+def write_device_file(target: Path, data: bytes, *, runner: Runner = run_command) -> str:
+    """Write ``data`` to ``target``; on a gvfs MTP mount plain writes fail with ENOTSUP, so fall back to ``gio copy``.
+
+    Returns ``'write'`` or ``'gio'`` for the log.
+    """
+    try:
+        target.write_bytes(data)
+        return "write"
+    except OSError as exc:
+        if exc.errno not in GVFS_ERRNOS:
+            raise
+    with tempfile.NamedTemporaryFile(suffix=".fit", delete=False) as tmp:
+        tmp.write(data)
+        tmp_path = Path(tmp.name)
+    try:
+        code, out, err = runner(["gio", "copy", str(tmp_path), str(target)])
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    if code != 0:
+        raise OSError(f"gio copy to {target} failed: {(err or out).strip() or code}")
+    return "gio"
 
 
 @dataclass
@@ -69,6 +95,7 @@ def push(
     folder: str | None = None,
     dry_run: bool = False,
     log: Log = lambda _m: None,
+    runner: Runner = run_command,
 ) -> PushResult:
     """Encode every valid workout and copy it to ``GARMIN/<folder>/`` (dry run: ``<data_dir>/workouts/out/``).
 
@@ -97,7 +124,8 @@ def push(
             return result
         result.root = root
         result.target = device_folder(root, folder)
-        result.target.mkdir(parents=True, exist_ok=True)
+        if not result.target.is_dir():
+            result.target.mkdir(parents=True, exist_ok=True)
         serial = read_device_info(root).get("unit_id")
     for workout in valid:
         data = build_workout_fit(workout)
@@ -107,8 +135,8 @@ def push(
         if target.exists():
             log(f"  = {name} already on the device")
         else:
-            target.write_bytes(data)
-            log(f"  + {name} ({len(data)} bytes)")
+            how = write_device_file(target, data, runner=runner)
+            log(f"  + {name} ({len(data)} bytes{', via gio copy' if how == 'gio' else ''})")
         result.written.append(target)
         record_push(conn, workout, sha256=digest, time_created_utc=iso_utc(workout_created(workout)), target=str(target), watch_serial=serial, dry_run=dry_run)
         if not dry_run and workout.path:
@@ -116,7 +144,7 @@ def push(
     if schedule:
         stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         result.schedule = result.target / f"schedule-{stamp}.fit"
-        result.schedule.write_bytes(build_schedule_fit(valid))
+        write_device_file(result.schedule, build_schedule_fit(valid), runner=runner)
         log(f"  + {result.schedule.name} ({len(valid)} scheduled)")
     return result
 

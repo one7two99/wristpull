@@ -11,17 +11,18 @@ from pathlib import Path
 from ..coach.plan import PlanRow, parse_plan_table
 from ..coach.store import last_weekly_plan
 from ..config import Config
-from .model import MAX_NAME_LEN, Defaults, HeartRate, Step, Workout, parse_target
+from .model import Defaults, HeartRate, Step, Workout, guess_sport, parse_target, short_name
 from .store import existing_for_day, save
 
+# Checked in this order: an "easy" word wins over a "tempo" word in the same text ("steady, easy" is an easy run).
 ZONE_WORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("easy", "locker", "ruhig", "relaxed", "entspannt", "ga1", "regeneration", "recovery", "erholung", "long run", "dauerlauf", "talk test"), "Z2"),
     (("interval", "intervall", "hard", "hart", "vo2", "5k pace", "wettkampf"), "Z5"),
-    (("tempo", "threshold", "schwelle", "schwellen", "steady", "zügig", "zugig"), "Z4"),
-    (("moderate", "moderat", "ga2", "medium", "mittel"), "Z3"),
-    (("easy", "locker", "ruhig", "ga1", "regeneration", "recovery", "erholung", "long", "lang", "dauerlauf"), "Z2"),
+    (("tempo", "threshold", "schwelle", "schwellen", "zügig", "zugig", "brisk"), "Z4"),
+    (("moderate", "moderat", "ga2", "medium", "mittel", "steady"), "Z3"),
 )
 DISTANCE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(km|m)\b", re.I)
-TARGET_IN_TEXT = re.compile(r"\b(Z\s?[1-5]|\d{2,3}\s*[-–]\s*\d{2,3}\s*(?:bpm|%)?|(?:<=|max\.?)\s*\d{2,3})", re.I)
+TARGET_IN_TEXT = re.compile(r"\b(Z(?:one)?\s?[1-5]|\d{2,3}\s*[-–]\s*\d{2,3}\s*(?:bpm|%)?|(?:<=|max\.?)\s*\d{2,3})", re.I)
 
 
 @dataclass
@@ -32,23 +33,25 @@ class DraftResult:
     message: str | None = None
 
 
-def target_from_text(text: str, defaults: Defaults) -> HeartRate | None:
-    """A heart-rate target named in the plan (``Z3``, ``140-150``, ``70-80 %``) or guessed from intensity words."""
-    m = TARGET_IN_TEXT.search(text)
-    if m:
-        hr, error = parse_target(m.group(1).replace(" ", "").replace("max.", "<=").replace("max", "<="))
-        if hr is not None and error is None:
-            return hr
-    lower = text.lower()
-    for words, zone in ZONE_WORDS:
-        if any(w in lower for w in words):
-            return parse_target(zone)[0]
+def target_from_text(*texts: str, defaults: Defaults) -> HeartRate | None:
+    """A heart-rate target named in the plan (``Z3``, ``zone 2``, ``140-150``, ``70-80 %``) or guessed from
+    intensity words. Texts are tried in order, so pass the intensity column before the session text."""
+    for text in texts:
+        m = TARGET_IN_TEXT.search(text)
+        if m:
+            hr, error = parse_target(m.group(1).replace(" ", "").replace("max.", "<=").replace("max", "<="))
+            if hr is not None and error is None:
+                return hr
+    for text in texts:
+        lower = text.lower()
+        for words, zone in ZONE_WORDS:
+            if any(w in lower for w in words):
+                return parse_target(zone)[0]
     return defaults.target()
 
 
 def main_part(row: PlanRow, defaults: Defaults) -> Step:
-    text = f"{row.session} {row.intensity}"
-    hr = target_from_text(text, defaults)
+    hr = target_from_text(row.intensity, row.session, defaults=defaults)
     if row.duration_min is None:
         m = DISTANCE.search(row.session)
         if m:
@@ -66,9 +69,10 @@ def workout_from_row(row: PlanRow, day: date, defaults: Defaults) -> Workout:
         main_part(row, defaults),
         Step("cooldown", duration_s=defaults.cooldown_min * 60, hr=HeartRate("bpm", high=defaults.cooldown_hr_max)),
     ]
-    name = re.sub(r"\s+", " ", row.session).strip()[:MAX_NAME_LEN] or "Run"
-    description = row.intensity.strip()
-    return Workout(name=name, day=day, steps=steps, description=description, status="draft")
+    session = re.sub(r"\s+", " ", row.session).strip()
+    name = short_name(session) or "Run"
+    description = "; ".join(part for part in (session if session != name else "", row.intensity.strip()) if part)
+    return Workout(name=name, day=day, sport=guess_sport(name), steps=steps, description=description, status="draft")
 
 
 def drafts_from_plan(conn: sqlite3.Connection, config: Config, *, week_start: date | None = None) -> DraftResult:

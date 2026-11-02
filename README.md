@@ -254,8 +254,17 @@ status: draft
 Each step is `- <intensity> <length> [hr <target>] [# note]`. Intensities: `warmup`, `run`,
 `recovery`, `cooldown`, `rest` (German words work too). Lengths: `40 min`, `1:15 h`, `5000 m`,
 `5 km`, `open` (until the lap key). Heart-rate targets: a bpm range `135-150`, a cap `<= 130`, a floor
-`>= 120`, a Garmin zone `Z2`, or percent of max HR `70-80 %`. `status` is maintained by wristpull:
+`>= 120`, a Garmin zone `Z2`, or percent of max HR `70-80 %`. `sport` is `running` (default),
+`cycling`, `walking`, `strength` or `cardio`. `status` is maintained by wristpull:
 `draft` → `pushed` → `verified` (seen under `GARMIN/Workouts/`).
+
+The FIT files follow what Garmin Connect itself writes onto the watch (product `connect`, a
+`file_creator` record, `capabilities` tcx; checked against the Connect-made files under
+`GARMIN/Workouts/` of a fenix 6X Pro). On a gvfs MTP mount plain file writes fail with
+"Operation not supported", so the push falls back to `gio copy` automatically. Drafts from the plan
+take the text before the first colon or comma as the name, keep the full session text as the
+description, read the target from the intensity column first (`Z2`, `zone 2`, `150-160`, words
+like easy/tempo/hard) and pick the sport from the words (strength, ergometer, walk, …).
 
 | Command | What it does |
 |---|---|

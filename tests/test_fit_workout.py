@@ -25,8 +25,10 @@ def _workout() -> Workout:
 def test_workout_fit_decodes_with_fitdecode():
     fit = decode_fit(build_workout_fit(_workout()))  # check_crc=True by default
     assert fit.file_type == "workout" and fit.manufacturer == "garmin" and fit.time_created == datetime(2026, 11, 5, 12, 0, tzinfo=UTC)
+    assert fit.product == "connect" and fit.of("file_creator")[0].named["software_version"] == 0  # as Garmin Connect writes them
     header = fit.of("workout")[0].named
-    assert header["sport"] == "running" and header["num_valid_steps"] == 6 and header["wkt_name"] == "Easy run"
+    assert header["sport"] == "running" and header["sub_sport"] == "generic" and header["num_valid_steps"] == 6 and header["wkt_name"] == "Easy run"
+    assert header["message_index"] == 0 and fit.of("workout")[0].get_raw(5) == 32  # capabilities tcx
     steps = [m.named for m in fit.of("workout_step")]
     assert [s["message_index"] for s in steps] == [0, 1, 2, 3, 4, 5]
     assert steps[0]["duration_type"] == "time" and steps[0]["duration_time"] == 600.0 and steps[0]["intensity"] == "warmup"
@@ -38,6 +40,17 @@ def test_workout_fit_decodes_with_fitdecode():
     assert steps[4]["target_type"] == "open" and steps[4]["intensity"] == "cooldown"
     assert steps[5]["duration_type"] == "open" and steps[5]["intensity"] == "rest"
     assert [m.get_raw(0) for m in fit.of("workout_step")][:2] == ["Warm up", "Run"]
+
+
+def test_other_sports():
+    w = _workout()
+    w.sport = "strength"
+    fit = decode_fit(build_workout_fit(w))
+    header = fit.of("workout")[0].named
+    assert header["sport"] == "training" and header["sub_sport"] == "strength_training"
+    assert fit.of("workout_step")[1].get_raw(0) == "Work"
+    w.sport = "cycling"
+    assert decode_fit(build_workout_fit(w)).of("workout")[0].named["sport"] == "cycling"
 
 
 def test_hr_encoding_rules():
@@ -74,3 +87,5 @@ def test_schedule_fit_points_at_the_workout():
     assert row["serial_number"] == workout_serial(w) and row["time_created"] == workout_created(w)
     assert row["type"] == "workout" and row["completed"] is False
     assert rows[0].get_raw(6) == local_date_time(date(2026, 11, 5)) and scheduled_day(rows[0].get_raw(6)) == date(2026, 11, 5)
+    assert row["scheduled_time"].hour == 12  # noon, like the watch's own Schedule.fit
+    assert fit.product == "connect" and rows[0].named["garmin_product"] == "connect"

@@ -28,15 +28,21 @@ def _store_plan(conn) -> None:
 
 def test_target_from_text():
     d = Defaults()
-    assert target_from_text("easy, Z3", d) == HeartRate("zone", zone=3)  # an explicit target wins over words
-    assert target_from_text("tempo 150-160 bpm", d) == HeartRate("bpm", low=150, high=160)
-    assert target_from_text("70-80 %", d) == HeartRate("percent", low=70, high=80)
-    assert target_from_text("max 140", d) == HeartRate("bpm", high=140)
-    assert target_from_text("hard intervals", d) == HeartRate("zone", zone=5)
-    assert target_from_text("Schwellenlauf", d) == HeartRate("zone", zone=4)
-    assert target_from_text("moderate", d) == HeartRate("zone", zone=3)
-    assert target_from_text("locker", d) == HeartRate("zone", zone=2)
-    assert target_from_text("whatever", d) == HeartRate("zone", zone=2)  # the configured default
+    assert target_from_text("easy, Z3", defaults=d) == HeartRate("zone", zone=3)  # an explicit target wins over words
+    assert target_from_text("Easy, zone 2", defaults=d) == HeartRate("zone", zone=2)
+    assert target_from_text("tempo 150-160 bpm", defaults=d) == HeartRate("bpm", low=150, high=160)
+    assert target_from_text("70-80 %", defaults=d) == HeartRate("percent", low=70, high=80)
+    assert target_from_text("max 140", defaults=d) == HeartRate("bpm", high=140)
+    assert target_from_text("hard intervals", defaults=d) == HeartRate("zone", zone=5)
+    assert target_from_text("Schwellenlauf", defaults=d) == HeartRate("zone", zone=4)
+    assert target_from_text("moderate", defaults=d) == HeartRate("zone", zone=3)
+    assert target_from_text("steady", defaults=d) == HeartRate("zone", zone=3)
+    assert target_from_text("steady and relaxed", defaults=d) == HeartRate("zone", zone=2)  # easy words win
+    assert target_from_text("locker", defaults=d) == HeartRate("zone", zone=2)
+    assert target_from_text("whatever", defaults=d) == HeartRate("zone", zone=2)  # the configured default
+    # the intensity column is consulted before the session text
+    assert target_from_text("Easy, zone 2", "Outdoor run, steady running with strides", defaults=d) == HeartRate("zone", zone=2)
+    assert target_from_text("", "Tempo run 150-160", defaults=d) == HeartRate("bpm", low=150, high=160)
 
 
 def test_main_part_from_rows():
@@ -47,7 +53,15 @@ def test_main_part_from_rows():
     assert main_part(PlanRow(0, "Strides 400 m", None, ""), d).distance_m == 400
     assert main_part(PlanRow(0, "Run", None, ""), d).duration_s == 30 * 60
     w = workout_from_row(PlanRow(2, "Tempo run 5 km", None, "tempo 150-160 bpm"), date(2026, 11, 5), d)
-    assert w.name == "Tempo run 5 km" and w.description == "tempo 150-160 bpm" and w.valid and len(w.steps) == 3
+    assert w.name == "Tempo run 5 km" and w.description == "tempo 150-160 bpm" and w.valid and len(w.steps) == 3 and w.sport == "running"
+    # long plan prose becomes a short name, the full text stays in the description, the sport follows the words
+    w = workout_from_row(PlanRow(0, "Outdoor run: 5 min brisk walk, then 20 min easy", 30, "Easy, talk test"), date(2026, 11, 2), d)
+    assert w.name == "Outdoor run" and w.sport == "running" and w.description == "Outdoor run: 5 min brisk walk, then 20 min easy; Easy, talk test"
+    assert w.steps[1].hr == HeartRate("zone", zone=2) and w.steps[1].duration_s == 15 * 60
+    w = workout_from_row(PlanRow(2, "Home strength: goblet squats, rows, planks", 45, "Moderate"), date(2026, 11, 4), d)
+    assert w.name == "Home strength" and w.sport == "strength" and w.valid
+    w = workout_from_row(PlanRow(6, "Ergometer, steady and relaxed", 60, "Easy to moderate"), date(2026, 11, 8), d)
+    assert w.name == "Ergometer" and w.sport == "cycling" and w.steps[1].hr == HeartRate("zone", zone=2)
 
 
 def test_drafts_from_plan(config: Config, conn):

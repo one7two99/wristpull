@@ -32,8 +32,36 @@ INTENSITY_WORDS: dict[str, str] = {
     "cooldown": "cooldown", "cool-down": "cooldown", "auslaufen": "cooldown", "abwärmen": "cooldown",
     "rest": "rest", "pause": "rest", "ruhe": "rest",
 }
-SPORTS = ("running",)
 MAX_NAME_LEN = 30
+SPORTS = ("running", "cycling", "walking", "strength", "cardio")  # FIT sport/sub_sport numbers live in fit/workout.py
+SPORT_WORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("strength", "kraft", "squat", "kniebeuge", "weights", "hantel", "push-up", "liegestütz", "core"), "strength"),
+    (("ergometer", "bike", "cycling", "rad", "spinning", "indoor cycling"), "cycling"),
+    (("walk", "spaziergang", "gehen", "hike", "wander"), "walking"),
+    (("rowing", "rudern", "elliptical", "crosstrainer", "cardio", "hiit"), "cardio"),
+)
+
+
+def guess_sport(text: str) -> str:
+    """The sport a plan line is about; ``running`` unless a strength, bike, walking or cardio word appears first."""
+    lower = text.lower()
+    if any(w in lower for w in ("run", "lauf", "jog")):
+        return "running"
+    for words, sport in SPORT_WORDS:
+        if any(w in lower for w in words):
+            return sport
+    return "running"
+
+
+def short_name(text: str, limit: int = MAX_NAME_LEN) -> str:
+    """A watch-sized name: the part before the first colon or comma, cut at a word boundary."""
+    head = re.split(r"[:,;(]", text, maxsplit=1)[0].strip() or text.strip()
+    if len(head) <= limit:
+        return head
+    cut = head[:limit]
+    return (cut[: cut.rfind(" ")] if " " in cut else cut).rstrip(" -")
+
+
 HR_BPM_MIN, HR_BPM_MAX = 30, 230
 
 STEP_RE = re.compile(

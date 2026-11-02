@@ -6,7 +6,9 @@ import pytest
 from wristpull.config import Config
 from wristpull.fit.decode import decode_fit
 from wristpull.workouts.model import Step, Workout, parse_markdown
-from wristpull.workouts.push import device_folder, push, verify, workouts_on_watch
+import errno
+
+from wristpull.workouts.push import device_folder, push, verify, workouts_on_watch, write_device_file
 from wristpull.workouts.store import existing_for_day, list_workouts, load, output_dir, pending_pushes, push_status, pushes, save, set_status, workouts_dir
 
 
@@ -101,3 +103,30 @@ def test_verify_marks_workouts_the_watch_took_over(config: Config, conn, garmin_
     assert [r["name"] for r in pending_pushes(conn)] == ["Tempo"]
     assert any("✓ Easy run" in line for line in log)
     assert verify(conn, config, roots=lambda: [], mounter=lambda: (False, "gone")).root is None
+
+
+class _NoWriteDir(type(Path())):
+    """A path whose write_bytes fails like a gvfs MTP mount does."""
+
+    def write_bytes(self, data):  # noqa: D401
+        raise OSError(errno.ENOTSUP, "Operation not supported")
+
+
+def test_write_device_file_falls_back_to_gio_copy(tmp_path: Path):
+    calls: list[list[str]] = []
+
+    def runner(argv):
+        calls.append(argv)
+        Path(argv[3]).write_bytes(Path(argv[2]).read_bytes())  # pretend gio copied it
+        return 0, "", ""
+
+    target = _NoWriteDir(tmp_path / "GARMIN" / "NewFiles" / "w.fit")
+    target.parent.mkdir(parents=True)
+    assert write_device_file(target, b"abc", runner=runner) == "gio"
+    assert calls[0][:2] == ["gio", "copy"] and calls[0][3] == str(target) and target.read_bytes() == b"abc"
+    assert not Path(calls[0][2]).exists()  # temp file cleaned up
+    assert write_device_file(tmp_path / "plain.fit", b"xyz", runner=runner) == "write" and len(calls) == 1
+    with pytest.raises(OSError, match="gio copy"):
+        write_device_file(_NoWriteDir(tmp_path / "GARMIN" / "NewFiles" / "x.fit"), b"a", runner=lambda argv: (1, "", "boom"))
+    with pytest.raises(OSError):
+        write_device_file(tmp_path / "missing-dir" / "x.fit", b"a", runner=runner)  # ENOENT is not retried

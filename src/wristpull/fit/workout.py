@@ -16,11 +16,15 @@ from .writer import FitWriter
 FILE_WORKOUT = 5
 FILE_SCHEDULE = 7
 MANUFACTURER_GARMIN = 1
-SPORT_NUM = {"running": 1}
+PRODUCT_CONNECT = 65534  # garmin_product 'connect': what the workout files written by Garmin Connect carry
+CAPABILITIES_TCX = 32
+# sport, sub_sport numbers per model sport (sub_sport 0 = generic)
+SPORT_NUM: dict[str, tuple[int, int]] = {"running": (1, 0), "cycling": (2, 0), "walking": (11, 0), "strength": (10, 20), "cardio": (10, 26)}
 DURATION_TIME, DURATION_DISTANCE, DURATION_OPEN = 0, 1, 5
 TARGET_HEART_RATE, TARGET_OPEN = 1, 2
 INTENSITY_NUM = {"active": 0, "rest": 1, "warmup": 2, "cooldown": 3, "recovery": 4}
 STEP_NAMES = {"warmup": "Warm up", "active": "Run", "recovery": "Recover", "cooldown": "Cool down", "rest": "Rest"}
+ACTIVE_NAME = {"running": "Run", "cycling": "Ride", "walking": "Walk", "strength": "Work", "cardio": "Work"}
 HR_OFFSET = 100
 
 
@@ -61,14 +65,16 @@ def build_workout_fit(workout: Workout, *, created: datetime | None = None) -> b
         raise ValueError("; ".join(workout.errors))
     created = created or workout_created(workout)
     w = FitWriter()
-    w.message(0, [(0, "enum", FILE_WORKOUT), (1, "uint16", MANUFACTURER_GARMIN), (2, "uint16", 0), (3, "uint32z", workout_serial(workout)), (4, "uint32", utc_to_fit(created))])
-    w.message(26, [(4, "enum", SPORT_NUM.get(workout.sport, 0)), (6, "uint16", len(workout.steps)), (8, "string", workout.name)])
+    sport, sub_sport = SPORT_NUM.get(workout.sport, (0, 0))
+    w.message(0, [(0, "enum", FILE_WORKOUT), (1, "uint16", MANUFACTURER_GARMIN), (2, "uint16", PRODUCT_CONNECT), (3, "uint32z", workout_serial(workout)), (4, "uint32", utc_to_fit(created))])
+    w.message(49, [(0, "uint16", 0), (1, "uint8", 0)])  # file_creator, as in Connect's files
+    w.message(26, [(254, "uint16", 0), (4, "enum", sport), (11, "enum", sub_sport), (5, "uint32z", CAPABILITIES_TCX), (6, "uint16", len(workout.steps)), (8, "string", workout.name)])
     for index, step in enumerate(workout.steps):
-        w.message(27, step_fields(index, step))
+        w.message(27, step_fields(index, step, sport=workout.sport))
     return w.finish()
 
 
-def step_fields(index: int, step: Step) -> list[tuple[int, str, object]]:
+def step_fields(index: int, step: Step, *, sport: str = "running") -> list[tuple[int, str, object]]:
     if step.duration_s is not None:
         duration_type, duration_value = DURATION_TIME, step.duration_s * 1000
     elif step.distance_m is not None:
@@ -78,7 +84,7 @@ def step_fields(index: int, step: Step) -> list[tuple[int, str, object]]:
     target_type, target_value, low, high = hr_fields(step.hr)
     fields: list[tuple[int, str, object]] = [
         (254, "uint16", index),
-        (0, "string", STEP_NAMES[step.intensity]),
+        (0, "string", ACTIVE_NAME.get(sport, "Work") if step.intensity == "active" else STEP_NAMES[step.intensity]),
         (1, "enum", duration_type),
         (2, "uint32", duration_value),
         (3, "enum", target_type),
@@ -92,17 +98,20 @@ def step_fields(index: int, step: Step) -> list[tuple[int, str, object]]:
     return fields
 
 
-def local_date_time(day: date, hour: int = 0) -> int:
+def local_date_time(day: date, hour: int = 12) -> int:
     """FIT ``local_date_time``: seconds since the FIT epoch as if the local wall clock were UTC."""
     naive = datetime(day.year, day.month, day.day, hour, 0, tzinfo=UTC)
     return int((naive - FIT_EPOCH).total_seconds())
 
 
-def build_schedule_fit(workouts: list[Workout], *, created: datetime | None = None, hour: int = 0) -> bytes:
-    """One ``schedule`` message per workout, pointing at its file_id (serial + time_created) and day."""
+def build_schedule_fit(workouts: list[Workout], *, created: datetime | None = None, hour: int = 12) -> bytes:
+    """One ``schedule`` message per workout, pointing at its file_id (serial + time_created) and day.
+
+    The watch's own ``Schedule/Schedule.fit`` stamps scheduled workouts at 12:00 local, so that is the default.
+    """
     created = created or datetime.now(UTC).replace(microsecond=0)
     w = FitWriter()
-    w.message(0, [(0, "enum", FILE_SCHEDULE), (1, "uint16", MANUFACTURER_GARMIN), (2, "uint16", 0), (3, "uint32z", 1), (4, "uint32", utc_to_fit(created))])
+    w.message(0, [(0, "enum", FILE_SCHEDULE), (1, "uint16", MANUFACTURER_GARMIN), (2, "uint16", PRODUCT_CONNECT), (3, "uint32z", 1), (4, "uint32", utc_to_fit(created))])
     for workout in workouts:
         if workout.day is None:
             continue
@@ -110,7 +119,7 @@ def build_schedule_fit(workouts: list[Workout], *, created: datetime | None = No
             28,
             [
                 (0, "uint16", MANUFACTURER_GARMIN),
-                (1, "uint16", 0),
+                (1, "uint16", PRODUCT_CONNECT),
                 (2, "uint32z", workout_serial(workout)),
                 (3, "uint32", utc_to_fit(workout_created(workout))),
                 (4, "enum", 0),

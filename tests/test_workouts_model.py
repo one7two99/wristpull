@@ -1,6 +1,6 @@
 from datetime import date
 
-from wristpull.workouts.model import Defaults, HeartRate, Step, Workout, describe_steps, file_name, parse_duration, parse_markdown, parse_step, parse_target, render_markdown, slug, template
+from wristpull.workouts.model import Defaults, HeartRate, Step, Workout, describe_steps, file_name, guess_sport, parse_duration, parse_markdown, parse_step, parse_target, render_markdown, short_name, slug, template
 
 TIME_WORKOUT = """---
 date: 2026-11-05
@@ -77,7 +77,7 @@ def test_step_errors():
 def test_file_level_errors():
     w = parse_markdown("# No date\n- run 10 min\n")
     assert "missing 'date:'" in w.errors[0]
-    w = parse_markdown("---\ndate: 2026-13-40\nsport: cycling\nstatus: weird\n---\n")
+    w = parse_markdown("---\ndate: 2026-13-40\nsport: curling\nstatus: weird\n---\n")
     assert any("invalid date" in e for e in w.errors) and any("unsupported sport" in e for e in w.errors)
     assert any("unknown status" in e for e in w.errors) and any("no steps" in e for e in w.errors) and any("missing name" in e for e in w.errors)
     w = parse_markdown("---\ndate: 2026-11-05\nname: " + "x" * 31 + "\n---\n- run 10 min\n")
@@ -103,3 +103,15 @@ def test_templates_follow_defaults():
     assert r.name == "Long one" and r.steps[1].distance_m == 10000 and r.steps[2].hr == HeartRate("bpm", high=120)
     assert parse_markdown(render_markdown(r)).valid
     assert Workout(name="x", steps=[Step("active", duration_s=60)]).valid
+
+
+def test_short_names_and_sport_guess():
+    assert short_name("Outdoor run: 5 min brisk walk, then 20 min easy") == "Outdoor run"
+    assert short_name("Home strength (goblet squats)") == "Home strength"
+    assert short_name("A very long session title without any punctuation at all") == "A very long session title"
+    assert short_name("Long run") == "Long run" and short_name("x" * 40) == "x" * 30
+    assert guess_sport("Outdoor run") == "running" and guess_sport("Dauerlauf") == "running"
+    assert guess_sport("Home strength") == "strength" and guess_sport("Kraft zu Hause") == "strength"
+    assert guess_sport("Ergometer") == "cycling" and guess_sport("Brisk walk") == "walking" and guess_sport("Rowing") == "cardio"
+    assert guess_sport("Something else") == "running"
+    assert parse_markdown("---\ndate: 2026-11-04\nname: Core\nsport: strength\n---\n- run 20 min\n").valid
