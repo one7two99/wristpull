@@ -125,7 +125,7 @@ def test_workout_commands(cfg_file: Path, tmp_path: Path, garmin_tree: Path, cap
     assert "No Garmin device found" in capsys.readouterr().err
     assert main([*base, "push", str(path), str(bad), "--path", str(garmin_tree)]) == 2  # the bad one is reported
     captured = capsys.readouterr()
-    assert "1 workout files written to" in captured.out and "Eject the watch" in captured.out and "Bad:" in captured.err  # a plain directory: nothing was ejected
+    assert "1 workout files written to" in captured.out and "Unplug the watch" in captured.out and "Bad:" in captured.err
     assert len(list((garmin_tree / "NewFiles").glob("*.fit"))) == 1
     assert main([*base, "list"]) == 0
     assert "pushed" in capsys.readouterr().out

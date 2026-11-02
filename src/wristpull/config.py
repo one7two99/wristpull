@@ -75,6 +75,8 @@ default_target = "{workout_default_target}"
 schedule = {workout_schedule}
 # Folder below GARMIN/ the FIT files are copied to: NewFiles (processed when the cable is unplugged) or Workouts.
 folder = "{workout_folder}"
+# Unmount (eject) the MTP mount after a push. Off by default: the fenix keeps MTP-written files without it.
+eject = {workout_eject}
 """
 
 UI_LANGUAGES = ("en", "de")
@@ -118,6 +120,7 @@ class WorkoutConfig:
     default_target: str = "Z2"
     schedule: bool = False
     folder: str = "NewFiles"
+    eject: bool = False
 
     def defaults(self):
         from .workouts.model import Defaults
@@ -189,6 +192,7 @@ class Config:
             workout_default_target=self.workout.default_target,
             workout_schedule="true" if self.workout.schedule else "false",
             workout_folder=self.workout.folder,
+            workout_eject="true" if self.workout.eject else "false",
         )
 
 
@@ -254,6 +258,8 @@ def load_config(path: Path | None = None) -> Config:
         cfg.workout.schedule = bool(workout["schedule"])
     if workout.get("folder"):
         cfg.workout.folder = str(workout["folder"])
+    if "eject" in workout:
+        cfg.workout.eject = bool(workout["eject"])
     return cfg
 
 

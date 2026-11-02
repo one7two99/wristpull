@@ -271,7 +271,7 @@ like easy/tempo/hard) and pick the sport from the words (strength, ergometer, wa
 | `workout new [--date D] [--name N] [--template time\|distance] [--minutes M] [--metres M] [--edit]` | write a file from the template (warm-up, main part by time or distance, cool-down) and print its path; `--edit` opens `$EDITOR` |
 | `workout list [--from D --to D]` | date, name, steps, total, status and validation errors per file |
 | `workout check FILE…` | parse and validate, print the steps the way the watch will show them (exit 2 on errors) |
-| `workout push [FILE…] [--date D] [--upcoming] [--path P] [--folder NewFiles\|Workouts] [--schedule] [--dry-run]` | build the FIT files and copy them to the watch (`--dry-run`: to `<data_dir>/workouts/out/`); `--schedule` adds a schedule file with the planned dates (experimental); existing files on the watch are never overwritten |
+| `workout push [FILE…] [--date D] [--upcoming] [--path P] [--folder NewFiles\|Workouts] [--schedule] [--dry-run] [--eject\|--no-eject]` | build the FIT files and copy them to the watch (`--dry-run`: to `<data_dir>/workouts/out/`); `--schedule` adds a schedule file with the planned dates (experimental); existing files on the watch are never overwritten |
 | `workout verify [--path P]` | read `GARMIN/Workouts/` and mark pushed workouts the watch has taken over as `verified` |
 | `workout from-plan [--week D]` | one draft per session of the coach's last weekly plan (rest days and days that already have a file are skipped) |
 
@@ -400,6 +400,7 @@ cooldown_hr_max = 125
 default_target = "Z2"                    # main-part target when the plan names none: Z2, 135-150 or 70-80 %
 schedule = false                         # also write a schedule file with the planned dates (experimental)
 folder = "NewFiles"                      # NewFiles (imported when unplugged) or Workouts
+eject = false                            # unmount the watch after a push (not needed on the fenix 6X Pro)
 ```
 
 ### Helper commands around the watch

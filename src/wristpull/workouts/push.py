@@ -96,18 +96,19 @@ def push(
     schedule: bool | None = None,
     folder: str | None = None,
     dry_run: bool = False,
-    eject: bool = True,
+    eject: bool | None = None,
     log: Log = lambda _m: None,
     runner: Runner = run_command,
 ) -> PushResult:
     """Encode every valid workout and copy it to ``GARMIN/<folder>/`` (dry run: ``<data_dir>/workouts/out/``).
 
     Existing files on the watch are never overwritten or deleted; a changed workout gets a
-    new file name carrying its content hash. With ``eject`` (default) the MTP mount is unmounted
-    afterwards so the watch commits the files before the cable is pulled.
+    new file name carrying its content hash. ``eject`` (default: ``[workout] eject``, off) unmounts the
+    MTP mount afterwards; the fenix 6X Pro keeps the files without it.
     """
     result = PushResult(dry_run=dry_run)
     schedule = config.workout.schedule if schedule is None else schedule
+    eject = config.workout.eject if eject is None else eject
     folder = folder or config.workout.folder
     valid: list[Workout] = []
     for workout in workouts:
@@ -131,8 +132,10 @@ def push(
         if not result.target.is_dir():
             result.target.mkdir(parents=True, exist_ok=True)
         serial = read_device_info(root).get("unit_id")
+    created_at: dict[str, datetime] = {}
     for workout in valid:
-        data = build_workout_fit(workout)
+        created_at[workout.name] = workout_created()
+        data = build_workout_fit(workout, created=created_at[workout.name])
         digest = sha256_bytes(data)
         name = f"{workout.day.isoformat() if workout.day else 'undated'}-{slug(workout.name)}-{digest[:8]}.fit"
         target = result.target / name
@@ -142,13 +145,13 @@ def push(
             how = write_device_file(target, data, runner=runner)
             log(f"  + {name} ({len(data)} bytes{', via gio copy' if how == 'gio' else ''})")
         result.written.append(target)
-        record_push(conn, workout, sha256=digest, time_created_utc=iso_utc(workout_created(workout)), target=str(target), watch_serial=serial, dry_run=dry_run)
+        record_push(conn, workout, sha256=digest, time_created_utc=iso_utc(created_at[workout.name]), target=str(target), watch_serial=serial, dry_run=dry_run)
         if not dry_run and workout.path:
             set_status(Path(workout.path), "pushed")
     if schedule:
         stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         result.schedule = result.target / f"schedule-{stamp}.fit"
-        write_device_file(result.schedule, build_schedule_fit(valid), runner=runner)
+        write_device_file(result.schedule, build_schedule_fit(valid, workout_created_at=created_at), runner=runner)
         log(f"  + {result.schedule.name} ({len(valid)} scheduled)")
     if eject and not dry_run and result.root is not None and (result.written or result.schedule):
         result.ejected, result.eject_message = eject_garmin(result.root, runner)

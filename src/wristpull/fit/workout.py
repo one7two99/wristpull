@@ -52,16 +52,18 @@ def workout_serial(workout: Workout) -> int:
     return (int.from_bytes(digest[:4], "little") % 0xFFFFFFFE) + 1
 
 
-def workout_created(workout: Workout) -> datetime:
-    """The file_id time_created: the planned day at 12:00 UTC (the key a schedule file refers to)."""
-    day = workout.day or date(2000, 1, 1)
-    return datetime(day.year, day.month, day.day, 12, 0, tzinfo=UTC)
+def workout_created(now: datetime | None = None) -> datetime:
+    """The file_id time_created: the moment of encoding (never in the future, like the files Garmin Connect writes).
+
+    The planned day lives in the schedule file's ``scheduled_time``, not here.
+    """
+    return (now or datetime.now(UTC)).replace(microsecond=0)
 
 
 def build_workout_fit(workout: Workout, *, created: datetime | None = None) -> bytes:
     if not workout.valid:
         raise ValueError("; ".join(workout.errors))
-    created = created or workout_created(workout)
+    created = workout_created(created)
     w = FitWriter(big_endian=True)  # like the files Garmin Connect writes
     sport, sub_sport = SPORT_NUM.get(workout.sport, (0, 0))
     total_ms = workout.total_seconds * 1000
@@ -127,12 +129,15 @@ def local_date_time(day: date, hour: int = 12) -> int:
     return int((naive - FIT_EPOCH).total_seconds())
 
 
-def build_schedule_fit(workouts: list[Workout], *, created: datetime | None = None, hour: int = 12) -> bytes:
+def build_schedule_fit(workouts: list[Workout], *, created: datetime | None = None, hour: int = 12, workout_created_at: dict[str, datetime] | None = None) -> bytes:
     """One ``schedule`` message per workout, pointing at its file_id (serial + time_created) and day.
 
-    The watch's own ``Schedule/Schedule.fit`` stamps scheduled workouts at 12:00 local, so that is the default.
+    ``workout_created_at`` maps a workout name to the time_created its file was encoded with (the key
+    the watch uses); missing entries fall back to ``created``. The watch's own ``Schedule/Schedule.fit``
+    stamps scheduled workouts at 12:00 local, so that is the default hour.
     """
-    created = created or datetime.now(UTC).replace(microsecond=0)
+    created = workout_created(created)
+    workout_created_at = workout_created_at or {}
     w = FitWriter(big_endian=True)
     w.message(0, [(0, "enum", FILE_SCHEDULE), (1, "uint16", MANUFACTURER_GARMIN), (2, "uint16", PRODUCT_CONNECT), (3, "uint32z", 1), (4, "uint32", utc_to_fit(created))])
     for workout in workouts:
@@ -144,7 +149,7 @@ def build_schedule_fit(workouts: list[Workout], *, created: datetime | None = No
                 (0, "uint16", MANUFACTURER_GARMIN),
                 (1, "uint16", PRODUCT_CONNECT),
                 (2, "uint32z", workout_serial(workout)),
-                (3, "uint32", utc_to_fit(workout_created(workout))),
+                (3, "uint32", utc_to_fit(workout_created_at.get(workout.name, created))),
                 (4, "enum", 0),
                 (5, "enum", 0),
                 (6, "uint32", local_date_time(workout.day, hour)),

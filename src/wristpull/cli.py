@@ -123,7 +123,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_wpush.add_argument("--folder", choices=["NewFiles", "Workouts"], help="target folder below GARMIN/ (default: [workout] folder)")
     p_wpush.add_argument("--schedule", action="store_true", help="also write a schedule file with the planned dates")
     p_wpush.add_argument("--dry-run", action="store_true", help="write the FIT files to <data_dir>/workouts/out/ instead of the watch")
-    p_wpush.add_argument("--no-eject", action="store_true", help="leave the MTP mount in place after writing (default: eject so the watch commits the files)")
+    eject_group = p_wpush.add_mutually_exclusive_group()
+    eject_group.add_argument("--eject", dest="eject", action="store_true", default=None, help="unmount the MTP mount after writing")
+    eject_group.add_argument("--no-eject", dest="eject", action="store_false", help="leave the mount in place (default: [workout] eject)")
     p_wverify = workout_sub.add_parser("verify", help="read GARMIN/Workouts on the watch and mark the pushed workouts it has taken over")
     p_wverify.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
     p_wplan = workout_sub.add_parser("from-plan", help="draft one workout per session of the coach's last weekly plan")
@@ -517,7 +519,7 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
         if not selected:
             print("nothing to push", file=sys.stderr)
             return 2
-        result = push(conn, config, selected, path=args.path, folder=args.folder, schedule=True if args.schedule else None, dry_run=args.dry_run, eject=not args.no_eject, log=log)
+        result = push(conn, config, selected, path=args.path, folder=args.folder, schedule=True if args.schedule else None, dry_run=args.dry_run, eject=args.eject, log=log)
         if result.root is None and not result.invalid:
             print("No Garmin device found. Connect the watch (MTP) or pass --path <GARMIN folder>.", file=sys.stderr)
             if result.mount_message:
@@ -526,7 +528,7 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
         mode = "dry run: " if args.dry_run else ""
         print(f"{mode}{len(result.written)} workout files written to {result.target}" + (f", schedule {result.schedule.name}" if result.schedule else ""))
         if not args.dry_run and result.written:
-            state = "The watch was ejected; unplug it now." if result.ejected else "Eject the watch before unplugging (gio mount -u mtp://...) or the files may be discarded."
+            state = "The watch was ejected; unplug it now." if result.ejected else "Unplug the watch when you are done."
             print(state + (" It imports the files from NewFiles and lists them under Training > Workouts." if (args.folder or config.workout.folder) == "NewFiles" else " The files are in GARMIN/Workouts; a restart of the watch may be needed."))
         for name, errors in result.invalid:
             print(f"  ✗ {name}: " + "; ".join(errors), file=sys.stderr)

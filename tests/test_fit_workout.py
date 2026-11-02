@@ -22,9 +22,12 @@ def _workout() -> Workout:
     )
 
 
+NOW = datetime(2026, 11, 2, 20, 0, 0, tzinfo=UTC)
+
+
 def test_workout_fit_decodes_with_fitdecode():
-    fit = decode_fit(build_workout_fit(_workout()))  # check_crc=True by default
-    assert fit.file_type == "workout" and fit.manufacturer == "garmin" and fit.time_created == datetime(2026, 11, 5, 12, 0, tzinfo=UTC)
+    fit = decode_fit(build_workout_fit(_workout(), created=NOW))  # check_crc=True by default
+    assert fit.file_type == "workout" and fit.manufacturer == "garmin" and fit.time_created == NOW
     assert fit.product == "connect" and fit.of("file_creator")[0].named["software_version"] == 0  # as Garmin Connect writes them
     header = fit.of("workout")[0].named
     assert header["sport"] == "running" and header["sub_sport"] == "generic" and header["num_valid_steps"] == 6 and header["wkt_name"] == "Easy run"
@@ -75,7 +78,9 @@ def test_serial_is_stable_and_nonzero():
     other = _workout()
     other.name = "Other"
     assert workout_serial(other) != workout_serial(w)
-    assert workout_created(Workout(name="x")).year == 2000
+    # time_created is the encoding time (never the planned day, which may lie in the future)
+    assert workout_created(NOW) == NOW and workout_created().microsecond == 0 and workout_created() <= datetime.now(UTC)
+    assert decode_fit(build_workout_fit(w)).time_created <= datetime.now(UTC)
 
 
 def test_invalid_workout_refused():
@@ -86,12 +91,13 @@ def test_invalid_workout_refused():
 
 def test_schedule_fit_points_at_the_workout():
     w = _workout()
-    fit = decode_fit(build_schedule_fit([w, Workout(name="undated", steps=[Step("active", duration_s=60)])], created=datetime(2026, 11, 2, 8, 0, tzinfo=UTC)))
+    encoded_at = datetime(2026, 11, 2, 7, 30, tzinfo=UTC)
+    fit = decode_fit(build_schedule_fit([w, Workout(name="undated", steps=[Step("active", duration_s=60)])], created=datetime(2026, 11, 2, 8, 0, tzinfo=UTC), workout_created_at={"Easy run": encoded_at}))
     assert fit.file_type == "schedules" and fit.time_created == datetime(2026, 11, 2, 8, 0, tzinfo=UTC)
     rows = fit.of("schedule")
     assert len(rows) == 1  # the undated one is skipped
     row = rows[0].named
-    assert row["serial_number"] == workout_serial(w) and row["time_created"] == workout_created(w)
+    assert row["serial_number"] == workout_serial(w) and row["time_created"] == encoded_at  # the key of the workout file
     assert row["type"] == "workout" and row["completed"] is False
     assert rows[0].get_raw(6) == local_date_time(date(2026, 11, 5)) and scheduled_day(rows[0].get_raw(6)) == date(2026, 11, 5)
     assert row["scheduled_time"].hour == 12  # noon, like the watch's own Schedule.fit

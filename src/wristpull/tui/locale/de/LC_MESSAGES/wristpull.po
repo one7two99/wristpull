@@ -1030,8 +1030,8 @@ msgstr[1] "{n} Trainingsdateien nach {dir} geschrieben"
 msgid "The watch was ejected; unplug it now. It lists the workouts under Training > Workouts."
 msgstr "Die Uhr wurde ausgeworfen; jetzt abstecken. Sie zeigt die Trainings unter Training > Trainings."
 
-msgid "Eject the watch before unplugging, or it may discard the files."
-msgstr "Uhr vor dem Abstecken auswerfen, sonst verwirft sie die Dateien womöglich."
+msgid "Unplug the watch when you are done; it imports the files and lists them under Training > Workouts."
+msgstr "Uhr abstecken, wenn du fertig bist; sie übernimmt die Dateien und zeigt sie unter Training > Trainings."
 
 msgid "{on_watch} workouts on the watch, {verified} newly confirmed, {missing} pushed but not found"
 msgstr "{on_watch} Trainings auf der Uhr, {verified} neu bestätigt, {missing} übertragen, aber nicht gefunden"

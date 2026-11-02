@@ -58,7 +58,7 @@ def test_push_dry_run_and_to_device(config: Config, conn, garmin_tree: Path):
     # real push to a fake watch: files land in NewFiles, status flips to pushed, history recorded
     result = push(conn, config, [easy, tempo], roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), schedule=True, log=log.append)
     assert result.ok and result.root == garmin_tree and result.target == garmin_tree / "NewFiles"
-    assert not result.ejected and "nothing to eject" in result.eject_message  # a plain directory, no MTP mount
+    assert not result.ejected and result.eject_message is None  # eject is off by default
     assert len(result.written) == 2 and result.schedule is not None and result.schedule.exists()
     assert decode_fit(result.written[0].read_bytes()).file_type == "workout" and decode_fit(result.schedule.read_bytes()).file_type == "schedules"
     assert load(Path(tempo.path)).status == "pushed" and push_status(conn, tempo.path) == "pushed"
@@ -96,7 +96,8 @@ def test_verify_marks_workouts_the_watch_took_over(config: Config, conn, garmin_
     (garmin_tree / "Workouts").mkdir()
     (garmin_tree / "Workouts" / "W1.FIT").write_bytes(result.written[0].read_bytes())
     (garmin_tree / "Workouts" / "junk.fit").write_bytes(b"not fit")
-    assert workouts_on_watch(garmin_tree) == [("Easy run", "2026-11-05T12:00:00Z")]
+    on_watch = workouts_on_watch(garmin_tree)
+    assert len(on_watch) == 1 and on_watch[0][0] == "Easy run" and on_watch[0][1] == pending_pushes(conn)[0]["time_created_utc"]
     log: list[str] = []
     check = verify(conn, config, roots=roots, mounter=lambda: (False, "no"), log=log.append)
     assert check.verified == ["Easy run"] and check.missing == ["Tempo"]
@@ -141,7 +142,10 @@ def test_push_ejects_an_mtp_mount(config: Config, conn, garmin_tree: Path, monke
     calls: list[list[str]] = []
     runner = lambda argv: (calls.append(argv), (0, "", ""))[1]  # noqa: E731
     monkeypatch.setattr(push_module, "eject_garmin", lambda root, run: (True, "ejected mtp://x/") if run(["gio", "mount", "-u", "mtp://x/"])[0] == 0 else (False, "no"))
-    result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner)
+    result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner, eject=True)
     assert result.ejected and result.eject_message == "ejected mtp://x/" and calls[-1] == ["gio", "mount", "-u", "mtp://x/"]
+    config.workout.eject = True  # the config default applies when the caller passes nothing
+    result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner)
+    assert result.ejected
     result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner, eject=False)
     assert not result.ejected and result.eject_message is None
