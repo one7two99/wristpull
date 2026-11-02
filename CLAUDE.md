@@ -33,7 +33,7 @@
   `model.py`), FIT encoding in `fit/workout.py` on top of `fit/writer.py`, push/verify in `push.py` via
   `importers.garmin.locate_garmin` (inject `roots`/`mounter`), SQL only in `store.py` (`workout_pushes`).
   Files on the watch are only added under `GARMIN/NewFiles/` (or `Workouts/`), never overwritten. The one deletion
-  allowed on the device: `workouts/watch.py` removes top-level files in `GARMIN/Workouts/` on explicit request,
+  allowed on the device: `workouts/watch.py` removes top-level workout files in `GARMIN/Workouts/` or `NewFiles/` on explicit request,
   always after a backup to `<data_dir>/workouts/watch-backup/`; raw-data folders stay read-only. The fenix 6X Pro
   imports them from `NewFiles` at unplug (confirmed 2026-11-02) but stores only 20–25 workouts and silently drops
   new files above that; the schedule file (calendar date) is unverified. Writes go through `gio copy` on gvfs MTP.

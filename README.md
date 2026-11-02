@@ -276,8 +276,8 @@ like easy/tempo/hard) and pick the sport from the words (strength, ergometer, wa
 | `workout check FILE…` | parse and validate, print the steps the way the watch will show them (exit 2 on errors) |
 | `workout push [FILE…] [--date D] [--upcoming] [--force] [--path P] [--folder NewFiles\|Workouts] [--schedule] [--dry-run] [--eject\|--no-eject]` | build the FIT files and copy them to the watch (`--dry-run`: to `<data_dir>/workouts/out/`); `--upcoming` takes the workouts from today on that are not on the watch (never pushed, or removed again); `--force` also takes those already pushed and writes a file again even if an identical one is there; `--schedule` adds a schedule file with the planned dates (experimental); existing files on the watch are never overwritten |
 | `workout verify [--path P]` | read `GARMIN/Workouts/` and mark pushed workouts the watch has taken over as `verified` |
-| `workout watch [--path P]` | list the workouts stored on the watch: name, sport, steps, created, origin (`wristpull` or `other`), and the count against the limit |
-| `workout remove NAME… [--path P] [--yes]` | remove workouts from the watch by name or file name; each file is first copied to `<data_dir>/workouts/watch-backup/`; asks per file unless `--yes` |
+| `workout watch [--path P]` | list the workouts on the watch: `active` ones in `GARMIN/Workouts/` and `pending` ones still in `GARMIN/NewFiles/` (active after unplugging), with sport, steps, created, origin (`wristpull` or `other`), the count against the limit (both together) and a warning when two share a name |
+| `workout remove NAME… [--path P] [--yes]` | remove workouts from the watch by name or file name, active or pending (taking a push back before unplugging); each file is first copied to `<data_dir>/workouts/watch-backup/`; asks per file unless `--yes` |
 | `workout from-plan [--week D]` | one draft per session of the coach's last weekly plan (rest days and days that already have a file are skipped) |
 
 **The watch has a workout limit.** Garmin states 25 stored workouts for the fenix 6 series (users
@@ -362,7 +362,7 @@ marks the active one; tabs can also be clicked. German and English, switchable a
 | `7` | Export & Report: Claude export or weekly/monthly report for a period with presets, result file list and Markdown preview; `o` opens the folder, `y`/`c` copy path or CLI |
 | `8` | Settings: edit every config value including `[ui]` and `[coach]`, `Ctrl+S` validates and writes `config.toml` (language switches immediately, `data_dir` after a restart); `Ctrl+T` checks whether the coach backend is reachable |
 | `9` | Coach: `d` daily check, `w` weekly review, type a question and press Enter, `p` dry run; runs table with tokens, cost and rating, the answer beside it; `+` `−` `0` rate the selected run, `g` goal wizard (multiple choice → profile), `e` edit the profile in `$EDITOR`, `t` draft workouts from the last weekly plan |
-| `0` | Workouts: files of the next three weeks (and the last one) with status, preview of the steps as the watch shows them plus the Markdown; `n` new from the template (then `$EDITOR`), `t` template time/distance, `e` edit, `c` drafts from the coach plan, `p` push the selected one, `P` push every upcoming one not on the watch, `f` force push every upcoming one, `d` dry run, `v` verify against `GARMIN/Workouts/`, `Del` twice deletes the file, `←`/`→` shift the period. `w` switches to the workouts **on the watch** (count against the limit, origin, steps preview); there `Del` twice removes one from the watch after a backup, `r` reads the watch again |
+| `0` | Workouts: files of the next three weeks (and the last one) with status, preview of the steps as the watch shows them plus the Markdown; `n` new from the template (then `$EDITOR`), `t` template time/distance, `e` edit, `c` drafts from the coach plan, `p` push the selected one, `P` push every upcoming one not on the watch, `f` force push every upcoming one, `d` dry run, `v` verify against `GARMIN/Workouts/`, `Del` twice deletes the file, `←`/`→` shift the period. `w` switches to the workouts **on the watch**: active ones and those still waiting in `NewFiles` for the cable to be pulled, count against the limit, origin, steps preview, ⚠ for duplicate names; there `Del` twice removes one (active or waiting) after a backup, `r` reads the watch again, `m` mounts it again |
 | `i` `p` `e` `r` | on the overview: import Garmin, pull phone, export the default range for Claude, weekly report with charts |
 | `/` `?` `F12` `q` | command palette, help, language, quit |
 
@@ -482,7 +482,7 @@ and import the copy with `--path`.
 Files on the watch are only read, never deleted or modified, with two deliberate exceptions for
 workouts: `wristpull workout push` writes new FIT files into `GARMIN/NewFiles/` (or `Workouts/`),
 never over an existing one, and `wristpull workout remove` (or `Del` in the TUI's watch view)
-deletes a workout file directly in `GARMIN/Workouts/` on request, after copying it to
+deletes a workout file directly in `GARMIN/Workouts/` or `GARMIN/NewFiles/` on request, after copying it to
 `workouts/watch-backup/`. Sub-folders and every data folder stay untouched. The fenix 6X Pro imports them from `NewFiles` when the cable is pulled
 (confirmed 2026-11-02); `workout verify` reports what the watch took and warns near the workout
 limit. Whether a schedule file places a workout on the calendar date is still open.

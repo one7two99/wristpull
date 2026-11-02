@@ -132,10 +132,10 @@ def build_parser() -> argparse.ArgumentParser:
     eject_group.add_argument("--no-eject", dest="eject", action="store_false", help="leave the mount in place (default: [workout] eject)")
     p_wverify = workout_sub.add_parser("verify", help="read GARMIN/Workouts on the watch and mark the pushed workouts it has taken over")
     p_wverify.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
-    p_wwatch = workout_sub.add_parser("watch", help="list the workouts stored on the watch (GARMIN/Workouts)")
+    p_wwatch = workout_sub.add_parser("watch", help="list the workouts on the watch: active (GARMIN/Workouts) and pending (GARMIN/NewFiles)")
     p_wwatch.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
     p_wremove = workout_sub.add_parser("remove", help="remove workouts from the watch (backed up to <data_dir>/workouts/watch-backup/ first)")
-    p_wremove.add_argument("names", nargs="+", help="workout name or file name as shown by 'workout watch'")
+    p_wremove.add_argument("names", nargs="+", help="workout name or file name as shown by 'workout watch' (pending files in NewFiles too)")
     p_wremove.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
     p_wremove.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     p_wplan = workout_sub.add_parser("from-plan", help="draft one workout per session of the coach's last weekly plan")
@@ -529,9 +529,9 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
                 keys = list(args.names)
                 if not args.yes:
                     wanted = {k.lower() for k in keys}
-                    hits = [i for i in listing.items if {i.path.name.lower(), i.path.stem.lower(), i.name.lower()} & wanted]
-                    keys = [i.path.name for i in hits if input(f'Remove "{i.name}" ({i.path.name}) from the watch? [y/N] ').strip().lower() in ("y", "yes", "j", "ja")]
-                    unknown = wanted - {n for i in hits for n in (i.path.name.lower(), i.path.stem.lower(), i.name.lower())}
+                    hits = [i for i in listing.items if {i.key.lower(), i.path.name.lower(), i.path.stem.lower(), i.name.lower()} & wanted]
+                    keys = [i.key for i in hits if input(f'Remove "{i.name}" ({i.location}: {i.path.name}) from the watch? [y/N] ').strip().lower() in ("y", "yes", "j", "ja")]
+                    unknown = wanted - {n for i in hits for n in (i.key.lower(), i.path.name.lower(), i.path.stem.lower(), i.name.lower())}
                     keys += sorted(unknown)  # reported as not found below
                 result = remove_from_watch(conn, config, keys, path=listing.root, log=log)
                 print(f"removed {len(result.removed)} workouts from the watch; backups in {result.backups[0].parent if result.backups else 'n/a'}")
@@ -542,8 +542,11 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
                 return 0 if not result.errors else 2
             for item in listing.items:
                 created = item.time_created_utc[:16].replace("T", " ") if item.time_created_utc else "–"
-                print(f"{item.name[:32]:<32}  {item.sport:<9} {item.steps:>2} steps  {created:<16}  {item.origin:<9}  {item.path.name}" + (f"  ✗ {item.error}" if item.error else ""))
-            print(f"{len(listing.items)} of ~{WORKOUT_LIMIT} workouts on the watch ({listing.root})")
+                flags = (f"  ✗ {item.error}" if item.error else "") + ("  ⚠ same name as another workout" if item.name_clash else "")
+                print(f"{item.location:<8} {item.name[:32]:<32}  {item.sport:<9} {item.steps:>2} steps  {created:<16}  {item.origin:<9}  {item.path.name}" + flags)
+            print(f"{len(listing.active)} active + {len(listing.pending)} pending (active after unplugging) of ~{WORKOUT_LIMIT} workouts ({listing.root})")
+            if any(i.name_clash for i in listing.items):
+                print("warning: workouts with the same name may replace each other on the watch; give them distinct names.", file=sys.stderr)
             if listing.near_limit:
                 print("warning: the fenix 6 stores 20-25 workouts; above that it drops new files silently. Remove old ones first (wristpull workout remove NAME).", file=sys.stderr)
             return 0

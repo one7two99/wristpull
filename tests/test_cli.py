@@ -147,7 +147,7 @@ def test_workout_watch_remove_and_force(cfg_file: Path, tmp_path: Path, garmin_t
     assert main([*base, "watch", "--path", str(tmp_path / "nowhere")]) == 1
     assert "No Garmin device found" in capsys.readouterr().err
     assert main([*base, "watch", "--path", str(garmin_tree)]) == 0
-    assert "0 of ~25 workouts on the watch" in capsys.readouterr().out
+    assert "0 active + 0 pending (active after unplugging) of ~25 workouts" in capsys.readouterr().out
     assert main([*base, "new", "--date", "2099-01-05", "--name", "Future run"]) == 0
     capsys.readouterr()
     assert main([*base, "push", "--upcoming", "--path", str(garmin_tree), "--folder", "Workouts"]) == 0
@@ -158,7 +158,7 @@ def test_workout_watch_remove_and_force(cfg_file: Path, tmp_path: Path, garmin_t
     capsys.readouterr()
     assert main([*base, "watch", "--path", str(garmin_tree)]) == 0
     out = capsys.readouterr().out
-    assert out.count("Future run") == 2 and "wristpull" in out and "2 of ~25 workouts on the watch" in out
+    assert out.count("Future run") == 2 and "wristpull" in out and "2 active + 0 pending" in out
     # interactive removal: answer no, then yes
     answers = iter(["n", "n"])
     monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))

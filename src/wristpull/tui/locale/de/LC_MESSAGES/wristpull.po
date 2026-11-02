@@ -1117,3 +1117,22 @@ msgstr "Uhr konnte nicht eingebunden werden"
 
 msgid "m mounts it again."
 msgstr "m bindet sie neu ein."
+
+# --- pending workouts in NewFiles ----------------------------------------------
+msgid "{active} active, {pending} waiting for unplugging (of ~{limit})"
+msgstr "{active} aktiv, {pending} warten aufs Abstecken (von ~{limit})"
+
+msgid "{active} active, {pending} waiting for unplugging (of ~{limit}) · {root}"
+msgstr "{active} aktiv, {pending} warten aufs Abstecken (von ~{limit}) · {root}"
+
+msgid "Workouts with the same name may replace each other on the watch; give them distinct names."
+msgstr "Trainings mit gleichem Namen können sich auf der Uhr ersetzen; gib ihnen eindeutige Namen."
+
+msgid "active"
+msgstr "aktiv"
+
+msgid "waiting"
+msgstr "wartet"
+
+msgid "waiting for unplugging"
+msgstr "wartet aufs Abstecken"

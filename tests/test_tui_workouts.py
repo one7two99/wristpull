@@ -158,17 +158,22 @@ def test_watch_view_lists_removes_and_force_pushes(config: Config, tmp_path: Pat
             await wait_jobs(app)
             await pilot.pause()
             assert "--force" in app.runner.last.spec.cli and len(list((garmin_tree / "NewFiles").glob("*.fit"))) == 2
-            # the watch "imports" them into Workouts
-            (garmin_tree / "Workouts").mkdir()
-            for f in (garmin_tree / "NewFiles").glob("*.fit"):
-                (garmin_tree / "Workouts" / f.name).write_bytes(f.read_bytes())
-            # w: watch view, read as a job
+            # w: watch view, read as a job; before unplugging both files wait in NewFiles
             await pilot.press("w")
             await wait_jobs(app)
             await pilot.pause()
             assert screen.view == "watch" and table.row_count == 2
             status = str(screen.query_one("#workouts-status", Panel).content)
-            assert "2 of ~25 workouts on the watch" in status
+            assert "0 active, 2 waiting for unplugging (of ~25)" in status and "same name" in status
+            # the watch "imports" them into Workouts when unplugged
+            (garmin_tree / "Workouts").mkdir()
+            for f in (garmin_tree / "NewFiles").glob("*.fit"):
+                f.rename(garmin_tree / "Workouts" / f.name)
+            await pilot.press("r")
+            await wait_jobs(app)
+            await pilot.pause()
+            status = str(screen.query_one("#workouts-status", Panel).content)
+            assert table.row_count == 2 and "2 active, 0 waiting for unplugging (of ~25)" in status
             assert "1 warmup" not in str(screen.query_one("#workout-preview", Panel).content) and "1 active 10:00" in str(screen.query_one("#workout-preview", Panel).content)
             # file actions are inert in the watch view
             await pilot.press("n")

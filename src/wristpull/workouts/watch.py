@@ -1,6 +1,8 @@
 """Workouts already on the watch: list them, back them up, remove them on request.
 
-Only top-level files in ``GARMIN/Workouts/`` are touched; the sub-folders (``.Intervals``, ``Guided``,
+Two folders are read: ``GARMIN/Workouts/`` (active, the watch lists them) and ``GARMIN/NewFiles/``
+(pending: pushed, imported by the watch when the cable is pulled). Only top-level workout files in
+these two folders are touched; the sub-folders (``.Intervals``, ``Guided``,
 ``Schedule``) and every raw-data folder stay read-only. Every removal is preceded by a copy into
 ``<data_dir>/workouts/watch-backup/``.
 """
@@ -43,10 +45,12 @@ class WatchWorkout:
     origin: str  # "wristpull" | "other"
     workout: Workout | None = None
     error: str | None = None
+    location: str = "active"  # "active" (GARMIN/Workouts) | "pending" (GARMIN/NewFiles, active after unplugging)
+    name_clash: bool = False  # a pending workout shares its name with another one
 
     @property
     def key(self) -> str:
-        return self.path.name
+        return f"{self.location}/{self.path.name}"
 
 
 @dataclass
@@ -56,7 +60,16 @@ class WatchListing:
     mount_message: str | None = None
 
     @property
+    def active(self) -> list[WatchWorkout]:
+        return [i for i in self.items if i.location == "active"]
+
+    @property
+    def pending(self) -> list[WatchWorkout]:
+        return [i for i in self.items if i.location == "pending"]
+
+    @property
     def near_limit(self) -> bool:
+        """Counts pending files too: after unplugging they are on the watch as well."""
         return len(self.items) >= WORKOUT_LIMIT_WARN
 
 
@@ -68,28 +81,37 @@ class RemoveResult:
     listing: WatchListing | None = None  # the watch re-read after removing
 
 
-def workouts_folder(root: Path) -> Path:
-    """``GARMIN/Workouts`` matching the existing folder's case."""
+LOCATIONS = {"active": "Workouts", "pending": "NewFiles"}
+
+
+def garmin_subfolder(root: Path, name: str) -> Path:
+    """``GARMIN/<name>`` matching the existing folder's case."""
     try:
         for child in root.iterdir():
-            if child.is_dir() and child.name.lower() == "workouts":
+            if child.is_dir() and child.name.lower() == name.lower():
                 return child
     except OSError:
         pass
-    return root / "Workouts"
+    return root / name
+
+
+def workouts_folder(root: Path) -> Path:
+    return garmin_subfolder(root, "Workouts")
 
 
 def backup_dir(config: Config) -> Path:
     return workouts_dir(config) / "watch-backup"
 
 
-def read_watch_workout(path: Path, conn: sqlite3.Connection | None = None) -> WatchWorkout:
+def read_watch_workout(path: Path, conn: sqlite3.Connection | None = None, *, location: str = "active") -> WatchWorkout:
     data = path.read_bytes()
     st = path.stat()
     digest = sha256_bytes(data)
-    item = WatchWorkout(path=path, name=path.stem, sport="?", steps=0, time_created_utc="", size=st.st_size, mtime_utc=iso_utc(datetime.fromtimestamp(st.st_mtime, UTC)), sha256=digest, origin="other")
+    item = WatchWorkout(path=path, name=path.stem, sport="?", steps=0, time_created_utc="", size=st.st_size, mtime_utc=iso_utc(datetime.fromtimestamp(st.st_mtime, UTC)), sha256=digest, origin="other", location=location)
     try:
         fit = decode_fit(data, check_crc=False)
+        if location == "pending" and fit.file_type != "workout":
+            raise ValueError(f"not a workout file ({fit.file_type})")
         workout = workout_from_fit(fit)
     except Exception as exc:  # noqa: BLE001 - foreign files on the watch may be anything
         item.error = f"{type(exc).__name__}: {exc}"
@@ -105,18 +127,32 @@ def read_watch_workout(path: Path, conn: sqlite3.Connection | None = None) -> Wa
 
 
 def list_watch_workouts(root: Path, conn: sqlite3.Connection | None = None) -> list[WatchWorkout]:
-    """Every ``*.fit`` directly in ``GARMIN/Workouts`` (sub-folders are ignored), sorted by name."""
-    folder = workouts_folder(root)
-    if not folder.is_dir():
-        return []
+    """Workout files directly in ``GARMIN/Workouts`` (active) and ``GARMIN/NewFiles`` (pending).
+
+    Sub-folders are ignored; in ``NewFiles`` only FIT files of type workout are listed (schedule files and
+    anything else stay invisible). Active first, then pending, each by name.
+    """
     items: list[WatchWorkout] = []
-    for path in sorted(folder.iterdir(), key=lambda p: p.name.lower()):
-        if path.is_file() and path.suffix.lower() == ".fit":
+    for location, name in LOCATIONS.items():
+        folder = garmin_subfolder(root, name)
+        if not folder.is_dir():
+            continue
+        for path in folder.iterdir():
+            if not (path.is_file() and path.suffix.lower() == ".fit"):
+                continue
             try:
-                items.append(read_watch_workout(path, conn))
+                item = read_watch_workout(path, conn, location=location)
             except OSError:
                 continue
-    items.sort(key=lambda w: w.name.lower())
+            if location == "pending" and item.workout is None:
+                continue
+            items.append(item)
+    names: dict[str, int] = {}
+    for item in items:
+        names[item.name.lower()] = names.get(item.name.lower(), 0) + 1
+    for item in items:
+        item.name_clash = item.location == "pending" and names[item.name.lower()] > 1
+    items.sort(key=lambda w: (w.location != "active", w.name.lower(), w.path.name))
     return items
 
 
@@ -173,8 +209,8 @@ def remove_watch_workout(conn: sqlite3.Connection, config: Config, item: WatchWo
 
     Returns the backup path. Refuses anything outside the top level of a ``Workouts`` folder.
     """
-    if item.path.parent.name.lower() != "workouts" or item.path.suffix.lower() != ".fit":
-        raise ValueError(f"refusing to remove {item.path}: only workout files directly in GARMIN/Workouts")
+    if item.path.parent.name.lower() not in ("workouts", "newfiles") or item.path.suffix.lower() != ".fit":
+        raise ValueError(f"refusing to remove {item.path}: only workout files directly in GARMIN/Workouts or GARMIN/NewFiles")
     backup = backup_watch_workout(config, item)
     remove_device_file(item.path, runner=runner)
     rows = push_rows_for(conn, sha256=item.sha256, name=item.workout.name if item.workout else None, time_created_utc=item.time_created_utc)
@@ -202,7 +238,7 @@ def remove_from_watch(
     wanted = {k.lower() for k in keys}
     matched: set[str] = set()
     for item in listing.items:
-        hit = {item.path.name.lower(), item.path.stem.lower(), item.name.lower()} & wanted
+        hit = {item.key.lower(), item.path.name.lower(), item.path.stem.lower(), item.name.lower()} & wanted
         if not hit:
             continue
         matched |= hit
@@ -212,11 +248,11 @@ def remove_from_watch(
             result.errors.append((item.path.name, str(exc)))
             log(f"  ! {item.path.name}: {exc}")
             continue
-        result.removed.append(item.path.name)
+        result.removed.append(item.key)
         result.backups.append(backup)
         log(f"  - {item.name} ({item.path.name}), backup {backup.name}")
     for key in sorted(wanted - matched):
-        result.errors.append((key, "not found under GARMIN/Workouts"))
-        log(f"  ? {key}: not found under GARMIN/Workouts")
+        result.errors.append((key, "not found under GARMIN/Workouts or NewFiles"))
+        log(f"  ? {key}: not found under GARMIN/Workouts or NewFiles")
     result.listing = read_watch(conn, config, path=listing.root)
     return result

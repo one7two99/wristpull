@@ -226,7 +226,7 @@ def describe_result(record: JobRecord) -> list[str]:
             if result.mount_message:
                 lines.append("  " + result.mount_message)
             return lines
-        lines.append("✓ " + _("{n} of ~{limit} workouts on the watch").format(n=len(result.items), limit=WORKOUT_LIMIT))
+        lines.append("✓ " + _("{active} active, {pending} waiting for unplugging (of ~{limit})").format(active=len(result.active), pending=len(result.pending), limit=WORKOUT_LIMIT))
         if result.near_limit:
             lines.append("  ! " + _("The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."))
     elif isinstance(result, RemoveResult):

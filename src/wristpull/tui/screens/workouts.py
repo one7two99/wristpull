@@ -186,7 +186,9 @@ class WorkoutsScreen(WristpullScreen):
             if self.watch.mount_message:
                 status += self.watch.mount_message.splitlines()
         else:
-            status.append(_("{n} of ~{limit} workouts on the watch · {root}").format(n=len(self.watch.items), limit=WORKOUT_LIMIT, root=self.watch.root))
+            status.append(_("{active} active, {pending} waiting for unplugging (of ~{limit}) · {root}").format(active=len(self.watch.active), pending=len(self.watch.pending), limit=WORKOUT_LIMIT, root=self.watch.root))
+            if any(i.name_clash for i in self.watch.items):
+                status.append("⚠ " + _("Workouts with the same name may replace each other on the watch; give them distinct names."))
             if self.watch.near_limit:
                 status.append("⚠ " + _("The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."))
             status.append(_("Removed files are backed up to {path}; the watch updates its list when unplugged.").format(path=backup_dir(app.config)))
@@ -197,11 +199,12 @@ class WorkoutsScreen(WristpullScreen):
         self.query_one("#workouts-status", Panel).set_lines(status)
         table = self.query_one("#workout-table", DataTable)
         table.clear(columns=True)
-        table.add_columns(_("Name"), _("Sport"), _("Steps"), _("Created"), _("Origin"))
+        table.add_columns(_("Status"), _("Name"), _("Sport"), _("Steps"), _("Created"), _("Origin"))
         items = self.watch.items if self.watch else []
         for item in items:
             created = item.time_created_utc[:10] if item.time_created_utc else "–"
-            table.add_row(item.name[:28], item.sport, str(item.steps), created, item.origin if not item.error else "✗", key=item.key)
+            state = (_("active") if item.location == "active" else _("waiting")) + (" ⚠" if item.name_clash else "")
+            table.add_row(state, item.name[:28], item.sport, str(item.steps), created, item.origin if not item.error else "✗", key=item.key)
         if items:
             keys = [i.key for i in items]
             wanted = self.watch_selected if self.watch_selected in keys else keys[0]
@@ -217,7 +220,7 @@ class WorkoutsScreen(WristpullScreen):
         if item is None:
             panel.set_lines(["–"])
             return
-        panel.border_title = f"{item.name} · {item.origin}"
+        panel.border_title = f"{item.name} · {item.origin} · " + (_("active") if item.location == "active" else _("waiting for unplugging"))
         lines = describe_steps(item.workout) if item.workout else []
         if item.error:
             lines.append("✗ " + item.error)
@@ -340,7 +343,7 @@ class WorkoutsScreen(WristpullScreen):
                 self.refresh_data()
                 return
             self.confirm_remove = None
-            self.app.start_job(watch_remove_job(self.app.config, self.app.deps, [item.path.name]))
+            self.app.start_job(watch_remove_job(self.app.config, self.app.deps, [item.key]))
             self.refresh_data()
             return
         workout = self.current()

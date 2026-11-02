@@ -174,8 +174,8 @@ def push(
 
 
 def workouts_on_watch(root: Path) -> list[tuple[str, str]]:
-    """``(wkt_name, time_created_utc)`` of every workout file directly in GARMIN/Workouts."""
-    return [(item.workout.name if item.workout else item.name, item.time_created_utc) for item in list_watch_workouts(root) if item.error is None]
+    """``(wkt_name, time_created_utc)`` of every workout file directly in GARMIN/Workouts (active only)."""
+    return [(item.workout.name if item.workout else item.name, item.time_created_utc) for item in list_watch_workouts(root) if item.error is None and item.location == "active"]
 
 
 def verify(
@@ -198,9 +198,9 @@ def verify(
     if result.limit_warning:
         log(f"  ! {result.limit_warning}")
     keys = set(present)
-    names = {name for name, _created in present}
     for row in pending_pushes(conn):
-        hit = (row["name"], row["time_created_utc"]) in keys or row["name"] in names
+        # name and time_created together: a same-named foreign workout must not count (the watch keeps both fields)
+        hit = (row["name"], row["time_created_utc"]) in keys
         if hit:
             mark_verified(conn, int(row["id"]))
             if row.get("path") and Path(row["path"]).exists():

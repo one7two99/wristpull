@@ -131,8 +131,8 @@ def test_remove_from_watch_by_name_and_file(config: Config, conn, garmin_tree: P
     log: list[str] = []
     roots = lambda: [garmin_tree.parent]  # noqa: E731
     result = remove_from_watch(conn, config, ["30-minute blast", "broken_workout.fit", "nope"], roots=roots, mounter=lambda: (False, "no"), log=log.append)
-    assert sorted(result.removed) == ["30-Minute_Blast_workout.fit", "broken_workout.fit"] and len(result.backups) == 2
-    assert result.errors == [("nope", "not found under GARMIN/Workouts")]
+    assert sorted(result.removed) == ["active/30-Minute_Blast_workout.fit", "active/broken_workout.fit"] and len(result.backups) == 2
+    assert result.errors == [("nope", "not found under GARMIN/Workouts or NewFiles")]
     assert result.listing is not None and result.listing.items == []
     assert any("not found" in line for line in log)
     gone = remove_from_watch(conn, config, ["x"], roots=lambda: [], mounter=lambda: (False, "no"))
@@ -179,3 +179,39 @@ def test_force_push_and_upcoming(config: Config, conn, garmin_tree: Path):
     assert len(after - before) == 1 and again.written[0] in after - before
     assert len([n for n in after if n.name.startswith("2026-11-05-easy-run")]) == 2
     assert WORKOUT_LIMIT_WARN == 20
+
+
+def test_pending_files_in_newfiles(config: Config, conn, garmin_tree: Path):
+    """Pushed files wait in NewFiles until unplugging: listed as pending, counted, removable, never 'verified'."""
+    from wristpull.fit.workout import build_schedule_fit
+    from wristpull.workouts.push import verify
+    from wristpull.workouts.store import list_workouts
+
+    _watch(garmin_tree)
+    roots = lambda: [garmin_tree.parent]  # noqa: E731
+    save(config, _w(date(2026, 11, 5)))
+    save(config, _w(date(2026, 11, 6), "30-Minute Blast"))  # same name as the active foreign workout
+    push(conn, config, list_workouts(config), roots=roots, mounter=lambda: (False, "no"))
+    newfiles = garmin_tree / "NewFiles"
+    (newfiles / "schedule-x.fit").write_bytes(build_schedule_fit(list_workouts(config)))
+    (newfiles / "note.txt").write_text("not fit", "utf-8")
+    (newfiles / "garbage.fit").write_bytes(b"nope")
+    listing = read_watch(conn, config, roots=roots, mounter=lambda: (False, "no"))
+    assert [(i.location, i.name) for i in listing.items] == [("active", "30-Minute Blast"), ("active", "broken_workout"), ("pending", "30-Minute Blast"), ("pending", "Easy run")]
+    assert len(listing.active) == 2 and len(listing.pending) == 2
+    pending_blast = listing.pending[0]
+    assert pending_blast.name_clash and not listing.pending[1].name_clash and not listing.active[0].name_clash
+    assert pending_blast.origin == "wristpull" and pending_blast.key == f"pending/{pending_blast.path.name}"
+    # verify only confirms what the watch took over (active), not what still waits in NewFiles
+    check = verify(conn, config, roots=roots, mounter=lambda: (False, "no"))
+    assert check.verified == [] and sorted(check.missing) == ["30-Minute Blast", "Easy run"]
+    # a push can be taken back before unplugging
+    easy = listing.pending[1]
+    result = remove_from_watch(conn, config, [easy.key], roots=roots, mounter=lambda: (False, "no"))
+    assert result.removed == [easy.key] and not easy.path.exists() and len(result.listing.pending) == 1
+    md = next(w for w in list_workouts(config) if w.name == "Easy run")
+    assert push_status(conn, md.path) == "removed"
+    # the near-limit check counts pending files as well
+    for i in range(WORKOUT_LIMIT_WARN):
+        (newfiles / f"extra{i}.fit").write_bytes(build_workout_fit(_w(date(2026, 12, 1), f"Extra {i}"), created=NOW))
+    assert read_watch(conn, config, roots=roots, mounter=lambda: (False, "no")).near_limit
