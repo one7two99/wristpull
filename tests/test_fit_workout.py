@@ -29,17 +29,19 @@ def test_workout_fit_decodes_with_fitdecode():
     header = fit.of("workout")[0].named
     assert header["sport"] == "running" and header["sub_sport"] == "generic" and header["num_valid_steps"] == 6 and header["wkt_name"] == "Easy run"
     assert header["message_index"] == 0 and fit.of("workout")[0].get_raw(5) == 32  # capabilities tcx
+    raw = fit.of("workout")[0].raw
+    assert raw[21] == 1_320_000 and raw[22] == 500_000 and raw[9] == 1 and raw[10] == 500_000 and (raw[23], raw[24]) == (0, 1)  # totals: mixed -> distance flags
     steps = [m.named for m in fit.of("workout_step")]
     assert [s["message_index"] for s in steps] == [0, 1, 2, 3, 4, 5]
     assert steps[0]["duration_type"] == "time" and steps[0]["duration_time"] == 600.0 and steps[0]["intensity"] == "warmup"
     assert steps[0]["target_type"] == "heart_rate" and steps[0]["custom_target_heart_rate_low"] == 130 and steps[0]["custom_target_heart_rate_high"] == 230  # bpm + 100
+    assert steps[0]["secondary_target_value"] == 0 and steps[0]["weight_display_unit"] == "kilogram" and "wkt_step_name" not in steps[0]
     assert steps[1]["duration_type"] == "distance" and steps[1]["duration_distance"] == 5000.0
     assert steps[1]["custom_target_heart_rate_low"] == 235 and steps[1]["custom_target_heart_rate_high"] == 250 and steps[1]["notes"] == "steady"
     assert steps[2]["intensity"] == "recovery" and steps[2]["custom_target_heart_rate_low"] == 60 and steps[2]["custom_target_heart_rate_high"] == 70
-    assert steps[3]["target_hr_zone"] == 4 and steps[3]["custom_target_heart_rate_low"] == 0
+    assert steps[3]["target_hr_zone"] == 4 and "custom_target_heart_rate_low" not in steps[3]  # zone targets carry no custom bounds
     assert steps[4]["target_type"] == "open" and steps[4]["intensity"] == "cooldown"
-    assert steps[5]["duration_type"] == "open" and steps[5]["intensity"] == "rest"
-    assert [m.get_raw(0) for m in fit.of("workout_step")][:2] == ["Warm up", "Run"]
+    assert steps[5]["duration_type"] == "open" and steps[5]["intensity"] == "rest" and "duration_value" not in steps[5]
 
 
 def test_other_sports():
@@ -48,9 +50,14 @@ def test_other_sports():
     fit = decode_fit(build_workout_fit(w))
     header = fit.of("workout")[0].named
     assert header["sport"] == "training" and header["sub_sport"] == "strength_training"
-    assert fit.of("workout_step")[1].get_raw(0) == "Work"
     w.sport = "cycling"
     assert decode_fit(build_workout_fit(w)).of("workout")[0].named["sport"] == "cycling"
+
+
+def test_time_only_workout_totals():
+    w = Workout(name="t", day=date(2026, 11, 6), steps=[Step("warmup", duration_s=300), Step("active", duration_s=1800, hr=HeartRate("zone", zone=2)), Step("cooldown", duration_s=300)])
+    raw = decode_fit(build_workout_fit(w)).of("workout")[0].raw
+    assert raw[9] == 0 and raw[10] == 2_400_000 and raw[21] == 2_400_000 and raw[22] == 0 and (raw[23], raw[24]) == (1, 0)
 
 
 def test_hr_encoding_rules():

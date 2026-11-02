@@ -23,8 +23,6 @@ SPORT_NUM: dict[str, tuple[int, int]] = {"running": (1, 0), "cycling": (2, 0), "
 DURATION_TIME, DURATION_DISTANCE, DURATION_OPEN = 0, 1, 5
 TARGET_HEART_RATE, TARGET_OPEN = 1, 2
 INTENSITY_NUM = {"active": 0, "rest": 1, "warmup": 2, "cooldown": 3, "recovery": 4}
-STEP_NAMES = {"warmup": "Warm up", "active": "Run", "recovery": "Recover", "cooldown": "Cool down", "rest": "Rest"}
-ACTIVE_NAME = {"running": "Run", "cycling": "Ride", "walking": "Walk", "strength": "Work", "cardio": "Work"}
 HR_OFFSET = 100
 
 
@@ -66,9 +64,30 @@ def build_workout_fit(workout: Workout, *, created: datetime | None = None) -> b
     created = created or workout_created(workout)
     w = FitWriter()
     sport, sub_sport = SPORT_NUM.get(workout.sport, (0, 0))
+    total_ms = workout.total_seconds * 1000
+    total_cm = workout.total_metres * 100
     w.message(0, [(0, "enum", FILE_WORKOUT), (1, "uint16", MANUFACTURER_GARMIN), (2, "uint16", PRODUCT_CONNECT), (3, "uint32z", workout_serial(workout)), (4, "uint32", utc_to_fit(created))])
     w.message(49, [(0, "uint16", 0), (1, "uint8", 0)])  # file_creator, as in Connect's files
-    w.message(26, [(254, "uint16", 0), (4, "enum", sport), (11, "enum", sub_sport), (5, "uint32z", CAPABILITIES_TCX), (6, "uint16", len(workout.steps)), (8, "string", workout.name)])
+    # The workout header the way Garmin Connect writes it, totals included (fields 9/10 and 21-24 from the
+    # Gadgetbridge profile: duration_type/value, time, distance, time_flag, distance_flag).
+    by_time = total_ms > 0 and total_cm == 0
+    w.message(
+        26,
+        [
+            (254, "uint16", 0),
+            (4, "enum", sport),
+            (11, "enum", sub_sport),
+            (5, "uint32z", CAPABILITIES_TCX),
+            (6, "uint16", len(workout.steps)),
+            (8, "string", workout.name),
+            (9, "enum", DURATION_TIME if by_time else DURATION_DISTANCE),
+            (10, "uint32", total_ms if by_time else total_cm),
+            (21, "uint32", total_ms),
+            (22, "uint32", total_cm),
+            (23, "enum", 1 if by_time else 0),
+            (24, "enum", 0 if by_time else 1),
+        ],
+    )
     for index, step in enumerate(workout.steps):
         w.message(27, step_fields(index, step, sport=workout.sport))
     return w.finish()
@@ -82,17 +101,21 @@ def step_fields(index: int, step: Step, *, sport: str = "running") -> list[tuple
     else:
         duration_type, duration_value = DURATION_OPEN, 0
     target_type, target_value, low, high = hr_fields(step.hr)
+    # Same field set as the steps Garmin Connect writes: no step name, custom bounds only for custom
+    # targets, secondary target 0, weight unit kilogram. The watch labels steps by their intensity.
     fields: list[tuple[int, str, object]] = [
         (254, "uint16", index),
-        (0, "string", ACTIVE_NAME.get(sport, "Work") if step.intensity == "active" else STEP_NAMES[step.intensity]),
-        (1, "enum", duration_type),
-        (2, "uint32", duration_value),
+        (7, "enum", INTENSITY_NUM[step.intensity]),
         (3, "enum", target_type),
         (4, "uint32", target_value),
-        (5, "uint32", low),
-        (6, "uint32", high),
-        (7, "enum", INTENSITY_NUM[step.intensity]),
+        (20, "uint32", 0),
+        (1, "enum", duration_type),
+        (13, "uint16", 1),
     ]
+    if duration_type != DURATION_OPEN:
+        fields.append((2, "uint32", duration_value))
+    if step.hr is not None and step.hr.kind != "zone":
+        fields += [(5, "uint32", low), (6, "uint32", high)]
     if step.note:
         fields.append((8, "string", step.note[:50]))
     return fields
