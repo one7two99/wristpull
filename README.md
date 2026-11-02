@@ -275,6 +275,14 @@ like easy/tempo/hard) and pick the sport from the words (strength, ergometer, wa
 | `workout verify [--path P]` | read `GARMIN/Workouts/` and mark pushed workouts the watch has taken over as `verified` |
 | `workout from-plan [--week D]` | one draft per session of the coach's last weekly plan (rest days and days that already have a file are skipped) |
 
+**The watch has a workout limit.** Garmin states 25 stored workouts for the fenix 6 series (users
+report hitting it at about 20); the preloaded strength and yoga workouts count towards it. When the
+limit is reached the watch shows "Exceeded maximum number of workouts" briefly on connecting and
+silently deletes every new file from `NewFiles/` and `Workouts/` without importing it, which looks
+exactly like a broken file. Check `GARMIN/Workouts/` on the watch (or `workout verify`, which reports
+the count) and delete old workouts there before pushing more. Scheduled workouts (calendar) are
+reported not to count towards the limit; wristpull's `--schedule` support is still being verified.
+
 Every push is recorded in `workout_pushes` (name, date, SHA-256 of the FIT bytes, target, watch
 serial, status). The `[workout]` section sets the shape of generated workouts (warm-up and cool-down
 minutes and HR caps, default target of the main part) and the target folder.
