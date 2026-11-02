@@ -160,3 +160,65 @@ def build_schedule_fit(workouts: list[Workout], *, created: datetime | None = No
 
 def scheduled_day(local_seconds: int) -> date:
     return (FIT_EPOCH + timedelta(seconds=int(local_seconds))).date()
+
+
+# ---- decoding (preview of workouts already on the watch) --------------------------------------
+
+INTENSITY_NAME = {num: name for name, num in INTENSITY_NUM.items()} | {5: "active", 6: "active"}
+DURATION_NAMES = {2: "until HR below", 3: "until HR above", 4: "calories", 6: "repeat", 7: "repeat until time", 8: "repeat until distance", 29: "reps"}
+TARGET_NAMES = {0: "pace", 3: "cadence", 4: "power", 5: "grade", 6: "resistance"}
+
+
+def sport_name(sport: int | None, sub_sport: int | None) -> str:
+    """Model sport for FIT sport/sub_sport numbers; unknown combinations keep a readable FIT-ish name."""
+    for name, (num, sub) in SPORT_NUM.items():
+        if num == sport and (sub == (sub_sport or 0) or sub == 0 and num != 10):
+            return name
+    return {10: "training", 0: "generic"}.get(sport or 0, f"sport {sport}")
+
+
+def _raw(msg, num: int):
+    value = msg.get_raw(num)
+    return None if value is None or isinstance(value, (list, tuple)) else value
+
+
+def workout_from_fit(fit) -> Workout:
+    """The inverse of :func:`build_workout_fit` for preview purposes.
+
+    Steps with durations or targets wristpull cannot express (pace, power, reps, repeats) become open
+    steps with a note, so a foreign file still shows its structure instead of nothing.
+    """
+    header = fit.of("workout")
+    name = str(header[0].get("wkt_name") or "") if header else ""
+    sport = sport_name(_raw(header[0], 4), _raw(header[0], 11)) if header else "generic"
+    steps: list[Step] = []
+    for msg in sorted(fit.of("workout_step"), key=lambda m: _raw(m, 254) or 0):
+        intensity = INTENSITY_NAME.get(_raw(msg, 7) or 0, "active")
+        duration_type, duration_value = _raw(msg, 1), _raw(msg, 2)
+        notes: list[str] = []
+        step = Step(intensity)
+        if duration_type == DURATION_TIME and duration_value:
+            step.duration_s = int(round(duration_value / 1000))
+        elif duration_type == DURATION_DISTANCE and duration_value:
+            step.distance_m = int(round(duration_value / 100))
+        elif duration_type not in (DURATION_OPEN, None):
+            label = DURATION_NAMES.get(duration_type, f"duration {duration_type}")
+            notes.append(f"{label} {duration_value}" if duration_value is not None else label)
+        target_type, target_value = _raw(msg, 3), _raw(msg, 4)
+        if target_type == TARGET_HEART_RATE:
+            low, high = _raw(msg, 5), _raw(msg, 6)
+            if target_value:
+                step.hr = HeartRate("zone", zone=int(target_value))
+            elif low or high:
+                kind_low, value_low = decode_custom_hr(int(low or 0))
+                kind_high, value_high = decode_custom_hr(int(high or 0))
+                kind = kind_high if high else kind_low
+                step.hr = HeartRate(kind, low=value_low if low and value_low > (HR_BPM_MIN if kind == "bpm" else 1) else None, high=value_high if high and value_high < (HR_BPM_MAX if kind == "bpm" else 100) else None)
+        elif target_type not in (TARGET_OPEN, None) and duration_type != 6:
+            notes.append(f"{TARGET_NAMES.get(target_type, f'target {target_type}')} target")
+        text = msg.get("notes") or msg.get("wkt_step_name")
+        if text:
+            notes.insert(0, str(text))
+        step.note = "; ".join(notes)
+        steps.append(step)
+    return Workout(name=name, sport=sport, steps=steps, status="on watch")

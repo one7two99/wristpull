@@ -12,19 +12,16 @@ from pathlib import Path
 
 from ..archive import sha256_bytes
 from ..config import Config
-from ..fit.decode import decode_fit
 from ..fit.workout import build_schedule_fit, build_workout_fit, workout_created
 from ..garmin_usb import Runner, eject_garmin, read_device_info, run_command, try_mount_garmin
 from ..importers.garmin import locate_garmin
 from ..timeutil import iso_utc
 from .model import Workout, slug
 from .store import mark_verified, output_dir, pending_pushes, record_push, set_status
+from .watch import WORKOUT_LIMIT_WARN, list_watch_workouts
 
 Log = Callable[[str], None]
 FOLDERS = ("NewFiles", "Workouts")
-# Garmin states 25 stored workouts for the fenix 6 series; users hit the wall at about 20. Above the limit
-# the watch silently deletes every new file instead of importing it.
-WORKOUT_LIMIT_WARN = 20
 GVFS_ERRNOS = {errno.ENOTSUP, errno.EOPNOTSUPP, errno.EIO, errno.EINVAL}
 
 
@@ -110,6 +107,7 @@ def push(
     folder: str | None = None,
     dry_run: bool = False,
     eject: bool | None = None,
+    force: bool = False,
     log: Log = lambda _m: None,
     runner: Runner = run_command,
 ) -> PushResult:
@@ -117,7 +115,8 @@ def push(
 
     Existing files on the watch are never overwritten or deleted; a changed workout gets a
     new file name carrying its content hash. ``eject`` (default: ``[workout] eject``, off) unmounts the
-    MTP mount afterwards; the fenix 6X Pro keeps the files without it.
+    MTP mount afterwards; the fenix 6X Pro keeps the files without it. ``force`` writes a file again
+    even when one with the same content is already in the target folder (under a time-stamped name).
     """
     result = PushResult(dry_run=dry_run)
     schedule = config.workout.schedule if schedule is None else schedule
@@ -152,8 +151,10 @@ def push(
         digest = sha256_bytes(data)
         name = f"{workout.day.isoformat() if workout.day else 'undated'}-{slug(workout.name)}-{digest[:8]}.fit"
         target = result.target / name
+        if target.exists() and force:
+            target = result.target / f"{name[:-4]}-{datetime.now(UTC).strftime('%H%M%S')}.fit"
         if target.exists():
-            log(f"  = {name} already on the device")
+            log(f"  = {name} already on the device (use force to write it again)")
         else:
             how = write_device_file(target, data, runner=runner)
             log(f"  + {name} ({len(data)} bytes{', via gio copy' if how == 'gio' else ''})")
@@ -173,21 +174,8 @@ def push(
 
 
 def workouts_on_watch(root: Path) -> list[tuple[str, str]]:
-    """``(wkt_name, time_created_utc)`` of every workout file under GARMIN/Workouts."""
-    found: list[tuple[str, str]] = []
-    folder = device_folder(root, "Workouts")
-    if not folder.is_dir():
-        return found
-    for file in sorted(folder.rglob("*")):
-        if not file.is_file() or file.suffix.lower() != ".fit":
-            continue
-        try:
-            fit = decode_fit(file.read_bytes(), check_crc=False)
-        except Exception:  # noqa: BLE001 - foreign files on the watch may be anything
-            continue
-        for msg in fit.of("workout"):
-            found.append((str(msg.get("wkt_name") or ""), fit.time_created_iso or ""))
-    return found
+    """``(wkt_name, time_created_utc)`` of every workout file directly in GARMIN/Workouts."""
+    return [(item.workout.name if item.workout else item.name, item.time_created_utc) for item in list_watch_workouts(root) if item.error is None]
 
 
 def verify(

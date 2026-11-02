@@ -131,3 +131,82 @@ def test_drafts_from_the_coach_plan_via_both_screens(config: Config, tmp_path: P
             assert load(Path(items[0].path)).status == "draft"
 
     run(scenario())
+
+
+def test_watch_view_lists_removes_and_force_pushes(config: Config, tmp_path: Path, garmin_tree: Path):
+    from wristpull.workouts.watch import backup_dir
+
+    deps = make_deps(tmp_path, garmin_tree.parent)
+    app = make_app(config, deps)
+    save(config, Workout(name="Tomorrow", day=TODAY + date.resolution, steps=[Step("active", duration_s=600)]))
+
+    async def scenario():
+        async with app.run_test(size=(140, 44)) as pilot:
+            await pilot.press("0")
+            await pilot.pause()
+            screen = app.screen
+            table = screen.query_one("#workout-table", DataTable)
+            # P pushes once, a second P has nothing left, f pushes again
+            await pilot.press("P")
+            await wait_jobs(app)
+            await pilot.pause()
+            assert len(app.runner.last.result.written) == 1
+            await pilot.press("P")
+            await pilot.pause()
+            assert app.runner.last.spec.key == "workout_push" and len(list((garmin_tree / "NewFiles").glob("*.fit"))) == 1
+            await pilot.press("f")
+            await wait_jobs(app)
+            await pilot.pause()
+            assert "--force" in app.runner.last.spec.cli and len(list((garmin_tree / "NewFiles").glob("*.fit"))) == 2
+            # the watch "imports" them into Workouts
+            (garmin_tree / "Workouts").mkdir()
+            for f in (garmin_tree / "NewFiles").glob("*.fit"):
+                (garmin_tree / "Workouts" / f.name).write_bytes(f.read_bytes())
+            # w: watch view, read as a job
+            await pilot.press("w")
+            await wait_jobs(app)
+            await pilot.pause()
+            assert screen.view == "watch" and table.row_count == 2
+            status = str(screen.query_one("#workouts-status", Panel).content)
+            assert "2 of ~25 workouts on the watch" in status
+            assert "1 warmup" not in str(screen.query_one("#workout-preview", Panel).content) and "1 active 10:00" in str(screen.query_one("#workout-preview", Panel).content)
+            # file actions are inert in the watch view
+            await pilot.press("n")
+            await pilot.pause()
+            assert len(list_workouts(config)) == 1
+            # Del twice removes the highlighted one (backup first)
+            await pilot.press("delete")
+            await pilot.pause()
+            assert "Press Delete again to remove Tomorrow from the watch" in str(screen.query_one("#workouts-status", Panel).content)
+            await pilot.press("delete")
+            await wait_jobs(app)
+            await pilot.pause()
+            assert table.row_count == 1 and len(list((garmin_tree / "Workouts").glob("*.fit"))) == 1
+            assert len(list(backup_dir(config).iterdir())) == 1 and "--yes" in app.runner.last.spec.cli
+            # r reads again, w goes back to the files
+            await pilot.press("r")
+            await wait_jobs(app)
+            await pilot.pause()
+            assert table.row_count == 1
+            await pilot.press("w")
+            await pilot.pause()
+            assert screen.view == "files" and table.row_count == 1
+
+    run(scenario())
+
+
+def test_watch_view_without_device(config: Config, tmp_path: Path):
+    deps = make_deps(tmp_path)
+    app = make_app(config, deps)
+
+    async def scenario():
+        async with app.run_test(size=(140, 44)) as pilot:
+            await pilot.press("0")
+            await pilot.pause()
+            await pilot.press("w")
+            await wait_jobs(app)
+            await pilot.pause()
+            status = str(app.screen.query_one("#workouts-status", Panel).content)
+            assert "No Garmin device found" in status and "no mounter in tests" in status
+
+    run(scenario())

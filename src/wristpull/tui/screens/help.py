@@ -23,7 +23,8 @@ def help_lines() -> list[str]:
         "7 " + _("Export & Report") + ":  e " + _("generate") + "   o " + _("open folder") + "   y " + _("copy path") + "   c " + _("copy CLI"),
         "8 " + _("Settings") + ":  Ctrl+S " + _("save") + "   Ctrl+R " + _("reset") + "   Ctrl+T " + _("check coach backend"),
         "9 " + _("Coach") + ":  d " + _("daily") + "   w " + _("weekly") + "   Enter " + _("ask") + "   n " + _("journal note") + "   p " + _("dry run") + "   + − 0 " + _("rate") + "   g " + _("goal wizard") + "   e " + _("edit profile") + "   t " + _("draft workouts"),
-        "0 " + _("Workouts") + ":  n " + _("new") + "   t " + _("template") + "   e " + _("edit") + "   c " + _("drafts from plan") + "   p " + _("push") + "   P " + _("push upcoming") + "   v " + _("verify") + "   Del " + _("delete") + "   ←→ " + _("shift period"),
+        "0 " + _("Workouts") + ":  n " + _("new") + "   t " + _("template") + "   e " + _("edit") + "   c " + _("drafts from plan") + "   p " + _("push") + "   P " + _("push upcoming") + "   f " + _("force push") + "   v " + _("verify") + "   Del " + _("delete") + "   ←→ " + _("shift period"),
+        "   w " + _("files / watch") + ":  " + _("on the watch") + "  r " + _("read watch") + "   Del " + _("remove from watch"),
     ]
 
 

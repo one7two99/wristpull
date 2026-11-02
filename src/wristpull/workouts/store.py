@@ -108,3 +108,31 @@ def push_status(conn: sqlite3.Connection, path: str) -> str | None:
     """``pushed`` or ``verified`` from the history (dry runs do not count), else None."""
     row = conn.execute("SELECT status FROM workout_pushes WHERE path = ? AND status != 'dry_run' ORDER BY id DESC LIMIT 1", (path,)).fetchone()
     return None if row is None else str(row[0])
+
+
+def push_rows_for(conn: sqlite3.Connection, *, sha256: str | None = None, name: str | None = None, time_created_utc: str | None = None) -> list[dict[str, Any]]:
+    """History rows matching a file on the watch: by content hash, or by (name, time_created)."""
+    rows = conn.execute(
+        "SELECT * FROM workout_pushes WHERE status != 'dry_run' AND (sha256 = ? OR (name = ? AND time_created_utc = ?)) ORDER BY id",
+        (sha256 or "", name or "", time_created_utc or ""),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_removed(conn: sqlite3.Connection, ids: list[int]) -> None:
+    """The watch no longer holds these pushes (the user removed the file)."""
+    conn.executemany("UPDATE workout_pushes SET status = 'removed' WHERE id = ?", [(i,) for i in ids])
+    conn.commit()
+
+
+def upcoming(config: Config, conn: sqlite3.Connection, today: date, *, force: bool = False) -> list[Workout]:
+    """Valid dated workouts from ``today`` on; without ``force`` only those not currently on the watch
+    (never pushed, or removed again)."""
+    selected: list[Workout] = []
+    for workout in list_workouts(config, start=today):
+        if not workout.valid or workout.day is None:
+            continue
+        if not force and (push_status(conn, workout.path or "") or "") in ("pushed", "verified"):
+            continue
+        selected.append(workout)
+    return selected

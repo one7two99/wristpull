@@ -27,6 +27,7 @@ from ..coach.runner import CoachResult
 from ..report import ReportResult
 from ..workouts.model import Workout
 from ..workouts.push import PushResult, VerifyResult
+from ..workouts.watch import WORKOUT_LIMIT, RemoveResult, WatchListing
 from .deps import TuiDeps
 from .format import fmt_int
 from .i18n import _, ngettext
@@ -206,6 +207,22 @@ def describe_result(record: JobRecord) -> list[str]:
         lines.append("✓ " + _("{on_watch} workouts on the watch, {verified} newly confirmed, {missing} pushed but not found").format(on_watch=len(result.on_watch), verified=len(result.verified), missing=len(result.missing)))
         if result.near_limit:
             lines.append("  ! " + _("The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."))
+    elif isinstance(result, WatchListing):
+        if result.root is None:
+            lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
+            if result.mount_message:
+                lines.append("  " + result.mount_message)
+            return lines
+        lines.append("✓ " + _("{n} of ~{limit} workouts on the watch").format(n=len(result.items), limit=WORKOUT_LIMIT))
+        if result.near_limit:
+            lines.append("  ! " + _("The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."))
+    elif isinstance(result, RemoveResult):
+        if result.listing is not None and result.listing.root is None:
+            lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
+            return lines
+        lines.append("✓ " + ngettext("removed {n} workout from the watch (backup kept)", "removed {n} workouts from the watch (backup kept)", len(result.removed)).format(n=len(result.removed)))
+        for key, error in result.errors:
+            lines.append(f"  ! {key}: {error}")
     elif isinstance(result, str):
         lines.append("✓ " + result)
     else:
@@ -306,14 +323,14 @@ def coach_job(config: Config, deps: TuiDeps, kind: str, *, today: date, question
     return JobSpec(f"coach_{kind}", titles.get(kind, kind), cli, run)
 
 
-def workout_push_job(config: Config, deps: TuiDeps, workouts: list[Workout], *, dry_run: bool = False, schedule: bool | None = None) -> JobSpec:
+def workout_push_job(config: Config, deps: TuiDeps, workouts: list[Workout], *, dry_run: bool = False, schedule: bool | None = None, force: bool = False) -> JobSpec:
     from ..workouts.push import push
 
     files = " ".join(f'"{w.path}"' for w in workouts if w.path)
-    cli = f"wristpull workout push {files}" + (" --schedule" if schedule else "") + (" --dry-run" if dry_run else "")
+    cli = f"wristpull workout push {files}" + (" --schedule" if schedule else "") + (" --force" if force else "") + (" --dry-run" if dry_run else "")
 
     def run(conn: sqlite3.Connection, log: Log) -> PushResult:
-        return push(conn, config, workouts, roots=deps.roots, mounter=deps.mounter, schedule=schedule, dry_run=dry_run, log=log)
+        return push(conn, config, workouts, roots=deps.roots, mounter=deps.mounter, schedule=schedule, dry_run=dry_run, force=force, log=log)
 
     return JobSpec("workout_push", _("Push workouts"), cli, run)
 
@@ -325,3 +342,24 @@ def workout_verify_job(config: Config, deps: TuiDeps) -> JobSpec:
         return verify(conn, config, roots=deps.roots, mounter=deps.mounter, log=log)
 
     return JobSpec("workout_verify", _("Verify workouts"), "wristpull workout verify", run)
+
+
+def watch_list_job(config: Config, deps: TuiDeps) -> JobSpec:
+    from ..workouts.watch import read_watch
+
+    def run(conn: sqlite3.Connection, log: Log) -> WatchListing:
+        log(_("reading GARMIN/Workouts …"))
+        return read_watch(conn, config, roots=deps.roots, mounter=deps.mounter)
+
+    return JobSpec("workout_watch", _("Workouts on the watch"), "wristpull workout watch", run)
+
+
+def watch_remove_job(config: Config, deps: TuiDeps, file_names: list[str]) -> JobSpec:
+    from ..workouts.watch import remove_from_watch
+
+    cli = "wristpull workout remove " + " ".join(f'"{n}"' for n in file_names) + " --yes"
+
+    def run(conn: sqlite3.Connection, log: Log) -> RemoveResult:
+        return remove_from_watch(conn, config, file_names, roots=deps.roots, mounter=deps.mounter, log=log)
+
+    return JobSpec("workout_remove", _("Remove workouts from the watch"), cli, run)

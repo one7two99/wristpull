@@ -273,16 +273,18 @@ like easy/tempo/hard) and pick the sport from the words (strength, ergometer, wa
 | `workout new [--date D] [--name N] [--template time\|distance] [--minutes M] [--metres M] [--edit]` | write a file from the template (warm-up, main part by time or distance, cool-down) and print its path; `--edit` opens `$EDITOR` |
 | `workout list [--from D --to D]` | date, name, steps, total, status and validation errors per file |
 | `workout check FILE…` | parse and validate, print the steps the way the watch will show them (exit 2 on errors) |
-| `workout push [FILE…] [--date D] [--upcoming] [--path P] [--folder NewFiles\|Workouts] [--schedule] [--dry-run] [--eject\|--no-eject]` | build the FIT files and copy them to the watch (`--dry-run`: to `<data_dir>/workouts/out/`); `--schedule` adds a schedule file with the planned dates (experimental); existing files on the watch are never overwritten |
+| `workout push [FILE…] [--date D] [--upcoming] [--force] [--path P] [--folder NewFiles\|Workouts] [--schedule] [--dry-run] [--eject\|--no-eject]` | build the FIT files and copy them to the watch (`--dry-run`: to `<data_dir>/workouts/out/`); `--upcoming` takes the workouts from today on that are not on the watch (never pushed, or removed again); `--force` also takes those already pushed and writes a file again even if an identical one is there; `--schedule` adds a schedule file with the planned dates (experimental); existing files on the watch are never overwritten |
 | `workout verify [--path P]` | read `GARMIN/Workouts/` and mark pushed workouts the watch has taken over as `verified` |
+| `workout watch [--path P]` | list the workouts stored on the watch: name, sport, steps, created, origin (`wristpull` or `other`), and the count against the limit |
+| `workout remove NAME… [--path P] [--yes]` | remove workouts from the watch by name or file name; each file is first copied to `<data_dir>/workouts/watch-backup/`; asks per file unless `--yes` |
 | `workout from-plan [--week D]` | one draft per session of the coach's last weekly plan (rest days and days that already have a file are skipped) |
 
 **The watch has a workout limit.** Garmin states 25 stored workouts for the fenix 6 series (users
 report hitting it at about 20); the preloaded strength and yoga workouts count towards it. When the
 limit is reached the watch shows "Exceeded maximum number of workouts" briefly on connecting and
 silently deletes every new file from `NewFiles/` and `Workouts/` without importing it, which looks
-exactly like a broken file. Check `GARMIN/Workouts/` on the watch (or `workout verify`, which reports
-the count) and delete old workouts there before pushing more. Scheduled workouts (calendar) are
+exactly like a broken file. `workout watch` (or `w` on TUI screen 0) shows the count; remove old
+workouts with `workout remove` before pushing more. Scheduled workouts (calendar) are
 reported not to count towards the limit; wristpull's `--schedule` support is still being verified.
 
 Every push is recorded in `workout_pushes` (name, date, SHA-256 of the FIT bytes, target, watch
@@ -359,7 +361,7 @@ marks the active one; tabs can also be clicked. German and English, switchable a
 | `7` | Export & Report: Claude export or weekly/monthly report for a period with presets, result file list and Markdown preview; `o` opens the folder, `y`/`c` copy path or CLI |
 | `8` | Settings: edit every config value including `[ui]` and `[coach]`, `Ctrl+S` validates and writes `config.toml` (language switches immediately, `data_dir` after a restart); `Ctrl+T` checks whether the coach backend is reachable |
 | `9` | Coach: `d` daily check, `w` weekly review, type a question and press Enter, `p` dry run; runs table with tokens, cost and rating, the answer beside it; `+` `−` `0` rate the selected run, `g` goal wizard (multiple choice → profile), `e` edit the profile in `$EDITOR`, `t` draft workouts from the last weekly plan |
-| `0` | Workouts: files of the next three weeks (and the last one) with status, preview of the steps as the watch shows them plus the Markdown; `n` new from the template (then `$EDITOR`), `t` template time/distance, `e` edit, `c` drafts from the coach plan, `p` push the selected one, `P` push every upcoming one, `d` dry run, `v` verify against `GARMIN/Workouts/`, `Del` twice deletes the file, `←`/`→` shift the period |
+| `0` | Workouts: files of the next three weeks (and the last one) with status, preview of the steps as the watch shows them plus the Markdown; `n` new from the template (then `$EDITOR`), `t` template time/distance, `e` edit, `c` drafts from the coach plan, `p` push the selected one, `P` push every upcoming one not on the watch, `f` force push every upcoming one, `d` dry run, `v` verify against `GARMIN/Workouts/`, `Del` twice deletes the file, `←`/`→` shift the period. `w` switches to the workouts **on the watch** (count against the limit, origin, steps preview); there `Del` twice removes one from the watch after a backup, `r` reads the watch again |
 | `i` `p` `e` `r` | on the overview: import Garmin, pull phone, export the default range for Claude, weekly report with charts |
 | `/` `?` `F12` `q` | command palette, help, language, quit |
 
@@ -472,9 +474,11 @@ wristpull import garmin
 Alternatively copy the folders with KIO (`kioclient copy "mtp:/fenix 6X Pro/Primary/GARMIN/Monitor" ...`)
 and import the copy with `--path`.
 
-Files on the watch are only read, never deleted or modified. The one exception is deliberate and
-additive: `wristpull workout push` writes new FIT files into `GARMIN/NewFiles/` (or `Workouts/`),
-never over an existing one. The fenix 6X Pro imports them from `NewFiles` when the cable is pulled
+Files on the watch are only read, never deleted or modified, with two deliberate exceptions for
+workouts: `wristpull workout push` writes new FIT files into `GARMIN/NewFiles/` (or `Workouts/`),
+never over an existing one, and `wristpull workout remove` (or `Del` in the TUI's watch view)
+deletes a workout file directly in `GARMIN/Workouts/` on request, after copying it to
+`workouts/watch-backup/`. Sub-folders and every data folder stay untouched. The fenix 6X Pro imports them from `NewFiles` when the cable is pulled
 (confirmed 2026-11-02); `workout verify` reports what the watch took and warns near the workout
 limit. Whether a schedule file places a workout on the calendar date is still open.
 
@@ -514,7 +518,8 @@ open `/docs/`.
 │   └── dryrun/<timestamp>_<kind>.md  full prompts written by --dry-run
 └── workouts/
     ├── <date>-<slug>.md            one workout per file (wristpull workout new / from-plan, or by hand)
-    └── out/                        FIT files of a dry-run push
+    ├── out/                        FIT files of a dry-run push
+    └── watch-backup/               copies of workout files removed from the watch
 ```
 
 `source` is `garmin_usb`, `gadgetbridge_garmin` or `gadgetbridge_zepp`; the exported Gadgetbridge

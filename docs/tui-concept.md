@@ -64,7 +64,7 @@ opens them in `$EDITOR` and runs push/verify against the mounted watch as jobs.
 | 7 | Export & Report | Form: period (presets last week, last month, custom), kind (Claude export / weekly / monthly report), charts, CSV, output dir; result with file list and Markdown preview; copy path for chat | `export --for-claude`, `report week|month` |
 | 8 | Settings | Config fields (data_dir, timezone, garmin_folders, mount hints, phone_serial, export dir), new `[ui]` section (language, theme, default range), save writes `config.toml`; log view | `config --init`, editor |
 | 9 | Coach | Runs table (tokens, cost, rating), answer, question input, journal note, goal wizard, profile editor, `t` drafts workouts from the last weekly plan | `coach daily|weekly|ask|rate|note|profile` |
-| 0 | Workouts | Workout files of the period with status, preview (steps + Markdown), new from template (`$EDITOR`), edit, drafts from the plan, push selected / upcoming, dry run, verify, delete | `workout new|list|check|push|verify|from-plan` |
+| 0 | Workouts | Workout files of the period with status, preview (steps + Markdown), new from template (`$EDITOR`), edit, drafts from the plan, push selected / upcoming / force, dry run, verify, delete; `w` switches to the workouts on the watch (count against the limit, preview, remove with backup) | `workout new|list|check|push|verify|watch|remove|from-plan` |
 | ? | Help | Key bindings, version and path info, link to docs/gadgetbridge.md | `--version` |
 | / | Command palette | Every action and screen via fuzzy search (built into Textual) | – |
 

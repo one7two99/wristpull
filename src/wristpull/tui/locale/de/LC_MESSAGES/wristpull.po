@@ -1038,3 +1038,63 @@ msgstr "{on_watch} Trainings auf der Uhr, {verified} neu bestätigt, {missing} �
 
 msgid "The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."
 msgstr "Die fenix 6 speichert 20–25 Trainings; darüber verwirft sie neue Dateien stillschweigend. Vorher alte unter GARMIN/Workouts löschen."
+
+# --- workouts on the watch ---------------------------------------------------
+msgid "Created"
+msgstr "Erstellt"
+
+msgid "Origin"
+msgstr "Herkunft"
+
+msgid "No workouts on the watch."
+msgstr "Keine Trainings auf der Uhr."
+
+msgid "Press Delete again to remove {name} from the watch"
+msgstr "Entf erneut drücken, um {name} von der Uhr zu löschen"
+
+msgid "Reading the watch … (r reads it again)"
+msgstr "Uhr wird gelesen … (r liest erneut)"
+
+msgid "Remove workouts from the watch"
+msgstr "Trainings von der Uhr löschen"
+
+msgid "Removed files are backed up to {path}; the watch updates its list when unplugged."
+msgstr "Gelöschte Dateien werden nach {path} gesichert; die Uhr aktualisiert ihre Liste beim Abstecken."
+
+msgid "Workouts on the watch"
+msgstr "Trainings auf der Uhr"
+
+msgid "files"
+msgstr "Dateien"
+
+msgid "files / watch"
+msgstr "Dateien / Uhr"
+
+msgid "force push"
+msgstr "erneut übertragen"
+
+msgid "on the watch"
+msgstr "auf der Uhr"
+
+msgid "read watch"
+msgstr "Uhr lesen"
+
+msgid "reading GARMIN/Workouts …"
+msgstr "lese GARMIN/Workouts …"
+
+msgid "remove from watch"
+msgstr "von der Uhr löschen"
+
+msgid "removed {n} workout from the watch (backup kept)"
+msgid_plural "removed {n} workouts from the watch (backup kept)"
+msgstr[0] "{n} Training von der Uhr gelöscht (Sicherung behalten)"
+msgstr[1] "{n} Trainings von der Uhr gelöscht (Sicherung behalten)"
+
+msgid "watch"
+msgstr "Uhr"
+
+msgid "{n} of ~{limit} workouts on the watch"
+msgstr "{n} von ~{limit} Trainings auf der Uhr"
+
+msgid "{n} of ~{limit} workouts on the watch · {root}"
+msgstr "{n} von ~{limit} Trainings auf der Uhr · {root}"

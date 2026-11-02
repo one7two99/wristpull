@@ -118,7 +118,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_wpush = workout_sub.add_parser("push", help="build FIT files and copy them to the connected watch")
     p_wpush.add_argument("files", nargs="*", type=Path, help="workout files (default: --date or --upcoming)")
     p_wpush.add_argument("--date", help="push the workouts planned for this local date")
-    p_wpush.add_argument("--upcoming", action="store_true", help="push every valid workout from today on that was not pushed yet")
+    p_wpush.add_argument("--upcoming", action="store_true", help="push every valid workout from today on that is not on the watch yet")
+    p_wpush.add_argument("--force", action="store_true", help="also push workouts already pushed (with --upcoming), and write files again even if an identical one is on the watch")
     p_wpush.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
     p_wpush.add_argument("--folder", choices=["NewFiles", "Workouts"], help="target folder below GARMIN/ (default: [workout] folder)")
     p_wpush.add_argument("--schedule", action="store_true", help="also write a schedule file with the planned dates")
@@ -128,6 +129,12 @@ def build_parser() -> argparse.ArgumentParser:
     eject_group.add_argument("--no-eject", dest="eject", action="store_false", help="leave the mount in place (default: [workout] eject)")
     p_wverify = workout_sub.add_parser("verify", help="read GARMIN/Workouts on the watch and mark the pushed workouts it has taken over")
     p_wverify.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_wwatch = workout_sub.add_parser("watch", help="list the workouts stored on the watch (GARMIN/Workouts)")
+    p_wwatch.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_wremove = workout_sub.add_parser("remove", help="remove workouts from the watch (backed up to <data_dir>/workouts/watch-backup/ first)")
+    p_wremove.add_argument("names", nargs="+", help="workout name or file name as shown by 'workout watch'")
+    p_wremove.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_wremove.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     p_wplan = workout_sub.add_parser("from-plan", help="draft one workout per session of the coach's last weekly plan")
     p_wplan.add_argument("--week", help="Monday of the week to plan (default: the week the plan was written for)")
 
@@ -491,6 +498,37 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
                 print(f"  - {reason}")
             print(f"week of {result.week_start}: {len(result.created)} drafts written, {len(result.skipped)} days skipped")
             return 0
+        if args.workout_cmd in ("watch", "remove"):
+            from .workouts.watch import WORKOUT_LIMIT, read_watch, remove_from_watch
+
+            listing = read_watch(conn, config, path=args.path)
+            if listing.root is None:
+                print("No Garmin device found. Connect the watch (MTP) or pass --path <GARMIN folder>.", file=sys.stderr)
+                if listing.mount_message:
+                    print(listing.mount_message, file=sys.stderr)
+                return 1
+            if args.workout_cmd == "remove":
+                keys = list(args.names)
+                if not args.yes:
+                    wanted = {k.lower() for k in keys}
+                    hits = [i for i in listing.items if {i.path.name.lower(), i.path.stem.lower(), i.name.lower()} & wanted]
+                    keys = [i.path.name for i in hits if input(f'Remove "{i.name}" ({i.path.name}) from the watch? [y/N] ').strip().lower() in ("y", "yes", "j", "ja")]
+                    unknown = wanted - {n for i in hits for n in (i.path.name.lower(), i.path.stem.lower(), i.name.lower())}
+                    keys += sorted(unknown)  # reported as not found below
+                result = remove_from_watch(conn, config, keys, path=listing.root, log=log)
+                print(f"removed {len(result.removed)} workouts from the watch; backups in {result.backups[0].parent if result.backups else 'n/a'}")
+                for key, error in result.errors:
+                    print(f"  ✗ {key}: {error}", file=sys.stderr)
+                if result.listing is not None:
+                    print(f"{len(result.listing.items)} of ~{WORKOUT_LIMIT} workouts left on the watch")
+                return 0 if not result.errors else 2
+            for item in listing.items:
+                created = item.time_created_utc[:16].replace("T", " ") if item.time_created_utc else "–"
+                print(f"{item.name[:32]:<32}  {item.sport:<9} {item.steps:>2} steps  {created:<16}  {item.origin:<9}  {item.path.name}" + (f"  ✗ {item.error}" if item.error else ""))
+            print(f"{len(listing.items)} of ~{WORKOUT_LIMIT} workouts on the watch ({listing.root})")
+            if listing.near_limit:
+                print("warning: the fenix 6 stores 20-25 workouts; above that it drops new files silently. Remove old ones first (wristpull workout remove NAME).", file=sys.stderr)
+            return 0
         if args.workout_cmd == "verify":
             from .workouts.push import verify
 
@@ -513,15 +551,16 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
             day = parse_date(args.date)
             selected = list_workouts(config, start=day, end=day)
         elif args.upcoming:
-            today = date.today()
-            selected = [w for w in list_workouts(config, start=today) if w.valid and (push_status(conn, w.path or "") or w.status) not in ("pushed", "verified")]
+            from .workouts.store import upcoming
+
+            selected = upcoming(config, conn, date.today(), force=args.force)
         else:
             print("pass workout files, --date or --upcoming", file=sys.stderr)
             return 2
         if not selected:
             print("nothing to push", file=sys.stderr)
             return 2
-        result = push(conn, config, selected, path=args.path, folder=args.folder, schedule=True if args.schedule else None, dry_run=args.dry_run, eject=args.eject, log=log)
+        result = push(conn, config, selected, path=args.path, folder=args.folder, schedule=True if args.schedule else None, dry_run=args.dry_run, eject=args.eject, force=args.force, log=log)
         if result.root is None and not result.invalid:
             print("No Garmin device found. Connect the watch (MTP) or pass --path <GARMIN folder>.", file=sys.stderr)
             if result.mount_message:
