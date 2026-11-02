@@ -207,6 +207,16 @@ def test_watch_view_without_device(config: Config, tmp_path: Path):
             await wait_jobs(app)
             await pilot.pause()
             status = str(app.screen.query_one("#workouts-status", Panel).content)
-            assert "No Garmin device found" in status and "no mounter in tests" in status
+            assert "No Garmin device found" in status and "no mounter in tests" in status and "m mounts it again" in status
+            # m runs the remount job; a successful mount reads the watch right away
+            calls: list[list[Path]] = []
+            app.deps.remounter = lambda roots: (calls.append(roots), (True, "unmounted mtp://x/; mounted mtp://x/"))[1]
+            await pilot.press("m")
+            await wait_jobs(app)
+            await pilot.pause()
+            await wait_jobs(app)
+            await pilot.pause()
+            assert calls == [[]] and app.runner.last.spec.key == "workout_watch"
+            assert any("watch mounted" in line for line in app.runner.lines)
 
     run(scenario())

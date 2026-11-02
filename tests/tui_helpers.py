@@ -24,6 +24,7 @@ def make_deps(tmp_path: Path, garmin_tree: Path | None = None, *, phone_root: Pa
         roots=(lambda: [garmin_tree]) if garmin_tree else (lambda: []),
         mounter=lambda: (False, "no mounter in tests"),
         mtp_urls=lambda: [],
+        remounter=lambda roots: (False, "no remounter in tests"),
         sleep=lambda _s: None,
         today=lambda: TODAY,
         open_path=opened.append,

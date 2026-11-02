@@ -37,6 +37,12 @@ FINISHED = (WorkerState.SUCCESS, WorkerState.ERROR, WorkerState.CANCELLED)
 
 
 @dataclass
+class MountOutcome:
+    mounted: bool
+    message: str
+
+
+@dataclass
 class JobSpec:
     key: str
     title: str
@@ -207,6 +213,13 @@ def describe_result(record: JobRecord) -> list[str]:
         lines.append("✓ " + _("{on_watch} workouts on the watch, {verified} newly confirmed, {missing} pushed but not found").format(on_watch=len(result.on_watch), verified=len(result.verified), missing=len(result.missing)))
         if result.near_limit:
             lines.append("  ! " + _("The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."))
+    elif isinstance(result, MountOutcome):
+        if result.mounted:
+            lines.append("✓ " + _("watch mounted"))
+            lines += ["  " + line for line in result.message.split("; ")]
+        else:
+            lines.append("✗ " + _("could not mount the watch"))
+            lines += ["  " + line for line in result.message.splitlines()]
     elif isinstance(result, WatchListing):
         if result.root is None:
             lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
@@ -363,3 +376,16 @@ def watch_remove_job(config: Config, deps: TuiDeps, file_names: list[str]) -> Jo
         return remove_from_watch(conn, config, file_names, roots=deps.roots, mounter=deps.mounter, log=log)
 
     return JobSpec("workout_remove", _("Remove workouts from the watch"), cli, run)
+
+
+def mount_job(config: Config, deps: TuiDeps) -> JobSpec:
+    """Unmount a stale mount of the watch and mount it again (releasing KDE's kiod6 if it holds the device)."""
+    from ..garmin_usb import candidate_roots
+
+    def run(conn: sqlite3.Connection, log: Log) -> MountOutcome:
+        roots = deps.roots() if deps.roots else candidate_roots(extra=config.garmin_mount_hints)
+        log(_("mounting the watch …"))
+        mounted, message = deps.remounter(roots)
+        return MountOutcome(mounted, message)
+
+    return JobSpec("mount", _("Mount the watch"), "wristpull mount --remount", run)

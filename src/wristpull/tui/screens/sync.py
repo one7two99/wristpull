@@ -12,7 +12,7 @@ from textual.widgets import Button, Checkbox, Input, Label
 
 from ..format import fmt_float
 from ..i18n import _
-from ..jobs import JobRecord, garmin_import_job, phone_pull_job
+from ..jobs import JobRecord, garmin_import_job, mount_job, phone_pull_job
 from ..widgets import JobLog, Panel
 from .base import WristpullScreen
 
@@ -22,6 +22,7 @@ class SyncScreen(WristpullScreen):
     BINDINGS = [
         Binding("i", "import_garmin", "Import", show=False),
         Binding("p", "pull_phone", "Pull", show=False),
+        Binding("m", "mount", "Mount watch", show=False),
         Binding("x", "app.cancel_job", "Stop job", show=False),
         Binding("l", "clear_log", "Clear log", show=False),
         Binding("c", "copy_cli", "Copy CLI", show=False),
@@ -32,7 +33,7 @@ class SyncScreen(WristpullScreen):
         return _("Devices & Sync")
 
     def keys(self) -> list[tuple[str, str]]:
-        return [("i", _("import")), ("p", _("pull")), ("x", _("stop job")), ("l", _("clear log")), ("c", _("copy CLI")), ("Esc", _("back"))]
+        return [("i", _("import")), ("p", _("pull")), ("m", _("mount")), ("x", _("stop job")), ("l", _("clear log")), ("c", _("copy CLI")), ("Esc", _("back"))]
 
     def body(self) -> ComposeResult:
         config = self.app.config
@@ -99,6 +100,10 @@ class SyncScreen(WristpullScreen):
         except ValueError:
             wait = 60.0
         return phone_pull_job(self.app.config, self.app.deps, serial=serial, trigger=trigger, sync=sync, wait=wait, dry_run=dry, stop=self.app.runner.should_stop)
+
+    def action_mount(self) -> None:
+        self.app.start_job(mount_job(self.app.config, self.app.deps))
+        self.refresh_data()
 
     def action_import_garmin(self) -> None:
         self.app.start_job(self._garmin_spec())

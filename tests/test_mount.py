@@ -15,20 +15,29 @@ Volume(1): Pixel
 
 
 class FakeRunner:
-    def __init__(self, mount_rc: int = 0, mount_err: str = "", kiod: bool = False) -> None:
+    """gio/pgrep/kquitapp6 stand-in; ``mount_results`` lists the return codes of successive ``gio mount URL`` calls."""
+
+    def __init__(self, mount_rc: int = 0, mount_err: str = "", kiod: bool = False, mount_results: list[int] | None = None, quit_rc: int = 0) -> None:
         self.calls: list[list[str]] = []
         self.mount_rc = mount_rc
         self.mount_err = mount_err
         self.kiod = kiod
+        self.mount_results = list(mount_results or [])
+        self.quit_rc = quit_rc
 
     def __call__(self, argv: list[str]) -> tuple[int, str, str]:
         self.calls.append(argv)
         if argv[:3] == ["gio", "mount", "-li"]:
             return 0, GIO_LIST, ""
+        if argv[:3] == ["gio", "mount", "-u"]:
+            return 0, "", ""
         if argv[:2] == ["gio", "mount"]:
-            return self.mount_rc, "", self.mount_err
+            rc = self.mount_results.pop(0) if self.mount_results else self.mount_rc
+            return rc, "", "" if rc == 0 else self.mount_err
         if argv[:2] == ["pgrep", "-x"]:
             return (0 if self.kiod else 1), "", ""
+        if argv == ["kquitapp6", "kiod6"]:
+            return self.quit_rc, "", "" if self.quit_rc == 0 else "no such service"
         raise AssertionError(argv)
 
 
@@ -44,7 +53,7 @@ def test_try_mount_success_and_kde_hint():
     assert ok.calls[-1] == ["gio", "mount", "mtp://091e_4cdb_0000deadbeef/"]
 
     blocked = FakeRunner(mount_rc=2, mount_err="gio: mtp://091e_4cdb_0000deadbeef/: Unable to open MTP device “001,039”", kiod=True)
-    mounted, message = try_mount_garmin(blocked)
+    mounted, message = try_mount_garmin(blocked, release_kde=False)
     assert not mounted
     assert "kquitapp6 kiod6 && gio mount mtp://091e_4cdb_0000deadbeef/" in message
     assert KDE_HINT.splitlines()[0] in message
@@ -81,3 +90,37 @@ def test_locate_uses_mounter_only_without_path(config, tmp_path: Path, garmin_tr
 def test_import_reports_mount_message(conn, config, tmp_path: Path):
     stats = import_garmin(conn, config, roots=lambda: [tmp_path / "nowhere"], mounter=lambda: (False, "gio failed"))
     assert stats.root is None and stats.mount_message == "gio failed"
+
+
+BLOCKED = "gio: mtp://091e_4cdb_0000deadbeef/: Unable to open MTP device “001,126”"
+
+
+def test_try_mount_releases_kde_and_retries():
+    runner = FakeRunner(mount_err=BLOCKED, kiod=True, mount_results=[2, 0])
+    slept: list[float] = []
+    mounted, message = try_mount_garmin(runner, sleep=slept.append)
+    assert mounted and message == "released the device from KDE (kquitapp6 kiod6); mounted mtp://091e_4cdb_0000deadbeef/"
+    assert ["kquitapp6", "kiod6"] in runner.calls and slept == [1.5]
+    # still blocked after the release: the manual hint is shown
+    runner = FakeRunner(mount_err=BLOCKED, kiod=True, mount_results=[2, 2])
+    mounted, message = try_mount_garmin(runner, sleep=lambda _s: None)
+    assert not mounted and "kquitapp6 kiod6 && gio mount" in message
+    # kquitapp6 itself fails
+    runner = FakeRunner(mount_err=BLOCKED, kiod=True, mount_results=[2], quit_rc=1)
+    mounted, message = try_mount_garmin(runner, sleep=lambda _s: None)
+    assert not mounted and "kquitapp6 kiod6 failed: no such service" in message
+
+
+def test_remount_unmounts_stale_mount_first(tmp_path: Path):
+    from wristpull.garmin_usb import mount_status, remount_garmin
+
+    stale = tmp_path / "gvfs" / "mtp:host=091e_4cdb_0000deadbeef" / "Primary"
+    (stale / "GARMIN").mkdir(parents=True)
+    runner = FakeRunner()
+    mounted, message = remount_garmin([stale], runner, sleep=lambda _s: None)
+    assert mounted and runner.calls[0] == ["gio", "mount", "-u", "mtp://091e_4cdb_0000deadbeef/"]
+    assert message == "unmounted mtp://091e_4cdb_0000deadbeef/; mounted mtp://091e_4cdb_0000deadbeef/"
+    assert remount_garmin(None, FakeRunner(), sleep=lambda _s: None)[0]
+    assert mount_status([stale], FakeRunner()) == "mounted"
+    assert mount_status([tmp_path / "x"], FakeRunner()) == "attached"
+    assert mount_status([tmp_path / "x"], lambda argv: (1, "", "")) == "absent"

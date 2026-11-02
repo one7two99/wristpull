@@ -11,6 +11,7 @@ import getpass
 import os
 import re
 import subprocess
+import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -183,11 +184,20 @@ KDE_HINT = (
 )
 
 
-def try_mount_garmin(runner: Runner = run_command) -> tuple[bool, str]:
+def release_kde_mtp(runner: Runner = run_command) -> tuple[bool, str]:
+    """Quit KDE's kiod6 so gvfs can open the MTP device (KDE restarts it on demand)."""
+    code, out, err = runner(["kquitapp6", "kiod6"])
+    if code == 0:
+        return True, "released the device from KDE (kquitapp6 kiod6)"
+    return False, f"kquitapp6 kiod6 failed: {(err or out).strip() or code}"
+
+
+def try_mount_garmin(runner: Runner = run_command, *, release_kde: bool = True, sleep: Callable[[float], None] = time.sleep) -> tuple[bool, str]:
     """Attempt ``gio mount`` for every unmounted Garmin MTP device.
 
-    Returns (mounted_any, message). The message explains a failure, including the
-    KDE workaround when kiod6 blocks the device.
+    When KDE's kiod6 holds the device ("Unable to open MTP device"), it is released with
+    ``kquitapp6 kiod6`` and the mount is tried once more (``release_kde``). Returns
+    (mounted_any, message); a failure message carries the manual workaround.
     """
     urls = gio_garmin_mtp_urls(runner)
     if not urls:
@@ -199,9 +209,42 @@ def try_mount_garmin(runner: Runner = run_command) -> tuple[bool, str]:
             return True, f"mounted {url}"
         text = (err or out).strip()
         if "Unable to open MTP device" in text and kde_holds_mtp(runner):
+            if release_kde:
+                released, note = release_kde_mtp(runner)
+                if released:
+                    sleep(1.5)
+                    code, out, err = runner(["gio", "mount", url])
+                    if code == 0:
+                        return True, f"{note}; mounted {url}"
+                    text = (err or out).strip()
+                else:
+                    text += f"\n{note}"
             text += "\n" + KDE_HINT.format(url=url)
         messages.append(f"gio mount {url} failed: {text}")
     return False, "\n".join(messages)
+
+
+def mount_status(roots: list[Path], runner: Runner = run_command) -> str:
+    """``mounted`` (a GARMIN folder is reachable), ``attached`` (gio sees an unmounted Garmin) or ``absent``."""
+    if find_garmin_root(roots) is not None:
+        return "mounted"
+    return "attached" if gio_garmin_mtp_urls(runner) else "absent"
+
+
+def remount_garmin(roots: list[Path] | None = None, runner: Runner = run_command, *, sleep: Callable[[float], None] = time.sleep) -> tuple[bool, str]:
+    """Unmount any gvfs mount of the watch, then mount it again (releasing KDE's hold if needed).
+
+    Fixes a stale mount after the cable was pulled and plugged in again.
+    """
+    notes: list[str] = []
+    for root in roots or []:
+        hit = garmin_dir(root)
+        url = mtp_url_of(hit) if hit else None
+        if url:
+            code, out, err = runner(["gio", "mount", "-u", url])
+            notes.append(f"unmounted {url}" if code == 0 else f"gio mount -u {url}: {(err or out).strip()}")
+    mounted, message = try_mount_garmin(runner, sleep=sleep)
+    return mounted, "; ".join(notes + [message])
 
 
 GVFS_MTP = re.compile(r"/gvfs/mtp:host=([^/]+)/")

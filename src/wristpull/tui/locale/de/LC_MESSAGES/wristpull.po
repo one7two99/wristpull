@@ -1098,3 +1098,22 @@ msgstr "{n} von ~{limit} Trainings auf der Uhr"
 
 msgid "{n} of ~{limit} workouts on the watch · {root}"
 msgstr "{n} von ~{limit} Trainings auf der Uhr · {root}"
+
+# --- mounting ------------------------------------------------------------------
+msgid "mount"
+msgstr "einbinden"
+
+msgid "Mount the watch"
+msgstr "Uhr einbinden"
+
+msgid "mounting the watch …"
+msgstr "binde die Uhr ein …"
+
+msgid "watch mounted"
+msgstr "Uhr eingebunden"
+
+msgid "could not mount the watch"
+msgstr "Uhr konnte nicht eingebunden werden"
+
+msgid "m mounts it again."
+msgstr "m bindet sie neu ein."

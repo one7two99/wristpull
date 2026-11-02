@@ -45,6 +45,7 @@ form.
 | `status` | what is stored, which device is connected |
 | `inspect FILE` | message types and fields of a FIT file |
 | `config` | show or create the configuration file |
+| `mount [--remount]` | mount the USB-connected watch, releasing KDE's hold on the MTP device if needed |
 | `export`, `report` | Markdown + CSV for Claude, weekly/monthly reports |
 | `coach` | training coach: daily check, weekly review, questions, ratings via an LLM |
 | `workout` | structured workouts as Markdown, pushed to the watch as FIT files |
@@ -464,7 +465,11 @@ If the watch is attached but not mounted, `wristpull import garmin` runs `gio mo
 Garmin MTP device that `gio mount -li` reports.
 
 On **KDE** the `kiod6` service grabs the MTP device as soon as the watch is plugged in, and gvfs
-then fails with "Unable to open MTP device". wristpull detects this and prints the workaround:
+then fails with "Unable to open MTP device". wristpull detects this, quits `kiod6` (KDE starts it
+again on demand) and mounts once more. `wristpull mount` does only that step; `wristpull mount
+--remount` first unmounts a stale mount (after the cable was pulled and plugged in again). In the
+TUI the key `m` on screen 2 and screen 0 runs the same remount. If it still fails, the manual
+workaround is printed:
 
 ```sh
 kquitapp6 kiod6 && gio mount mtp://091e_4cdb_<serial>/

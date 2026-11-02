@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ..adb import Adb
-from ..garmin_usb import gio_garmin_mtp_urls, try_mount_garmin
+from ..garmin_usb import gio_garmin_mtp_urls, remount_garmin, try_mount_garmin
 
 
 def open_with_desktop(path: Path) -> None:
@@ -32,6 +32,7 @@ class TuiDeps:
     roots: Callable[[], list[Path]] | None = None  # None: the system mount points
     mounter: Callable[[], tuple[bool, str]] = try_mount_garmin
     mtp_urls: Callable[[], list[str]] = gio_garmin_mtp_urls  # attached-but-unmounted Garmin devices
+    remounter: Callable[[list[Path]], tuple[bool, str]] = remount_garmin  # unmount + mount again (key m)
     sleep: Callable[[float], None] = time.sleep
     today: Callable[[], date] = date.today
     open_path: Callable[[Path], None] = open_with_desktop

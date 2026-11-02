@@ -39,6 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_inspect.add_argument("--messages", help="comma-separated message names/numbers to show in full")
     p_inspect.add_argument("--limit", type=int, default=5, help="rows per message type when --messages is used")
 
+    p_mount = sub.add_parser("mount", help="mount the USB-connected Garmin watch (releases KDE's hold on the MTP device if needed)")
+    p_mount.add_argument("--remount", action="store_true", help="unmount a stale mount first, then mount again")
+
     p_config = sub.add_parser("config", help="show or create the configuration file")
     p_config.add_argument("--init", action="store_true", help="write a default config file if none exists")
 
@@ -264,6 +267,21 @@ def cmd_inspect(args: argparse.Namespace, config: Config) -> int:
                 summary[msg.name]["_shown"] = count + 1
                 print(f"  [{wanted_key}] " + ", ".join(f"{k}={v}" for k, v in msg.named.items() if v is not None))
     return 0
+
+
+def cmd_mount(args: argparse.Namespace, config: Config) -> int:
+    from .garmin_usb import candidate_roots, find_garmin_root, remount_garmin, try_mount_garmin
+
+    roots = candidate_roots(extra=config.garmin_mount_hints)
+    if not args.remount and (root := find_garmin_root(roots)) is not None:
+        print(f"already mounted: {root}")
+        return 0
+    mounted, message = remount_garmin(roots) if args.remount else try_mount_garmin()
+    print(message, file=sys.stdout if mounted else sys.stderr)
+    if mounted:
+        root = find_garmin_root(candidate_roots(extra=config.garmin_mount_hints))
+        print(f"GARMIN folder: {root}" if root else "mounted, but no GARMIN folder found yet; try again in a few seconds")
+    return 0 if mounted else 1
 
 
 def cmd_config(args: argparse.Namespace, config: Config) -> int:
@@ -624,6 +642,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_inspect(args, config)
     if args.command == "config":
         return cmd_config(args, config)
+    if args.command == "mount":
+        return cmd_mount(args, config)
     if args.command == "export":
         return cmd_export(args, config)
     if args.command == "tui":

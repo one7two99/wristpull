@@ -17,7 +17,7 @@ from ...workouts.store import list_workouts, load, push_status, save, upcoming, 
 from ...workouts.watch import WORKOUT_LIMIT, RemoveResult, WatchListing, WatchWorkout, backup_dir
 from ..format import fmt_date
 from ..i18n import _
-from ..jobs import JobRecord, watch_list_job, watch_remove_job, workout_push_job, workout_verify_job
+from ..jobs import JobRecord, MountOutcome, mount_job, watch_list_job, watch_remove_job, workout_push_job, workout_verify_job
 from ..widgets import Panel
 from .base import WristpullScreen
 
@@ -37,6 +37,7 @@ class WorkoutsScreen(WristpullScreen):
         Binding("f", "push_upcoming(True)", "Force push upcoming", show=False),
         Binding("w", "toggle_view", "Files / watch", show=False),
         Binding("r", "read_watch", "Read watch", show=False),
+        Binding("m", "mount", "Mount watch", show=False),
         Binding("d", "dry_run", "Dry run", show=False),
         Binding("v", "verify", "Verify", show=False),
         Binding("delete", "delete", "Delete", show=False),
@@ -64,8 +65,8 @@ class WorkoutsScreen(WristpullScreen):
 
     def keys(self) -> list[tuple[str, str]]:
         if self.view == "watch":
-            return [("w", _("files")), ("r", _("read watch")), ("Del", _("remove from watch")), ("x", _("stop")), ("Esc", _("back"))]
-        return [("w", _("watch")), ("n", _("new")), ("t", _("template")), ("e", _("edit")), ("c", _("drafts from plan")), ("p", _("push")), ("P", _("push upcoming")), ("f", _("force push")), ("d", _("dry run")), ("v", _("verify")), ("Del", _("delete")), ("←→", _("shift period")), ("Esc", _("back"))]
+            return [("w", _("files")), ("r", _("read watch")), ("m", _("mount")), ("Del", _("remove from watch")), ("x", _("stop")), ("Esc", _("back"))]
+        return [("w", _("watch")), ("m", _("mount")), ("n", _("new")), ("t", _("template")), ("e", _("edit")), ("c", _("drafts from plan")), ("p", _("push")), ("P", _("push upcoming")), ("f", _("force push")), ("d", _("dry run")), ("v", _("verify")), ("Del", _("delete")), ("←→", _("shift period")), ("Esc", _("back"))]
 
     def body(self) -> ComposeResult:
         with Vertical(id="workouts"):
@@ -181,7 +182,7 @@ class WorkoutsScreen(WristpullScreen):
         if self.watch is None:
             status.append(_("Reading the watch … (r reads it again)"))
         elif self.watch.root is None:
-            status.append(_("No Garmin device found. Connect the watch (MTP) or set a path."))
+            status.append(_("No Garmin device found. Connect the watch (MTP) or set a path.") + "  " + _("m mounts it again."))
             if self.watch.mount_message:
                 status += self.watch.mount_message.splitlines()
         else:
@@ -355,7 +356,17 @@ class WorkoutsScreen(WristpullScreen):
         self.app.notify(_("Deleted {path}").format(path=Path(workout.path).name))
         self.refresh_data()
 
+    def action_mount(self) -> None:
+        self.app.start_job(mount_job(self.app.config, self.app.deps))
+        self.refresh_data()
+
     def job_finished(self, record: JobRecord) -> None:
+        if isinstance(record.result, MountOutcome):
+            self.app.notify(record.lines[0] if record.lines else "", severity="information" if record.result.mounted else "error")
+            if record.result.mounted and self.view == "watch":
+                self.app.start_job(watch_list_job(self.app.config, self.app.deps))
+            self.refresh_data()
+            return
         if isinstance(record.result, WatchListing):
             self.watch = record.result
         elif isinstance(record.result, RemoveResult) and record.result.listing is not None:
