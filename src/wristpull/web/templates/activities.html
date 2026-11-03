@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period with context %}
+{% block title %}wristpull · {{ _("Activities") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Activities") }}</h1>
+<p class="muted">{{ ngettext("{n} activity", "{n} activities", d["items"]|length).format(n=d["items"]|length) }} · {{ d.total_s|dur }} h · {{ d.total_m|km }}</p>
+</header>
+{{ period("/activities", d.weeks, choices, ("&sport=" ~ d.sport|urlencode) if d.sport else "") }}
+{% if d.sports %}
+<nav class="chips" aria-label="{{ _('Sport') }}">
+<a href="/activities?weeks={{ d.weeks }}" {% if not d.sport %}aria-current="page"{% endif %}>{{ _("All") }}</a>
+{% for s in d.sports %}<a href="/activities?weeks={{ d.weeks }}&amp;sport={{ s|urlencode }}" {% if s == d.sport %}aria-current="page"{% endif %}>{{ s|replace("_", " ") }}</a>{% endfor %}
+</nav>
+{% endif %}
+<ul class="list">
+{% for a in d["items"] %}
+<li><a class="row" href="/activities/{{ a.id }}">
+<span class="row-main"><span class="row-title">{{ a.title }}</span><span class="muted small">{{ a.date }} {{ a.clock }} · {{ _(a.device) }}</span></span>
+<span class="row-side num"><span>{% if a.distance_m %}{{ a.distance_m|km }} · {% endif %}{{ a.duration_s|dur }}</span>{% if a.avg_hr %}<span class="muted">Ø {{ a.avg_hr }} bpm</span>{% endif %}</span>
+</a></li>
+{% else %}
+<li class="card muted">{{ _("No activities in this period.") }}</li>
+{% endfor %}
+</ul>
+{% endblock %}

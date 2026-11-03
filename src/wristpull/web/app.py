@@ -76,6 +76,36 @@ def format_delta(value: float | None, kind: str, lang: str) -> str:
     return sign + _number(abs(rounded), 0, lang)
 
 
+def format_duration(seconds: float | None) -> str:
+    """``1:02:05`` or ``42:10``."""
+    if seconds is None:
+        return "–"
+    total = int(round(seconds))
+    h, rest = divmod(total, 3600)
+    m, s = divmod(rest, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def format_hm(seconds: float | None) -> str:
+    """``7:44`` (hours and minutes, for sleep)."""
+    if seconds is None:
+        return "–"
+    minutes = int(round(seconds / 60))
+    return f"{minutes // 60}:{minutes % 60:02d}"
+
+
+def format_km(metres: float | None, lang: str) -> str:
+    return "–" if not metres else _number(metres / 1000, 2, lang) + " km"
+
+
+def format_pace(seconds: float | None, metres: float | None) -> str:
+    """min/km, only meaningful for runs and walks."""
+    if not seconds or not metres or metres < 100:
+        return "–"
+    per_km = seconds / (metres / 1000)
+    return f"{int(per_km // 60)}:{int(round(per_km % 60)):02d} /km"
+
+
 def local_time(iso_utc: str | None, tz: ZoneInfo) -> str:
     if not iso_utc:
         return "–"
@@ -93,7 +123,15 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
     def num(ctx: Any, value: float | None, digits: int = 0) -> str:
         return _number(value, digits, ctx.get("lang", "en"))
 
+    @pass_context
+    def km(ctx: Any, metres: float | None) -> str:
+        return format_km(metres, ctx.get("lang", "en"))
+
     templates.env.filters["num"] = num
+    templates.env.filters["km"] = km
+    templates.env.filters["dur"] = format_duration
+    templates.env.filters["hm"] = format_hm
+    templates.env.globals["pace"] = format_pace
 
     def today() -> date:
         return deps.today() if deps.today else datetime.now(tz).date()
@@ -185,15 +223,62 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
         except ValueError:
             weeks = 4
         lang = pick_language(config.ui_language, request.headers.get("accept-language"))
-        gt = translations(lang)
         with closing(connect(config.db_path)) as conn:
             data = pages.trends_data(conn, today(), weeks)
-        for chart in data["charts"]:
+        charts_json = chart_json(data["charts"], lang)  # "<" escaped: no "</script>" inside the data block
+        return render(request, "trends.html", session, {"page": "trends", "d": data, "charts_json": charts_json, "choices": pages.TREND_WEEKS})
+
+    def weeks_of(request: Request) -> int:
+        try:
+            return int(request.query_params.get("weeks", "4"))
+        except ValueError:
+            return 4
+
+    def chart_json(charts: list[dict[str, Any]], lang: str) -> str:
+        gt = translations(lang)
+        for chart in charts:
             chart["title"] = gt.gettext(chart["title"])
             for series in chart["series"]:
                 series["name"] = gt.gettext(series["name"])
-        charts_json = json.dumps(data["charts"], separators=(",", ":")).replace("<", "\\u003c")  # no "</script>" inside the data block
-        return render(request, "trends.html", session, {"page": "trends", "d": data, "charts_json": charts_json, "choices": pages.TREND_WEEKS})
+        return json.dumps(charts, separators=(",", ":")).replace("<", "\\u003c")
+
+    def activities_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        sport = request.query_params.get("sport") or None
+        with closing(connect(config.db_path)) as conn:
+            data = pages.activities_list(conn, today(), weeks_of(request), sport=sport, tz=tz)
+        return render(request, "activities.html", session, {"page": "activities", "d": data, "choices": pages.TREND_WEEKS})
+
+    def activity_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        with closing(connect(config.db_path)) as conn:
+            data = pages.activity_page(conn, int(request.path_params["activity_id"]), tz)
+        if data is None:
+            return render(request, "missing.html", session, {"page": "activities"}, status_code=404)
+        return render(request, "activity.html", session, {"page": "activities", "d": data, "charts_json": chart_json(data["charts"], lang)})
+
+    def sleep_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        with closing(connect(config.db_path)) as conn:
+            data = pages.sleep_list(conn, today(), weeks_of(request))
+        return render(request, "sleep.html", session, {"page": "sleep", "d": data, "choices": pages.TREND_WEEKS})
+
+    def night_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        with closing(connect(config.db_path)) as conn:
+            data = pages.night_page(conn, int(request.path_params["sleep_id"]), tz)
+        if data is None:
+            return render(request, "missing.html", session, {"page": "sleep"}, status_code=404)
+        return render(request, "night.html", session, {"page": "sleep", "d": data})
 
     def healthz(request: Request) -> Response:
         return JSONResponse({"ok": True})
@@ -212,6 +297,10 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
         routes=[
             Route("/", today_page),
             Route("/trends", trends_page),
+            Route("/activities", activities_page),
+            Route("/activities/{activity_id:int}", activity_page),
+            Route("/sleep", sleep_page),
+            Route("/sleep/{sleep_id:int}", night_page),
             Route("/login", login_page, methods=["GET"]),
             Route("/login", login_submit, methods=["POST"]),
             Route("/logout", logout, methods=["POST"]),

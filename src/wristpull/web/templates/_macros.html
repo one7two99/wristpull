@@ -1,0 +1,5 @@
+{% macro period(base, current, choices, extra="") %}
+<nav class="segmented" aria-label="{{ _('Period') }}">
+{% for w in choices %}<a href="{{ base }}?weeks={{ w }}{{ extra }}" {% if w == current %}aria-current="page"{% endif %}>{% if w == 52 %}{{ _("1 year") }}{% else %}{{ _("{n} weeks").format(n=w) }}{% endif %}</a>{% endfor %}
+</nav>
+{% endmacro %}

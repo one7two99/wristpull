@@ -9,11 +9,15 @@ from __future__ import annotations
 import sqlite3
 from datetime import date, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from ..aggregate import daily_frame, weekly_frame
 from ..coach.metrics import acute_chronic, deltas, recovery_flags, value
 from ..coach.store import recent_runs
+from ..detail import activity_detail, downsample, local_clock, sleep_night, sports
+from ..merge import STRAP_SOURCE, merged_activities, merged_sleep
 from ..status import last_imports
+from ..timeutil import parse_iso_utc
 from ..tui.queries import day_rows
 
 # (metric, label msgid, unit, display kind, which direction is good)
@@ -144,3 +148,133 @@ def trends_data(conn: sqlite3.Connection, today: date, weeks: int) -> dict[str, 
          "series": [{"name": "ACWR", "data": acwr_series(rows, days)}], "band": [0.8, 1.3]},
     ]
     return {"weeks": weeks, "start": start.isoformat(), "end": today.isoformat(), "days_with_data": sum(1 for d in days if d in by_day), "charts": charts}
+
+
+# ---- activities and sleep (wave D2) ---------------------------------------------------------
+
+DEVICE_LABELS = {"garmin": "Watch", "strap": "Strap"}
+STAGE_ORDER = ("deep", "light", "rem", "awake", "unmeasurable")
+CURVE_POINTS = 400
+
+
+def _period(today: date, weeks: int) -> tuple[date, int]:
+    weeks = weeks if weeks in TREND_WEEKS else TREND_WEEKS[0]
+    return today - timedelta(days=7 * weeks - 1), weeks
+
+
+def activity_title(row: dict[str, Any]) -> str:
+    name = (row.get("profile_name") or "").strip()
+    sport = (row.get("sport") or "activity").replace("_", " ")
+    return name if name and name.lower() != sport.lower() else sport.capitalize()
+
+
+def activities_list(conn: sqlite3.Connection, today: date, weeks: int, *, sport: str | None = None, tz: ZoneInfo) -> dict[str, Any]:
+    """Merged activities (Garmin USB/phone duplicates removed, strap separate), newest first."""
+    start, weeks = _period(today, weeks)
+    rows = list(reversed(merged_activities(conn, start.isoformat(), today.isoformat())))
+    if sport:
+        rows = [r for r in rows if (r.get("sport") or "") == sport]
+    items = [
+        {
+            "id": r["id"],
+            "date": r["local_date"],
+            "clock": local_clock(r["start_utc"], tz),
+            "title": activity_title(r),
+            "sport": r.get("sport"),
+            "device": DEVICE_LABELS.get(r.get("device", ""), r.get("device") or ""),
+            "duration_s": r.get("timer_s") or r.get("elapsed_s"),
+            "distance_m": r.get("distance_m") or None,
+            "avg_hr": r.get("avg_hr"),
+            "training_load": r.get("training_load"),
+        }
+        for r in rows
+    ]
+    return {
+        "weeks": weeks,
+        "start": start.isoformat(),
+        "sport": sport,
+        "sports": sports(conn),
+        "items": items,
+        "total_s": sum(i["duration_s"] or 0 for i in items),
+        "total_m": sum(i["distance_m"] or 0 for i in items),
+    }
+
+
+def activity_page(conn: sqlite3.Connection, activity_id: int, tz: ZoneInfo) -> dict[str, Any] | None:
+    """One activity: key numbers, HR and altitude curves over elapsed minutes, zones, laps."""
+    detail = activity_detail(conn, activity_id)
+    if detail is None:
+        return None
+    records = detail.pop("records")
+    t0 = parse_iso_utc(records[0]["ts_utc"]) if records else None
+    minutes = [round((parse_iso_utc(r["ts_utc"]) - t0).total_seconds() / 60, 1) for r in records] if t0 else []
+    hr = downsample([r["hr"] for r in records], CURVE_POINTS)
+    alt = downsample([r["altitude_m"] for r in records], CURVE_POINTS)
+    labels = [str(round(m)) if m is not None else "" for m in downsample(minutes, CURVE_POINTS)]
+    charts = []
+    if any(v is not None for v in hr):
+        charts.append({"id": "hr", "title": "Heart rate", "unit": "bpm", "kind": "line", "labels": labels,
+                       "series": [{"name": "Heart rate", "data": [_r(v, 0) for v in hr]}]})
+    if any(v is not None for v in alt):
+        charts.append({"id": "alt", "title": "Altitude", "unit": "m", "kind": "line", "labels": labels,
+                       "series": [{"name": "Altitude", "data": [_r(v, 0) for v in alt]}]})
+    zones_total = sum(detail["hr_zones_s"]) or 0
+    zones = [{"label": f"Z{i}", "seconds": s, "pct": round(100 * s / zones_total) if zones_total else 0}
+             for i, s in enumerate(detail["hr_zones_s"], 1)] if zones_total else []
+    return {
+        "a": detail,
+        "title": activity_title(detail),
+        "clock": local_clock(detail["start_utc"], tz),
+        "duration_s": detail.get("timer_s") or detail.get("elapsed_s"),
+        "charts": charts,
+        "zones": zones,
+        "laps": detail["laps"],
+    }
+
+
+def sleep_list(conn: sqlite3.Connection, today: date, weeks: int) -> dict[str, Any]:
+    """One row per wake-up date with the watch's and the strap's night side by side, newest first."""
+    start, weeks = _period(today, weeks)
+    by_day: dict[str, dict[str, Any]] = {}
+    for s in merged_sleep(conn, start.isoformat(), today.isoformat()):
+        day = by_day.setdefault(s["local_date"], {"date": s["local_date"], "watch": None, "strap": None})
+        key = "watch" if s["device"] == "garmin" else "strap"
+        if day[key] is None or (s.get("duration_s") or 0) > (day[key].get("duration_s") or 0):
+            day[key] = s  # the main night if a device logged a nap too
+    rows = sorted(by_day.values(), key=lambda d: d["date"], reverse=True)
+    return {"weeks": weeks, "start": start.isoformat(), "rows": rows}
+
+
+def stage_band(stages: list[dict[str, Any]], start_utc: str, end_utc: str) -> list[dict[str, Any]]:
+    """Stage segments as percentages of the night for a horizontal band."""
+    t0, t1 = parse_iso_utc(start_utc), parse_iso_utc(end_utc)
+    span = (t1 - t0).total_seconds() or 1
+    out = []
+    for st in stages:
+        a = max(0.0, (parse_iso_utc(st["start_utc"]) - t0).total_seconds())
+        b = min(span, (parse_iso_utc(st["end_utc"]) - t0).total_seconds())
+        if b > a:
+            out.append({"stage": st["stage"], "left": round(100 * a / span, 2), "width": round(100 * (b - a) / span, 2)})
+    return out
+
+
+def night_page(conn: sqlite3.Connection, sleep_id: int, tz: ZoneInfo) -> dict[str, Any] | None:
+    """One night: stage band and totals, HRV/SpO2/respiration/HR in the window, the other device's night."""
+    night = sleep_night(conn, sleep_id)
+    if night is None:
+        return None
+    same_day = merged_sleep(conn, night["local_date"], night["local_date"])
+    this = next((s for s in same_day if s["id"] == sleep_id), None)
+    device = this["device"] if this else ("strap" if night["source"] == STRAP_SOURCE else "garmin")
+    other = max((s for s in same_day if s["device"] != device), key=lambda s: s.get("duration_s") or 0, default=None)
+    stage_totals = [{"stage": k, "seconds": night.get(f"{k}_s")} for k in STAGE_ORDER if night.get(f"{k}_s")]
+    return {
+        "n": night,
+        "device": DEVICE_LABELS.get(device, device),
+        "bed": local_clock(night["start_utc"], tz),
+        "wake": local_clock(night["end_utc"], tz),
+        "band": stage_band(night["stages"], night["start_utc"], night["end_utc"]),
+        "stage_totals": stage_totals,
+        "other": other,
+        "other_device": DEVICE_LABELS.get(other["device"], "") if other else None,
+    }

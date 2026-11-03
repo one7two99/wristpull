@@ -524,7 +524,10 @@ A small web app for the phone and the browser: **Today** (resting HR, HRV, sleep
 and body battery against your 28-day mean, warning signs, training load, the latest coach check,
 when each source last synced) and **Trends** (4 weeks, 12 weeks or a year: resting HR and HRV of
 watch and strap, sleep, stress, training hours per week, acute:chronic load with the 0.8–1.3
-band). Missing days stay gaps. It shows the same numbers as CLI and TUI because it calls the same
+band), **Activities** (period and sport filter, Garmin duplicates from USB and phone merged; detail
+with heart-rate and altitude curves, zone times and laps) and **Sleep** (watch and strap side by
+side per night; detail with a stage band, HRV, SpO2, respiration and the other device's night).
+Missing days stay gaps. It shows the same numbers as CLI and TUI because it calls the same
 library functions. Coach runs, ratings, journal and the workout editor follow in the next waves
 ([concept](docs/dashboard-concept.md)); importing from the watch and the phone stays on the laptop.
 
@@ -750,5 +753,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md); the licence is MIT ([LICENSE](LICENSE)).
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [docs/screenshots/](docs/screenshots/README.md)
 6. ~~Training coach via LLM: C1 daily check and questions with Ollama, goal profile, local memory; C2 weekly review, Claude API and OpenRouter backends, number check, ratings; C3 goal wizard, TUI coach screen; C4 journal, plan adherence, ICS export, systemd/udev templates~~ — concept in [docs/coach-concept.md](docs/coach-concept.md)
 7. ~~Workouts to the watch: Markdown workouts, FIT encoder, `workout push|verify|from-plan`, TUI screen 0; `NewFiles` import confirmed on the fenix 6X Pro~~ — interval blocks (`repeat`) added; next: the schedule file (calendar date)
-8. Web dashboard in Docker (phone in the home network, HTTPS + password): concept in [docs/dashboard-concept.md](docs/dashboard-concept.md); ~~D1 login, Today, Trends, Docker + Caddy~~ — next: D2 activities and sleep, D3 coach, journal and workout actions
+8. Web dashboard in Docker (phone in the home network, HTTPS + password): concept in [docs/dashboard-concept.md](docs/dashboard-concept.md); ~~D1 login, Today, Trends, Docker + Caddy~~, ~~D2 activities and sleep~~ — next: D3 coach, journal and workout actions
 9. Later: MCP server / Claude skill over the SQLite, nutrition source (MyNetDiary or own logging)

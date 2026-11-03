@@ -1255,3 +1255,80 @@ msgstr "Uhr (über Handy)"
 
 msgid "Strap (phone)"
 msgstr "Gurt (über Handy)"
+
+msgid "All"
+msgstr "Alle"
+
+msgid "All activities"
+msgstr "Alle Aktivitäten"
+
+msgid "Heart rate avg / max"
+msgstr "Puls Ø / max"
+
+msgid "Training effect aerobic / anaerobic"
+msgstr "Trainingseffekt aerob / anaerob"
+
+msgid "minutes"
+msgstr "Minuten"
+
+msgid "Time in heart-rate zones"
+msgstr "Zeit in Pulszonen"
+
+msgid "Laps"
+msgstr "Runden"
+
+msgid "Heart rate"
+msgstr "Puls"
+
+msgid "Altitude"
+msgstr "Höhe"
+
+msgid "m"
+msgstr "m"
+
+msgid "Watch and strap side by side, by wake-up date."
+msgstr "Uhr und Gurt nebeneinander, nach Aufwachdatum."
+
+msgid "All nights"
+msgstr "Alle Nächte"
+
+msgid "Night to {date}"
+msgstr "Nacht zum {date}"
+
+msgid "Sleep stages"
+msgstr "Schlafphasen"
+
+msgid "HRV in the night"
+msgstr "HRV in der Nacht"
+
+msgid "Respiration"
+msgstr "Atmung"
+
+msgid "Heart rate min / avg"
+msgstr "Puls min / Ø"
+
+msgid "Same night, {device}"
+msgstr "Dieselbe Nacht, {device}"
+
+msgid "Open"
+msgstr "Öffnen"
+
+msgid "Not found"
+msgstr "Nicht gefunden"
+
+msgid "This entry does not exist (any more)."
+msgstr "Diesen Eintrag gibt es nicht (mehr)."
+
+msgid "Back to today"
+msgstr "Zurück zu Heute"
+
+msgid "rem"
+msgstr "REM"
+
+msgid "unmeasurable"
+msgstr "nicht messbar"
+
+msgid "{n} activity"
+msgid_plural "{n} activities"
+msgstr[0] "{n} Aktivität"
+msgstr[1] "{n} Aktivitäten"

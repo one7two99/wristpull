@@ -17,7 +17,7 @@ from wristpull.coach.store import save_run  # noqa: E402
 from wristpull.config import Config  # noqa: E402
 from wristpull.importers.garmin import import_garmin  # noqa: E402
 from wristpull.web import pages  # noqa: E402
-from wristpull.web.app import WebDeps, create_app, format_delta, format_value, local_time  # noqa: E402
+from wristpull.web.app import WebDeps, create_app, format_delta, format_duration, format_hm, format_km, format_pace, format_value, local_time  # noqa: E402
 from wristpull.web.auth import RateLimiter, SessionCodec, hash_password, new_session, valid_hash, verify_password  # noqa: E402
 from wristpull.web.i18n import pick_language  # noqa: E402
 from wristpull.web.server import PASSWORD_ENV, SECRET_ENV, prompt_hash, resolve_secret, serve  # noqa: E402
@@ -202,6 +202,65 @@ def test_empty_database_renders(config: Config, password_hash: str):
     assert client.get("/trends?weeks=52").status_code == 200
 
 
+# ---- activities and sleep (D2) ------------------------------------------------------------
+
+
+def test_duration_distance_pace_formats():
+    assert format_duration(3725) == "1:02:05" and format_duration(2530.4) == "42:10" and format_duration(None) == "–"
+    assert format_hm(27840) == "7:44" and format_hm(None) == "–"
+    assert format_km(6120, "de") == "6,12 km" and format_km(0, "en") == "–"
+    assert format_pace(1800, 6000) == "5:00 /km" and format_pace(1800, 50) == "–" and format_pace(None, 6000) == "–"
+
+
+def test_stage_band():
+    band = pages.stage_band(
+        [{"start_utc": "2026-10-05T22:00:00Z", "end_utc": "2026-10-06T00:00:00Z", "stage": "deep"},
+         {"start_utc": "2026-10-06T00:00:00Z", "end_utc": "2026-10-06T06:00:00Z", "stage": "light"},
+         {"start_utc": "2026-10-06T06:00:00Z", "end_utc": "2026-10-06T07:00:00Z", "stage": "awake"}],  # beyond the night: clipped
+        "2026-10-05T22:00:00Z", "2026-10-06T06:00:00Z")
+    assert band == [{"stage": "deep", "left": 0.0, "width": 25.0}, {"stage": "light", "left": 25.0, "width": 75.0}]
+
+
+def test_activity_and_sleep_data(seeded: Config, conn):
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Berlin")
+    listing = pages.activities_list(conn, TODAY, 4, tz=tz)
+    assert len(listing["items"]) == 1 and listing["sports"] and listing["items"][0]["device"] == "Watch"
+    act = listing["items"][0]
+    assert act["duration_s"] and act["distance_m"] and act["clock"] == "08:00"
+    assert pages.activities_list(conn, TODAY, 4, sport="swimming", tz=tz)["items"] == []
+    page = pages.activity_page(conn, act["id"], tz)
+    assert page["charts"] and page["charts"][0]["id"] == "hr" and len(page["charts"][0]["labels"]) == len(page["charts"][0]["series"][0]["data"])
+    assert pages.activity_page(conn, 99999, tz) is None
+    nights = pages.sleep_list(conn, TODAY, 4)
+    assert nights["rows"][0]["date"] == "2026-10-06" and nights["rows"][0]["watch"] and nights["rows"][0]["strap"] is None
+    night = pages.night_page(conn, nights["rows"][0]["watch"]["id"], tz)
+    assert night["device"] == "Watch" and night["band"] and night["stage_totals"] and night["other"] is None
+    assert pages.night_page(conn, 99999, tz) is None
+    assert pages.activity_title({"sport": "running", "profile_name": "Run"}) == "Run"
+    assert pages.activity_title({"sport": "training", "profile_name": "Training"}) == "Training"
+    assert pages.activity_title({"sport": "indoor_cycling", "profile_name": None}) == "Indoor cycling"
+
+
+def test_activity_and_sleep_pages(seeded: Config, password_hash: str):
+    client = client_for(seeded, password_hash)
+    login(client)
+    listing = client.get("/activities", headers={"accept-language": "de"})
+    assert listing.status_code == 200 and "Aktivitäten" in listing.text and "1 Aktivität" in listing.text
+    link = re.search(r'href="/activities/(\d+)"', listing.text).group(1)
+    detail = client.get(f"/activities/{link}")
+    assert detail.status_code == 200 and 'id="chart-hr"' in detail.text and "Time in heart-rate zones" in detail.text
+    assert client.get("/activities?weeks=52&sport=running").status_code == 200
+    assert client.get("/activities/99999").status_code == 404
+    sleep = client.get("/sleep")
+    assert sleep.status_code == 200 and "2026-10-06" in sleep.text
+    night_id = re.search(r'href="/sleep/(\d+)"', sleep.text).group(1)
+    night = client.get(f"/sleep/{night_id}", headers={"accept-language": "de"})
+    assert night.status_code == 200 and "Schlafphasen" in night.text and 'class="seg ' in night.text
+    assert client.get("/sleep/99999").status_code == 404 and client.get("/sleep/abc").status_code == 404
+
+
 # ---- serve ------------------------------------------------------------------------------
 
 
@@ -255,7 +314,10 @@ def test_web_strings_have_german_translations():
     ids.update(label for _m, label, unit, _k, _g in pages.TILES)
     ids.update(unit for _m, _l, unit, _k, _g in pages.TILES if unit)
     ids.update(pages.SOURCE_LABELS.values())
+    ids.update(pages.DEVICE_LABELS.values())
+    ids.update(pages.STAGE_ORDER)
+    ids.update({"Heart rate", "Altitude", "m"})
     ids.update({"Resting HR", "HRV last night", "Sleep", "Stress", "Training per week", "Acute:chronic load", "Watch", "Strap", "Hours", "ACWR"})
-    missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}"})
+    missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"

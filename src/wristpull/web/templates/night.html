@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Sleep") }} {{ d.n.local_date }}{% endblock %}
+{% block main %}
+<a class="back" href="/sleep">← {{ _("All nights") }}</a>
+<header class="page-head">
+<h1>{{ _("Night to {date}").format(date=d.n.local_date) }}</h1>
+<p class="muted">{{ _(d.device) }} · {{ d.bed }} – {{ d.wake }} · {{ d.n.duration_s|hm }} h{% if d.n.score %} · {{ _("Score {score}").format(score=d.n.score) }}{% endif %}</p>
+</header>
+{% if d.band %}
+<section class="card">
+<h2>{{ _("Sleep stages") }}</h2>
+<div class="band" role="img" aria-label="{{ _('Sleep stages') }}">
+{% for seg in d.band %}<span class="seg {{ seg.stage }}" style="left: {{ seg.left }}%; width: {{ seg.width }}%"></span>{% endfor %}
+</div>
+<div class="band-axis muted small"><span>{{ d.bed }}</span><span>{{ d.wake }}</span></div>
+<ul class="legend">
+{% for t in d.stage_totals %}<li><span class="swatch {{ t.stage }}"></span>{{ _(t.stage) }} <span class="num">{{ t.seconds|hm }}</span></li>{% endfor %}
+</ul>
+</section>
+{% endif %}
+<section class="stats">
+<div><span>{{ _("HRV in the night") }}</span><strong class="num">{% if d.n.hrv.avg %}{{ d.n.hrv.avg|num }} ms{% else %}–{% endif %}</strong>{% if d.n.hrv.summary and d.n.hrv.summary.status %}<small class="muted">{{ d.n.hrv.summary.status }}</small>{% endif %}</div>
+<div><span>{{ _("SpO2 avg / min") }}</span><strong class="num">{% if d.n.spo2.avg %}{{ d.n.spo2.avg|num }} / {{ d.n.spo2.min|num }} %{% else %}–{% endif %}</strong></div>
+<div><span>{{ _("Respiration") }}</span><strong class="num">{% if d.n.respiration.avg %}{{ d.n.respiration.avg|num(1) }} /min{% else %}–{% endif %}</strong></div>
+<div><span>{{ _("Heart rate min / avg") }}</span><strong class="num">{% if d.n.heart_rate.min %}{{ d.n.heart_rate.min }} / {{ d.n.heart_rate.avg|num }}{% else %}–{% endif %}</strong></div>
+{% if d.n.awakenings is not none %}<div><span>{{ _("Awakenings") }}</span><strong class="num">{{ d.n.awakenings }}</strong></div>{% endif %}
+</section>
+{% if d.other %}
+<section class="card">
+<h2>{{ _("Same night, {device}").format(device=_(d.other_device)) }}</h2>
+<p class="num">{{ d.other.duration_s|hm }} h{% if d.other.score %} · {{ _("Score {score}").format(score=d.other.score) }}{% endif %}{% if d.other.deep_s %} · {{ _("deep") }} {{ d.other.deep_s|hm }}{% endif %}{% if d.other.rem_s %} · {{ _("rem") }} {{ d.other.rem_s|hm }}{% endif %}</p>
+<p><a href="/sleep/{{ d.other.id }}">{{ _("Open") }} →</a></p>
+</section>
+{% endif %}
+{% endblock %}

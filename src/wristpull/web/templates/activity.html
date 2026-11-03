@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ d.title }}{% endblock %}
+{% block main %}
+<a class="back" href="/activities">← {{ _("All activities") }}</a>
+<header class="page-head">
+<h1>{{ d.title }}</h1>
+<p class="muted">{{ d.a.local_date }} {{ d.clock }} · {{ d.a.source }}</p>
+</header>
+<section class="stats">
+<div><span>{{ _("Duration") }}</span><strong class="num">{{ d.duration_s|dur }}</strong></div>
+{% if d.a.distance_m %}<div><span>{{ _("Distance") }}</span><strong class="num">{{ d.a.distance_m|km }}</strong></div>{% endif %}
+{% if d.a.distance_m and d.a.sport in ("running", "walking", "hiking") %}<div><span>{{ _("Pace") }}</span><strong class="num">{{ pace(d.duration_s, d.a.distance_m) }}</strong></div>{% endif %}
+{% if d.a.avg_hr %}<div><span>{{ _("Heart rate avg / max") }}</span><strong class="num">{{ d.a.avg_hr }} / {{ d.a.max_hr or "–" }}</strong></div>{% endif %}
+{% if d.a.ascent_m %}<div><span>{{ _("Ascent") }}</span><strong class="num">{{ d.a.ascent_m|num }} m</strong></div>{% endif %}
+{% if d.a.calories %}<div><span>{{ _("Calories") }}</span><strong class="num">{{ d.a.calories|num }}</strong></div>{% endif %}
+{% if d.a.training_load %}<div><span>{{ _("Training load") }}</span><strong class="num">{{ d.a.training_load|num }}</strong></div>{% endif %}
+{% if d.a.aerobic_te %}<div><span>{{ _("Training effect aerobic / anaerobic") }}</span><strong class="num">{{ d.a.aerobic_te|num(1) }} / {{ d.a.anaerobic_te|num(1) }}</strong></div>{% endif %}
+</section>
+{% for c in d.charts %}
+<article class="card chart-card">
+<h2>{{ _(c.title) }} <span class="unit">({{ _(c.unit) }}, x: {{ _("minutes") }})</span></h2>
+<div class="chart" id="chart-{{ c.id }}" data-chart="{{ c.id }}" role="img" aria-label="{{ _(c.title) }}"></div>
+</article>
+{% endfor %}
+{% if d.zones %}
+<section class="card">
+<h2>{{ _("Time in heart-rate zones") }}</h2>
+{% for z in d.zones %}
+<div class="zone"><span>{{ z.label }}</span><span class="bar"><span class="fill z{{ loop.index }}" style="width: {{ z.pct }}%"></span></span><span class="num">{{ z.seconds|dur }}</span></div>
+{% endfor %}
+</section>
+{% endif %}
+{% if d.laps|length > 1 %}
+<section class="card">
+<h2>{{ _("Laps") }}</h2>
+<div class="table-box"><table>
+<thead><tr><th>#</th><th>{{ _("Duration") }}</th><th>{{ _("Distance") }}</th><th>Ø bpm</th><th>max</th></tr></thead>
+<tbody>{% for l in d.laps %}<tr><td>{{ l.lap_index + 1 }}</td><td class="num">{{ (l.timer_s or l.elapsed_s)|dur }}</td><td class="num">{{ l.distance_m|km }}</td><td class="num">{{ l.avg_hr or "–" }}</td><td class="num">{{ l.max_hr or "–" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+</section>
+{% endif %}
+<script type="application/json" id="chart-data">{{ charts_json|safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+{% endblock %}

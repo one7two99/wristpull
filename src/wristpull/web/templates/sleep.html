@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period with context %}
+{% block title %}wristpull · {{ _("Sleep") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Sleep") }}</h1>
+<p class="muted">{{ _("Watch and strap side by side, by wake-up date.") }}</p>
+</header>
+{{ period("/sleep", d.weeks, choices) }}
+<ul class="list">
+{% for r in d.rows %}
+<li class="row nights">
+<span class="row-title">{{ r.date }}</span>
+{% for key, label in (("watch", "Watch"), ("strap", "Strap")) %}
+{% set n = r[key] %}
+{% if n %}<a class="night" href="/sleep/{{ n.id }}"><span class="muted small">{{ _(label) }}</span><span class="num">{{ n.duration_s|hm }}{% if n.score %} · {{ n.score }}{% endif %}</span></a>
+{% else %}<span class="night empty"><span class="muted small">{{ _(label) }}</span><span class="muted">–</span></span>{% endif %}
+{% endfor %}
+</li>
+{% else %}
+<li class="card muted">{{ _("No nights in this period.") }}</li>
+{% endfor %}
+</ul>
+{% endblock %}

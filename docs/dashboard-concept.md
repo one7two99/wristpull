@@ -1,7 +1,8 @@
 # wristpull web dashboard – concept
 
 Status: concept approved 2026-11-03; D1 implemented the same day (`wristpull serve`, login with
-scrypt hash, signed session, CSRF, rate limit, pages Today and Trends, Dockerfile, Compose, Caddy).
+scrypt hash, signed session, CSRF, rate limit, pages Today and Trends, Dockerfile, Compose, Caddy); D2 the same day (Activities and Sleep with
+detail pages).
 Implementation waves at the end.
 
 ## Why
