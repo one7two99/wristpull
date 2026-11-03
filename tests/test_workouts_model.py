@@ -1,6 +1,6 @@
 from datetime import date
 
-from wristpull.workouts.model import Defaults, HeartRate, Step, Workout, describe_steps, file_name, guess_sport, parse_duration, parse_markdown, parse_step, parse_target, render_markdown, short_name, slug, template
+from wristpull.workouts.model import Defaults, HeartRate, Step, Workout, base_name, dated_name, describe_steps, file_name, guess_sport, mark_name_clashes, parse_duration, parse_markdown, parse_step, parse_target, render_markdown, short_name, slug, template
 
 TIME_WORKOUT = """---
 date: 2026-11-05
@@ -97,7 +97,7 @@ def test_render_roundtrip_and_names():
 def test_templates_follow_defaults():
     d = Defaults(warmup_min=8, cooldown_min=4, warmup_hr_max=128, cooldown_hr_max=120, default_target="70-80 %")
     t = template("time", date(2026, 11, 7), d, main_minutes=30)
-    assert t.name == "Easy run 30 min" and [s.duration_s for s in t.steps] == [480, 1800, 240]
+    assert t.name == "Easy run 30 min 07.11." and file_name(t) == "2026-11-07-easy-run-30-min.md" and [s.duration_s for s in t.steps] == [480, 1800, 240]
     assert t.steps[0].hr == HeartRate("bpm", high=128) and t.steps[1].hr == HeartRate("percent", low=70, high=80)
     r = template("distance", date(2026, 11, 7), d, main_metres=10000, name="Long one")
     assert r.name == "Long one" and r.steps[1].distance_m == 10000 and r.steps[2].hr == HeartRate("bpm", high=120)
@@ -115,3 +115,28 @@ def test_short_names_and_sport_guess():
     assert guess_sport("Ergometer") == "cycling" and guess_sport("Brisk walk") == "walking" and guess_sport("Rowing") == "cardio"
     assert guess_sport("Something else") == "running"
     assert parse_markdown("---\ndate: 2026-11-04\nname: Core\nsport: strength\n---\n- run 20 min\n").valid
+
+
+def test_dated_and_base_names():
+    day = date(2026, 11, 6)
+    assert dated_name("Outdoor run", day) == "Outdoor run 06.11."
+    assert dated_name("Outdoor run 03.11.", day) == "Outdoor run 06.11."  # an old date is replaced, not stacked
+    long = dated_name("Very long session name with many words in it", day)
+    assert len(long) <= 30 and long.endswith(" 06.11.") and long.startswith("Very long session")
+    assert dated_name("Outdoor run", None) == "Outdoor run"
+    assert base_name("Outdoor run 06.11.") == "Outdoor run" and base_name("Outdoor run") == "Outdoor run"
+
+
+def test_mark_name_clashes_within_a_week():
+    def w(name, day, path=None):
+        return Workout(name=name, day=day, steps=[Step("active", duration_s=60)], path=path)
+
+    a, b = w("Outdoor run", date(2026, 11, 3), "/x/a.md"), w("outdoor run ", date(2026, 11, 6), "/x/b.md")
+    c = w("Outdoor run", date(2026, 11, 10))  # next ISO week: no clash
+    d = w("Ergometer", date(2026, 11, 8))
+    items = [a, b, c, d]
+    mark_name_clashes(items)
+    mark_name_clashes(items)  # idempotent
+    assert not a.valid and a.errors == ["name also used by b.md in the same week (the watch keeps only one; rename it)"]
+    assert not b.valid and "a.md" in b.errors[0]
+    assert c.valid and d.valid

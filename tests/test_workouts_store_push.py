@@ -9,7 +9,7 @@ from wristpull.workouts.model import Step, Workout, parse_markdown
 import errno
 
 from wristpull.workouts.push import WORKOUT_LIMIT_WARN, VerifyResult, device_folder, push, verify, workouts_on_watch, write_device_file
-from wristpull.workouts.store import existing_for_day, list_workouts, load, output_dir, pending_pushes, push_status, pushes, save, set_status, workouts_dir
+from wristpull.workouts.store import existing_for_day, mark_folder_clashes, list_workouts, load, output_dir, pending_pushes, push_status, pushes, save, set_status, workouts_dir
 
 
 def _w(day: date, name: str = "Easy run") -> Workout:
@@ -162,3 +162,22 @@ def test_verify_warns_near_the_watch_limit(config: Config, conn, garmin_tree: Pa
     log: list[str] = []
     result = verify(conn, config, roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), log=log.append)
     assert len(result.on_watch) == WORKOUT_LIMIT_WARN and result.near_limit and any("20 workouts on the watch" in line for line in log)
+
+
+def test_push_refuses_same_named_workouts_of_one_week(config: Config, conn, garmin_tree: Path):
+    a = Workout(name="Outdoor run", day=date(2026, 11, 3), steps=[Step("active", duration_s=600)])
+    b = Workout(name="Outdoor run", day=date(2026, 11, 6), steps=[Step("active", duration_s=900)])
+    c = Workout(name="Ergometer 08.11.", day=date(2026, 11, 8), steps=[Step("active", duration_s=900)])
+    result = push(conn, config, [a, b, c], path=garmin_tree)
+    assert [Path(p).name.startswith("2026-11-08-ergometer-") for p in result.written] == [True]
+    assert len(result.invalid) == 2 and all("same week" in errors[0] for _name, errors in result.invalid)
+    save(config, a)
+    save(config, b)
+    assert all(not w.valid for w in list_workouts(config))
+    # a single file checked against the folder: the clash is found although only one workout is passed
+    single = [load(Path(list_workouts(config)[0].path))]
+    mark_folder_clashes(config, single)
+    assert not single[0].valid and "same week" in single[0].errors[0]
+    other = [Workout(name="Outdoor run", day=date(2026, 11, 12), steps=[Step("active", duration_s=60)])]
+    mark_folder_clashes(config, other)
+    assert other[0].valid

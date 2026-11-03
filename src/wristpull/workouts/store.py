@@ -10,7 +10,7 @@ from typing import Any
 
 from ..config import Config
 from ..timeutil import iso_utc, now_utc
-from .model import Workout, file_name, parse_markdown, render_markdown
+from .model import Workout, file_name, mark_name_clashes, parse_markdown, render_markdown
 
 STATUS_LINE = re.compile(r"^status:.*$", re.M)
 
@@ -36,17 +36,27 @@ def load(path: Path) -> Workout:
 
 
 def list_workouts(config: Config, *, start: date | None = None, end: date | None = None) -> list[Workout]:
-    """Every ``*.md`` in the workouts folder (parsed, invalid ones included), sorted by date then name."""
+    """Every ``*.md`` in the workouts folder (parsed, invalid ones included), sorted by date then name.
+
+    Two files of the same week with the same name are both flagged invalid (``mark_name_clashes``)."""
     folder = workouts_dir(config)
     if not folder.is_dir():
         return []
     items = [load(p) for p in sorted(folder.glob("*.md"))]
+    mark_name_clashes(items)
     if start is not None:
         items = [w for w in items if w.day is None or w.day >= start]
     if end is not None:
         items = [w for w in items if w.day is None or w.day <= end]
     items.sort(key=lambda w: (w.day or date.min, w.name))
     return items
+
+
+def mark_folder_clashes(config: Config, workouts: list[Workout]) -> None:
+    """``mark_name_clashes`` for ``workouts`` against each other and every other file in the workouts folder."""
+    mine = {str(Path(w.path).resolve()) for w in workouts if w.path}
+    others = [w for w in list_workouts(config) if not w.path or str(Path(w.path).resolve()) not in mine]
+    mark_name_clashes(workouts + others)
 
 
 def save(config: Config, workout: Workout, *, overwrite: bool = False) -> Path:

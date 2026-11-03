@@ -16,8 +16,8 @@ from ..fit.workout import build_schedule_fit, build_workout_fit, workout_created
 from ..garmin_usb import Runner, eject_garmin, read_device_info, run_command, try_mount_garmin
 from ..importers.garmin import locate_garmin
 from ..timeutil import iso_utc
-from .model import Workout, slug
-from .store import mark_verified, output_dir, pending_pushes, record_push, set_status
+from .model import Workout, base_name, slug
+from .store import mark_folder_clashes, mark_verified, output_dir, pending_pushes, record_push, set_status
 from .watch import WORKOUT_LIMIT_WARN, list_watch_workouts
 
 Log = Callable[[str], None]
@@ -123,6 +123,7 @@ def push(
     eject = config.workout.eject if eject is None else eject
     folder = folder or config.workout.folder
     valid: list[Workout] = []
+    mark_folder_clashes(config, workouts)
     for workout in workouts:
         if workout.valid:
             valid.append(workout)
@@ -149,7 +150,7 @@ def push(
         created_at[workout.name] = workout_created()
         data = build_workout_fit(workout, created=created_at[workout.name])
         digest = sha256_bytes(data)
-        name = f"{workout.day.isoformat() if workout.day else 'undated'}-{slug(workout.name)}-{digest[:8]}.fit"
+        name = f"{workout.day.isoformat() if workout.day else 'undated'}-{slug(base_name(workout.name))}-{digest[:8]}.fit"
         target = result.target / name
         if target.exists() and force:
             target = result.target / f"{name[:-4]}-{datetime.now(UTC).strftime('%H%M%S')}.fit"

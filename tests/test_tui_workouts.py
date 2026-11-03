@@ -121,7 +121,7 @@ def test_drafts_from_the_coach_plan_via_both_screens(config: Config, tmp_path: P
             await pilot.pause()
             assert isinstance(app.screen, WorkoutsScreen)
             items = list_workouts(config)
-            assert [w.day for w in items] == [date(2026, 10, 5)] and items[0].name == "Easy run" and items[0].steps[1].duration_s == 25 * 60
+            assert [w.day for w in items] == [date(2026, 10, 5)] and items[0].name == "Easy run 05.10." and items[0].steps[1].duration_s == 25 * 60
             table = app.screen.query_one("#workout-table", DataTable)
             assert table.row_count == 1
             # c on the workouts screen: nothing new (the day has a file), no crash

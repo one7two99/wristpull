@@ -288,6 +288,12 @@ exactly like a broken file. `workout watch` (or `w` on TUI screen 0) shows the c
 workouts with `workout remove` before pushing more. Scheduled workouts (calendar) are
 reported not to count towards the limit; wristpull's `--schedule` support is still being verified.
 
+**Names must be unique within a week.** The watch keeps only one of two workouts with the same
+name, so generated names end with the day (`Outdoor run 06.11.`, both from `from-plan` and from
+`workout new` without `--name`). Two files of the same ISO week that share a name are flagged in
+`workout list`/`check` and on TUI screen 0, and `push` refuses them until one is renamed (`name:` in
+the front matter).
+
 Every push is recorded in `workout_pushes` (name, date, SHA-256 of the FIT bytes, target, watch
 serial, status). The `[workout]` section sets the shape of generated workouts (warm-up and cool-down
 minutes and HR caps, default target of the main part) and the target folder.

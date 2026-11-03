@@ -11,7 +11,7 @@ from pathlib import Path
 from ..coach.plan import PlanRow, parse_plan_table
 from ..coach.store import last_weekly_plan
 from ..config import Config
-from .model import Defaults, HeartRate, Step, Workout, guess_sport, parse_target, short_name
+from .model import Defaults, HeartRate, Step, Workout, guess_sport, dated_name, parse_target, short_name
 from .store import existing_for_day, save
 
 # Checked in this order: an "easy" word wins over a "tempo" word in the same text ("steady, easy" is an easy run).
@@ -70,9 +70,10 @@ def workout_from_row(row: PlanRow, day: date, defaults: Defaults) -> Workout:
         Step("cooldown", duration_s=defaults.cooldown_min * 60, hr=HeartRate("bpm", high=defaults.cooldown_hr_max)),
     ]
     session = re.sub(r"\s+", " ", row.session).strip()
-    name = short_name(session) or "Run"
-    description = "; ".join(part for part in (session if session != name else "", row.intensity.strip()) if part)
-    return Workout(name=name, day=day, sport=guess_sport(name), steps=steps, description=description, status="draft")
+    base = short_name(session) or "Run"
+    name = dated_name(base, day)
+    description = "; ".join(part for part in (session if session != base else "", row.intensity.strip()) if part)
+    return Workout(name=name, day=day, sport=guess_sport(base), steps=steps, description=description, status="draft")
 
 
 def drafts_from_plan(conn: sqlite3.Connection, config: Config, *, week_start: date | None = None) -> DraftResult:

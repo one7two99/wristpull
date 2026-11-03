@@ -140,6 +140,13 @@ def test_workout_commands(cfg_file: Path, tmp_path: Path, garmin_tree: Path, cap
     assert main([*base, "from-plan"]) == 1
     assert "no weekly plan" in capsys.readouterr().err
     assert main([*base, "push", "--upcoming", "--dry-run"]) in (0, 2)
+    # a second "Easy run" in the same week: check and list flag it, push refuses it
+    clash = path.parent / "2026-11-07-easy-run.md"
+    clash.write_text("---\ndate: 2026-11-07\nname: Easy run\n---\n- active 30 min\n", "utf-8")
+    assert main([*base, "check", str(clash)]) == 2
+    assert "name also used by 2026-11-05-easy-run.md in the same week" in capsys.readouterr().err
+    assert main([*base, "push", str(clash), "--dry-run"]) == 2
+    capsys.readouterr()
 
 
 def test_workout_watch_remove_and_force(cfg_file: Path, tmp_path: Path, garmin_tree: Path, capsys, monkeypatch):

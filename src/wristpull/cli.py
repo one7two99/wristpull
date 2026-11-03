@@ -492,9 +492,12 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
                 print(f"{w.day.isoformat() if w.day else '----------'}  {w.name[:30]:<30}  {len(w.steps)} steps  {total:<16} {state}{flag}")
             return 0
         if args.workout_cmd == "check":
+            from .workouts.store import mark_folder_clashes
+
             bad = 0
-            for file in args.files:
-                w = load(file)
+            checked = [load(file) for file in args.files]
+            mark_folder_clashes(config, checked)
+            for file, w in zip(args.files, checked):
                 print(f"{file}: {w.name} ({w.day}) {'ok' if w.valid else 'invalid'}")
                 for line in describe_steps(w):
                     print(f"  {line}")

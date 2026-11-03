@@ -22,6 +22,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field, replace
 from datetime import date
+from pathlib import Path
 
 STATUSES = ("draft", "ready", "pushed", "verified")
 INTENSITIES = ("warmup", "active", "recovery", "cooldown", "rest")
@@ -51,6 +52,42 @@ def guess_sport(text: str) -> str:
         if any(w in lower for w in words):
             return sport
     return "running"
+
+
+DATE_SUFFIX = re.compile(r"\s+\d{2}\.\d{2}\.$")
+
+
+def dated_name(text: str, day: date | None) -> str:
+    """A watch-sized name that ends with the day (``Outdoor run 06.11.``), so the names of a week stay unique."""
+    if day is None:
+        return short_name(text)
+    suffix = f" {day:%d.%m.}"
+    return short_name(DATE_SUFFIX.sub("", text), MAX_NAME_LEN - len(suffix)) + suffix
+
+
+def base_name(name: str) -> str:
+    """The name without a trailing ``dd.mm.`` (file names carry the full date already)."""
+    return DATE_SUFFIX.sub("", name).strip() or name
+
+
+def mark_name_clashes(workouts: list[Workout]) -> None:
+    """Flag workouts whose name another workout of the same ISO week uses: the watch keeps only one of them.
+
+    The flag is an entry in ``errors``, so such a workout is invalid and is not pushed until it is renamed.
+    """
+    groups: dict[tuple[tuple[int, int] | None, str], list[Workout]] = {}
+    for w in workouts:
+        if w.name:
+            week = w.day.isocalendar()[:2] if w.day else None
+            groups.setdefault((week, w.name.strip().casefold()), []).append(w)
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        for w in group:
+            others = ", ".join(Path(o.path).name if o.path else (o.day.isoformat() if o.day else "?") for o in group if o is not w)
+            error = f"name also used by {others} in the same week (the watch keeps only one; rename it)"
+            if not any(e.startswith("name also used by") for e in w.errors):
+                w.errors.append(error)
 
 
 def short_name(text: str, limit: int = MAX_NAME_LEN) -> str:
@@ -310,7 +347,7 @@ def slug(name: str) -> str:
 
 
 def file_name(workout: Workout) -> str:
-    return f"{workout.day.isoformat() if workout.day else 'undated'}-{slug(workout.name)}.md"
+    return f"{workout.day.isoformat() if workout.day else 'undated'}-{slug(base_name(workout.name))}.md"
 
 
 # ---- templates -------------------------------------------------------------------------
@@ -345,7 +382,7 @@ def template(kind: str, day: date, defaults: Defaults, *, name: str | None = Non
         main,
         Step("cooldown", duration_s=defaults.cooldown_min * 60, hr=HeartRate("bpm", high=defaults.cooldown_hr_max)),
     ]
-    return Workout(name=title[:MAX_NAME_LEN], day=day, steps=steps)
+    return Workout(name=title[:MAX_NAME_LEN] if name else dated_name(title, day), day=day, steps=steps)
 
 
 def describe_steps(workout: Workout) -> list[str]:
