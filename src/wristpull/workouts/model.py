@@ -106,6 +106,8 @@ STEP_RE = re.compile(
     r"(?:\s+(?:hr|hf|puls)\s+(?P<target>[^#]+?))?\s*(?:#\s*(?P<note>.*))?\s*$",
     re.I,
 )
+REPEAT_RE = re.compile(r"^(?P<indent>\s*)[-*]\s+(?:(?:repeat|wiederhole|wdh\.?|repeats?)\s+)?(?P<count>\d+)\s*[x×]\s*(?:#\s*(?P<note>.*))?$", re.I)
+REPEAT_MIN, REPEAT_MAX = 2, 99
 TARGET_RANGE = re.compile(r"^(\d+)\s*[-–]\s*(\d+)\s*(%)?$")
 TARGET_BOUND = re.compile(r"^(<=|<|>=|>|max|min)\s*(\d+)\s*(%)?$", re.I)
 TARGET_ZONE = re.compile(r"^z(?:one)?\s*([1-5])$", re.I)
@@ -136,14 +138,19 @@ class HeartRate:
 
 @dataclass
 class Step:
-    intensity: str  # warmup | active | recovery | cooldown | rest
+    intensity: str  # warmup | active | recovery | cooldown | rest | repeat
     duration_s: int | None = None  # time steps
     distance_m: int | None = None  # distance steps (both None: open, ends with the lap key)
     hr: HeartRate | None = None
     note: str = ""
+    # A repeat step follows its block, as in FIT: run steps repeat_from..(this index - 1) ``repeat`` times in all.
+    repeat: int | None = None
+    repeat_from: int | None = None
 
     @property
     def kind(self) -> str:
+        if self.intensity == "repeat":
+            return "repeat"
         if self.duration_s is not None:
             return "time"
         if self.distance_m is not None:
@@ -176,11 +183,31 @@ class Workout:
 
     @property
     def total_seconds(self) -> int:
-        return sum(s.duration_s or 0 for s in self.steps)
+        return sum(s.duration_s or 0 for s in expand_steps(self.steps))
 
     @property
     def total_metres(self) -> int:
-        return sum(s.distance_m or 0 for s in self.steps)
+        return sum(s.distance_m or 0 for s in expand_steps(self.steps))
+
+
+def expand_steps(steps: list[Step]) -> list[Step]:
+    """The steps in the order they are run: every repeat block written out ``repeat`` times."""
+    out: list[Step] = []
+    block_start: dict[int, int] = {}  # index in steps -> index in out
+    for index, step in enumerate(steps):
+        if step.intensity != "repeat":
+            block_start[index] = len(out)
+            out.append(step)
+            continue
+        start = block_start.get(step.repeat_from if step.repeat_from is not None else index, len(out))
+        block = out[start:]
+        out.extend(block * max(0, (step.repeat or 1) - 1))
+    return out
+
+
+def repeat_blocks(steps: list[Step]) -> dict[int, int]:
+    """First step index of each repeat block -> index of its repeat step."""
+    return {s.repeat_from: i for i, s in enumerate(steps) if s.intensity == "repeat" and s.repeat_from is not None}
 
 
 # ---- parsing ---------------------------------------------------------------------------
@@ -284,6 +311,19 @@ def parse_markdown(text: str, *, path: str | None = None) -> Workout:
     name = meta.get("name") or ""
     description_lines: list[str] = []
     steps: list[Step] = []
+    block: tuple[int, int, int, str] | None = None  # (indent, first step index, count, note) of an open repeat
+
+    def close_block() -> None:
+        nonlocal block
+        if block is None:
+            return
+        _indent, first, count, note = block
+        if first == len(steps):
+            errors.append(f"repeat {count}x has no indented steps below it")
+        else:
+            steps.append(Step("repeat", repeat=count, repeat_from=first, note=note))
+        block = None
+
     for line in body.splitlines():
         stripped = line.strip()
         if not stripped:
@@ -293,13 +333,28 @@ def parse_markdown(text: str, *, path: str | None = None) -> Workout:
                 name = stripped.lstrip("#").strip()
             continue
         if stripped.startswith(("-", "*")):
+            indent = len(line) - len(line.lstrip())
+            if block is not None and indent <= block[0]:
+                close_block()
+            repeat = REPEAT_RE.match(line)
+            if repeat:
+                count = int(repeat.group("count"))
+                if block is not None:
+                    errors.append("nested repeat blocks are not supported")
+                elif not REPEAT_MIN <= count <= REPEAT_MAX:
+                    errors.append(f"repeat count {count} outside {REPEAT_MIN}-{REPEAT_MAX}")
+                else:
+                    block = (indent, len(steps), count, (repeat.group("note") or "").strip())
+                continue
             step, error = parse_step(line)
             if step is not None:
                 steps.append(step)
             else:
                 errors.append(error or "unreadable step")
             continue
+        close_block()
         description_lines.append(stripped)
+    close_block()
     if not name:
         errors.append("missing name (front matter 'name:' or a '# heading')")
     elif len(name) > MAX_NAME_LEN:
@@ -320,20 +375,39 @@ def parse_markdown(text: str, *, path: str | None = None) -> Workout:
 STEP_WORD = {"warmup": "warmup", "active": "run", "recovery": "recovery", "cooldown": "cooldown", "rest": "rest"}
 
 
-def render_step(step: Step) -> str:
-    text = f"- {STEP_WORD[step.intensity]} {step.duration_text()}"
-    if step.hr is not None:
-        text += f" hr {step.hr.text()}"
+def render_step(step: Step, indent: str = "") -> str:
+    if step.intensity == "repeat":
+        text = f"{indent}- repeat {step.repeat}x"
+    else:
+        text = f"{indent}- {STEP_WORD[step.intensity]} {step.duration_text()}"
+        if step.hr is not None:
+            text += f" hr {step.hr.text()}"
     if step.note:
         text += f"  # {step.note}"
     return text
+
+
+def render_steps(steps: list[Step]) -> list[str]:
+    """Markdown lines: a repeat block as ``- repeat Nx`` with its steps indented below it."""
+    starts = repeat_blocks(steps)
+    lines: list[str] = []
+    end: int | None = None
+    for index, step in enumerate(steps):
+        if index in starts:
+            lines.append(render_step(steps[starts[index]]))
+            end = starts[index]
+        if step.intensity == "repeat":
+            end = None
+            continue
+        lines.append(render_step(step, "  " if end is not None else ""))
+    return lines
 
 
 def render_markdown(workout: Workout) -> str:
     lines = ["---", f"date: {workout.day.isoformat() if workout.day else ''}", f"sport: {workout.sport}", f"name: {workout.name}", f"status: {workout.status}", "---", f"# {workout.name}"]
     if workout.description:
         lines += ["", workout.description, ""]
-    lines += [render_step(s) for s in workout.steps]
+    lines += render_steps(workout.steps)
     return "\n".join(lines) + "\n"
 
 
@@ -369,8 +443,20 @@ class Defaults:
 
 
 def template(kind: str, day: date, defaults: Defaults, *, name: str | None = None, main_minutes: int = 40, main_metres: int = 5000, target: HeartRate | None = None) -> Workout:
-    """A three-step workout: warm-up by time, main part by time (``kind='time'``) or distance, cool-down by time."""
+    """A three-step workout: warm-up by time, main part by time (``kind='time'``) or distance, cool-down by time.
+
+    ``kind='intervals'`` gives a starting point for an interval session: 6 × (400 m Z5, 2 min recovery)."""
     hr = target or defaults.target()
+    if kind == "intervals":
+        block = [Step("active", distance_m=400, hr=HeartRate("zone", zone=5)), Step("recovery", duration_s=120, hr=HeartRate("bpm", high=defaults.warmup_hr_max))]
+        steps = [
+            Step("warmup", duration_s=defaults.warmup_min * 60, hr=HeartRate("bpm", high=defaults.warmup_hr_max)),
+            *block,
+            Step("repeat", repeat=6, repeat_from=1),
+            Step("cooldown", duration_s=defaults.cooldown_min * 60, hr=HeartRate("bpm", high=defaults.cooldown_hr_max)),
+        ]
+        title = name or "Intervals 6x400 m"
+        return Workout(name=title[:MAX_NAME_LEN] if name else dated_name(title, day), day=day, steps=steps)
     if kind == "distance":
         main = Step("active", distance_m=main_metres, hr=hr)
         title = name or f"Run {main_metres / 1000:g} km"
@@ -386,9 +472,16 @@ def template(kind: str, day: date, defaults: Defaults, *, name: str | None = Non
 
 
 def describe_steps(workout: Workout) -> list[str]:
-    """One line per step the way the watch will show it (``1 warmup 10:00  HR <= 130``)."""
+    """One line per step the way the watch will show it (``1 warmup 10:00  HR <= 130``).
+
+    A repeat step reads ``4 repeat 2-3 × 6`` (steps 2 to 3, six times in all)."""
     lines: list[str] = []
     for index, step in enumerate(workout.steps, 1):
+        if step.intensity == "repeat":
+            first = (step.repeat_from if step.repeat_from is not None else index - 1) + 1
+            text = f"{index} repeat {first}-{index - 1} × {step.repeat}"
+            lines.append(text + (f"  ({step.note})" if step.note else ""))
+            continue
         if step.duration_s is not None:
             length = f"{step.duration_s // 60}:{step.duration_s % 60:02d}"
         elif step.distance_m is not None:

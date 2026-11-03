@@ -55,6 +55,13 @@ def test_workouts_screen_new_edit_push_verify(config: Config, tmp_path: Path, ga
             await pilot.press("n")
             await pilot.pause()
             assert table.row_count == 3 and "5000 m" in str(screen.query_one("#workout-preview", Panel).content)
+            # a second t offers the interval template, a third goes back to time
+            await pilot.press("t")
+            await pilot.pause()
+            assert "Template for n: intervals" in str(screen.query_one("#workouts-status", Panel).content)
+            await pilot.press("t")
+            await pilot.pause()
+            assert "Template for n: time" in str(screen.query_one("#workouts-status", Panel).content)
             # e opens the selected file again
             await pilot.press("e")
             await pilot.pause()

@@ -1,6 +1,6 @@
 from datetime import date
 
-from wristpull.workouts.model import Defaults, HeartRate, Step, Workout, base_name, dated_name, describe_steps, file_name, guess_sport, mark_name_clashes, parse_duration, parse_markdown, parse_step, parse_target, render_markdown, short_name, slug, template
+from wristpull.workouts.model import Defaults, HeartRate, Step, Workout, base_name, expand_steps, render_steps, dated_name, describe_steps, file_name, guess_sport, mark_name_clashes, parse_duration, parse_markdown, parse_step, parse_target, render_markdown, short_name, slug, template
 
 TIME_WORKOUT = """---
 date: 2026-11-05
@@ -140,3 +140,47 @@ def test_mark_name_clashes_within_a_week():
     assert not a.valid and a.errors == ["name also used by b.md in the same week (the watch keeps only one; rename it)"]
     assert not b.valid and "a.md" in b.errors[0]
     assert c.valid and d.valid
+
+
+REPEAT_MD = """---
+date: 2026-11-07
+name: Intervals
+---
+# Intervals
+Track session.
+- warmup 10 min hr <= 130
+- 6x
+  - run 400 m hr Z5
+  - recovery 2 min hr <= 130
+- cooldown 5 min
+"""
+
+
+def test_repeat_blocks_parse_render_and_expand():
+    w = parse_markdown(REPEAT_MD)
+    assert w.valid, w.errors
+    assert [s.intensity for s in w.steps] == ["warmup", "active", "recovery", "repeat", "cooldown"]
+    assert w.steps[3].repeat == 6 and w.steps[3].repeat_from == 1 and w.steps[3].kind == "repeat"
+    assert len(expand_steps(w.steps)) == 1 + 12 + 1
+    assert w.total_seconds == 600 + 6 * 120 + 300 and w.total_metres == 2400
+    assert render_steps(w.steps) == ["- warmup 10 min hr <= 130", "- repeat 6x", "  - run 400 m hr Z5", "  - recovery 2 min hr <= 130", "- cooldown 5 min"]
+    again = parse_markdown(render_markdown(w))
+    assert again.steps == w.steps and again.description == "Track session."
+    assert describe_steps(w)[3] == "4 repeat 2-3 × 6"
+    # German keyword, block at the end of the file
+    tail = parse_markdown("---\ndate: 2026-11-07\nname: x\n---\n- wiederhole 3x\n    - run 1 km\n")
+    assert tail.valid and tail.steps[-1].repeat == 3 and tail.total_metres == 3000
+
+
+def test_repeat_block_errors():
+    head = "---\ndate: 2026-11-07\nname: x\n---\n- warmup 5 min\n"
+    assert "repeat 4x has no indented steps below it" in parse_markdown(head + "- repeat 4x\n- cooldown 5 min\n").errors
+    assert "repeat count 1 outside 2-99" in parse_markdown(head + "- repeat 1x\n  - run 1 km\n").errors
+    nested = parse_markdown(head + "- repeat 4x\n  - run 1 km\n  - repeat 2x\n    - run 100 m\n")
+    assert "nested repeat blocks are not supported" in nested.errors
+
+
+def test_interval_template():
+    t = template("intervals", date(2026, 11, 7), Defaults())
+    assert t.name == "Intervals 6x400 m 07.11." and t.valid and t.steps[3].repeat == 6
+    assert parse_markdown(render_markdown(t)).steps == t.steps

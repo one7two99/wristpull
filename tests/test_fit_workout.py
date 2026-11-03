@@ -102,3 +102,30 @@ def test_schedule_fit_points_at_the_workout():
     assert rows[0].get_raw(6) == local_date_time(date(2026, 11, 5)) and scheduled_day(rows[0].get_raw(6)) == date(2026, 11, 5)
     assert row["scheduled_time"].hour == 12  # noon, like the watch's own Schedule.fit
     assert fit.product == "connect" and rows[0].named["garmin_product"] == "connect"
+
+
+INTERVALS_MD = """---
+date: 2026-11-07
+name: Intervals 07.11.
+---
+# Intervals 07.11.
+- warmup 10 min hr <= 130
+- repeat 6x  # track
+  - run 400 m hr Z5
+  - recovery 2 min hr <= 130
+- cooldown 5 min hr <= 125
+"""
+
+
+def test_repeat_block_encoding():
+    w = parse_markdown(INTERVALS_MD)
+    assert w.valid, w.errors
+    fit = decode_fit(build_workout_fit(w, created=NOW))
+    header = fit.of("workout")[0]
+    assert header.named["num_valid_steps"] == 5
+    assert header.raw[21] == (600 + 6 * 120 + 300) * 1000 and header.raw[22] == 6 * 400 * 100  # totals count every repetition
+    steps = fit.of("workout_step")
+    repeat = steps[3]
+    assert repeat.named["message_index"] == 3 and repeat.raw[1] == 6 and repeat.raw[2] == 1 and repeat.raw[4] == 6 and repeat.raw[18] == 0 and 3 not in repeat.raw and 7 not in repeat.raw
+    assert repeat.named["notes"] == "track"
+    assert steps[1].named["target_hr_zone"] == 5 and steps[4].named["intensity"] == "cooldown"

@@ -968,6 +968,9 @@ msgstr "Zeit"
 msgid "distance"
 msgstr "Strecke"
 
+msgid "intervals"
+msgstr "Intervalle"
+
 msgid "Total"
 msgstr "Gesamt"
 

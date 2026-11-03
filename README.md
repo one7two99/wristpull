@@ -261,6 +261,24 @@ Each step is `- <intensity> <length> [hr <target>] [# note]`. Intensities: `warm
 `cycling`, `walking`, `strength` or `cardio`. `status` is maintained by wristpull:
 `draft` → `pushed` → `verified` (seen under `GARMIN/Workouts/`).
 
+**Interval blocks** are a `- repeat 6x` line (also `- 6x` or `- wiederhole 6x`) with the steps to
+repeat indented below it; the block ends at the next step that is not indented. The count is the
+number of repetitions in all (2–99); blocks cannot be nested. The coach does not draft intervals;
+write them by hand, or start from `workout new --template intervals` (`t` on TUI screen 0 cycles
+time → distance → intervals).
+
+```markdown
+- warmup 10 min hr <= 130
+- repeat 6x
+  - run 400 m hr Z5
+  - recovery 2 min hr <= 130
+- cooldown 5 min hr <= 125
+```
+
+In the FIT file the block is written the way Garmin Connect writes it: the block's steps, then a
+repeat step pointing back at the first of them (`duration_type` 6, `repeat_steps` = count); the
+header total counts every repetition.
+
 The FIT files follow what Garmin Connect itself writes onto the watch (product `connect`, a
 `file_creator` record, `capabilities` tcx; checked against the Connect-made files under
 `GARMIN/Workouts/` of a fenix 6X Pro). On a gvfs MTP mount plain file writes fail with
@@ -271,7 +289,7 @@ like easy/tempo/hard) and pick the sport from the words (strength, ergometer, wa
 
 | Command | What it does |
 |---|---|
-| `workout new [--date D] [--name N] [--template time\|distance] [--minutes M] [--metres M] [--edit]` | write a file from the template (warm-up, main part by time or distance, cool-down) and print its path; `--edit` opens `$EDITOR` |
+| `workout new [--date D] [--name N] [--template time\|distance\|intervals] [--minutes M] [--metres M] [--edit]` | write a file from the template (warm-up, main part by time or distance or a 6 × 400 m interval block, cool-down) and print its path; `--edit` opens `$EDITOR` |
 | `workout list [--from D --to D]` | date, name, steps, total, status and validation errors per file |
 | `workout check FILE…` | parse and validate, print the steps the way the watch will show them (exit 2 on errors) |
 | `workout push [FILE…] [--date D] [--upcoming] [--force] [--path P] [--folder NewFiles\|Workouts] [--schedule] [--dry-run] [--eject\|--no-eject]` | build the FIT files and copy them to the watch (`--dry-run`: to `<data_dir>/workouts/out/`); `--upcoming` takes the workouts from today on that are not on the watch (never pushed, or removed again); `--force` also takes those already pushed and writes a file again even if an identical one is there; `--schedule` adds a schedule file with the planned dates (experimental); existing files on the watch are never overwritten |
@@ -673,5 +691,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md); the licence is MIT ([LICENSE](LICENSE)).
 4. ~~Verify sleep/HRV/SpO2 mappings against a real night~~ (2026-11-01, see verification status) — next: udev/systemd trigger for automatic imports
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [docs/screenshots/](docs/screenshots/README.md)
 6. ~~Training coach via LLM: C1 daily check and questions with Ollama, goal profile, local memory; C2 weekly review, Claude API and OpenRouter backends, number check, ratings; C3 goal wizard, TUI coach screen; C4 journal, plan adherence, ICS export, systemd/udev templates~~ — concept in [docs/coach-concept.md](docs/coach-concept.md)
-7. ~~Workouts to the watch: Markdown workouts, FIT encoder, `workout push|verify|from-plan`, TUI screen 0; `NewFiles` import confirmed on the fenix 6X Pro~~ — next: the schedule file (calendar date), interval blocks
+7. ~~Workouts to the watch: Markdown workouts, FIT encoder, `workout push|verify|from-plan`, TUI screen 0; `NewFiles` import confirmed on the fenix 6X Pro~~ — interval blocks (`repeat`) added; next: the schedule file (calendar date)
 8. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)

@@ -106,7 +106,7 @@ class WorkoutsScreen(WristpullScreen):
         status = [
             _("Folder {path} · {start} – {end}").format(path=workouts_dir(app.config), start=fmt_date(start, year=True), end=fmt_date(end, year=True)),
             (_("Watch connected") if connected else _("No watch mounted (push mounts it when possible)")) + " · " + _("{drafts} drafts, {pushed} pushed, {verified} verified, {invalid} invalid").format(drafts=states.count("draft") + states.count("ready"), pushed=states.count("pushed"), verified=states.count("verified"), invalid=states.count("invalid")),
-            _("Template for n: {kind}").format(kind=_("time") if self.template_kind == "time" else _("distance")) + " · " + _("target folder {folder}").format(folder=app.config.workout.folder),
+            _("Template for n: {kind}").format(kind={"time": _("time"), "distance": _("distance"), "intervals": _("intervals")}[self.template_kind]) + " · " + _("target folder {folder}").format(folder=app.config.workout.folder),
         ]
         if app.runner.busy and app.runner.active and app.runner.active.key.startswith("workout_"):
             status.append("⏳ " + _("running: {title}").format(title=app.runner.active.title))
@@ -255,7 +255,8 @@ class WorkoutsScreen(WristpullScreen):
     def action_toggle_template(self) -> None:
         if self.view != "files":
             return
-        self.template_kind = "distance" if self.template_kind == "time" else "time"
+        kinds = ("time", "distance", "intervals")
+        self.template_kind = kinds[(kinds.index(self.template_kind) + 1) % len(kinds)]
         self.refresh_data()
 
     def action_new(self) -> None:

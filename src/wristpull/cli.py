@@ -109,7 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_wnew = workout_sub.add_parser("new", help="create a workout file from a template and print its path")
     p_wnew.add_argument("--date", help="planned local date (default: tomorrow)")
     p_wnew.add_argument("--name", help="workout name (max 30 characters)")
-    p_wnew.add_argument("--template", choices=["time", "distance"], default="time", help="main part by time (default) or by distance")
+    p_wnew.add_argument("--template", choices=["time", "distance", "intervals"], default="time", help="main part by time (default), by distance, or an interval block (6 x 400 m) to edit")
     p_wnew.add_argument("--minutes", type=int, default=40, help="main part in minutes for --template time (default 40)")
     p_wnew.add_argument("--metres", type=int, default=5000, help="main part in metres for --template distance (default 5000)")
     p_wnew.add_argument("--edit", action="store_true", help="open the new file in $EDITOR")

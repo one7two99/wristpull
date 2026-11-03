@@ -20,7 +20,7 @@ PRODUCT_CONNECT = 65534  # garmin_product 'connect': what the workout files writ
 CAPABILITIES_TCX = 32
 # sport, sub_sport numbers per model sport (sub_sport 0 = generic)
 SPORT_NUM: dict[str, tuple[int, int]] = {"running": (1, 0), "cycling": (2, 0), "walking": (11, 0), "strength": (10, 20), "cardio": (10, 26)}
-DURATION_TIME, DURATION_DISTANCE, DURATION_OPEN = 0, 1, 5
+DURATION_TIME, DURATION_DISTANCE, DURATION_OPEN, DURATION_REPEAT = 0, 1, 5, 6  # 6: repeat_until_steps_cmplt
 TARGET_HEART_RATE, TARGET_OPEN = 1, 2
 INTENSITY_NUM = {"active": 0, "rest": 1, "warmup": 2, "cooldown": 3, "recovery": 4}
 HR_OFFSET = 100
@@ -96,6 +96,20 @@ def build_workout_fit(workout: Workout, *, created: datetime | None = None) -> b
 
 
 def step_fields(index: int, step: Step, *, sport: str = "running") -> list[tuple[int, str, object]]:
+    if step.intensity == "repeat":
+        # Exactly what Garmin Connect writes for a repeat (checked against a Connect file with "4x"):
+        # duration_step = message_index of the block's first step, repeat_steps = repetitions in all,
+        # field 18 = 0 (enum, not in the public profile), no intensity and no target type.
+        fields: list[tuple[int, str, object]] = [
+            (254, "uint16", index),
+            (1, "enum", DURATION_REPEAT),
+            (2, "uint32", int(step.repeat_from or 0)),
+            (4, "uint32", int(step.repeat or 1)),
+            (18, "enum", 0),
+        ]
+        if step.note:
+            fields.append((8, "string", step.note[:50]))
+        return fields
     if step.duration_s is not None:
         duration_type, duration_value = DURATION_TIME, step.duration_s * 1000
     elif step.distance_m is not None:
@@ -197,6 +211,12 @@ def workout_from_fit(fit) -> Workout:
         duration_type, duration_value = _raw(msg, 1), _raw(msg, 2)
         notes: list[str] = []
         step = Step(intensity)
+        if duration_type == DURATION_REPEAT:
+            step = Step("repeat", repeat=int(_raw(msg, 4) or 1), repeat_from=int(duration_value or 0))
+            text = msg.get("notes")
+            step.note = str(text) if text else ""
+            steps.append(step)
+            continue
         if duration_type == DURATION_TIME and duration_value:
             step.duration_s = int(round(duration_value / 1000))
         elif duration_type == DURATION_DISTANCE and duration_value:

@@ -65,7 +65,7 @@ def test_workout_from_fit_foreign_file():
     assert w.name == "30-Minute Blast" and w.sport == "strength"
     assert w.steps[0].kind == "open" and w.steps[0].note == "reps 8"
     assert w.steps[1].distance_m == 1000 and w.steps[1].hr is None and w.steps[1].note == "pace target"
-    assert w.steps[2].intensity == "rest" and w.steps[2].note.startswith("repeat")
+    assert w.steps[2].intensity == "repeat" and w.steps[2].repeat == 3 and w.steps[2].repeat_from == 0
     assert sport_name(1, 0) == "running" and sport_name(10, 99) == "training" and sport_name(2, 6) == "cycling" and sport_name(77, 0) == "sport 77"
 
 
@@ -215,3 +215,14 @@ def test_pending_files_in_newfiles(config: Config, conn, garmin_tree: Path):
     for i in range(WORKOUT_LIMIT_WARN):
         (newfiles / f"extra{i}.fit").write_bytes(build_workout_fit(_w(date(2026, 12, 1), f"Extra {i}"), created=NOW))
     assert read_watch(conn, config, roots=roots, mounter=lambda: (False, "no")).near_limit
+
+
+def test_workout_from_fit_reads_repeat_blocks():
+    from datetime import date as _date
+
+    from wristpull.workouts.model import Defaults, template
+
+    original = template("intervals", _date(2026, 11, 7), Defaults())
+    back = workout_from_fit(decode_fit(build_workout_fit(original, created=NOW)))
+    assert back.steps[3].intensity == "repeat" and back.steps[3].repeat == 6 and back.steps[3].repeat_from == 1
+    assert back.total_metres == original.total_metres
