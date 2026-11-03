@@ -1139,3 +1139,119 @@ msgstr "wartet"
 
 msgid "waiting for unplugging"
 msgstr "wartet aufs Abstecken"
+
+msgid "Pages"
+msgstr "Seiten"
+
+msgid "Today"
+msgstr "Heute"
+
+msgid "Trends"
+msgstr "Trends"
+
+msgid "Log out"
+msgstr "Abmelden"
+
+msgid "Log in"
+msgstr "Anmelden"
+
+msgid "Your health data, on your own machine."
+msgstr "Deine Gesundheitsdaten, auf deinem eigenen Rechner."
+
+msgid "Password"
+msgstr "Passwort"
+
+msgid "Wrong password."
+msgstr "Falsches Passwort."
+
+msgid "Too many failed attempts. Try again in 15 minutes."
+msgstr "Zu viele Fehlversuche. Versuch es in 15 Minuten wieder."
+
+msgid "Latest data: {date}"
+msgstr "Neueste Daten: {date}"
+
+msgid "No data yet"
+msgstr "Noch keine Daten"
+
+msgid "Key values"
+msgstr "Kennwerte"
+
+msgid "Body Battery"
+msgstr "Body Battery"
+
+msgid "bpm"
+msgstr "bpm"
+
+msgid "ms"
+msgstr "ms"
+
+msgid "h"
+msgstr "h"
+
+msgid "max"
+msgstr "max"
+
+msgid "{delta} vs. 28-day mean {mean}"
+msgstr "{delta} zum 28-Tage-Schnitt {mean}"
+
+msgid "no baseline yet"
+msgstr "noch kein Normalwert"
+
+msgid "Score {score}"
+msgstr "Score {score}"
+
+msgid "Warning signs"
+msgstr "Warnzeichen"
+
+msgid "Acute:chronic ratio {acwr} (green band 0.8–1.3), acute load {acute}, chronic {chronic} per week."
+msgstr "Verhältnis akut zu chronisch {acwr} (grüner Bereich 0,8–1,3), akute Last {acute}, chronisch {chronic} pro Woche."
+
+msgid "Not enough history yet (28 days with data are needed)."
+msgstr "Noch zu wenig Verlauf (28 Tage mit Daten nötig)."
+
+msgid "Coach · daily check"
+msgstr "Coach · Tagescheck"
+
+msgid "No daily check yet. Run one with: wristpull coach daily"
+msgstr "Noch kein Tagescheck. Starten mit: wristpull coach daily"
+
+msgid "{start} to {end}, {n} days with data"
+msgstr "{start} bis {end}, {n} Tage mit Daten"
+
+msgid "1 year"
+msgstr "1 Jahr"
+
+msgid "{n} weeks"
+msgstr "{n} Wochen"
+
+msgid "Gaps mean no data for that day, not zero."
+msgstr "Lücken heißen: keine Daten an dem Tag, nicht null."
+
+msgid "Training per week"
+msgstr "Training pro Woche"
+
+msgid "Acute:chronic load"
+msgstr "Belastung akut:chronisch"
+
+msgid "Watch"
+msgstr "Uhr"
+
+msgid "Hours"
+msgstr "Stunden"
+
+msgid "ACWR"
+msgstr "ACWR"
+
+msgid "{n} warning sign"
+msgid_plural "{n} warning signs"
+msgstr[0] "{n} Warnzeichen"
+msgstr[1] "{n} Warnzeichen"
+
+msgid "Watch (USB)"
+msgstr "Uhr (USB)"
+
+msgid "Watch (phone)"
+msgstr "Uhr (über Handy)"
+
+msgid "Strap (phone)"
+msgstr "Gurt (über Handy)"

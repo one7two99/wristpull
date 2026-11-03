@@ -39,3 +39,9 @@
   new files above that; the schedule file (calendar date) is unverified. Writes go through `gio copy` on gvfs MTP.
   Repeat blocks are flat as in FIT (block steps, then a `Step("repeat", repeat=N, repeat_from=i)`;
   `expand_steps` for totals). Names are unique per ISO week (generated names end with `dd.mm.`; `model.mark_name_clashes` makes duplicates invalid).
+- Web dashboard (`src/wristpull/web/`, Starlette + Jinja2 + vendored htmx/ECharts, optional extra `web`; concept
+  `docs/dashboard-concept.md`): only library calls, no SQL/FIT parsing (test in `tests/test_web.py`); page data in
+  `web/pages.py`; strings share the TUI catalog but are translated per request (`web/i18n.py`). Secrets only from the
+  environment (`WRISTPULL_WEB_PASSWORD_HASH`, `WRISTPULL_WEB_SECRET`). Exactly one uvicorn worker (in-process rate limit
+  and jobs) – never add a workers option. Docker: `Dockerfile`, `compose.yaml`, `deploy/Caddyfile`, `.env.example`.
+  Never suggest `OLLAMA_HOST=0.0.0.0`. Tests use Starlette's `TestClient` with `base_url="https://testserver"`.

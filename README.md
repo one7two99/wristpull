@@ -29,6 +29,7 @@ uv run wristpull status
 uv sync --extra tui                # optional: the terminal UI (Textual)
 uv run wristpull tui
 uv sync --extra coach              # optional: Claude API backend for the training coach (anthropic SDK)
+uv sync --extra web                # optional: the web dashboard (Starlette); see "Web dashboard"
 ```
 
 ## Usage
@@ -51,6 +52,7 @@ form.
 | `workout` | structured workouts as Markdown, pushed to the watch as FIT files |
 | `reparse` | re-parse archived raw files after a parser change |
 | `tui` | the terminal UI over all of the above |
+| `serve` | the web dashboard for phone and browser (also as a Docker container) |
 
 ### Global options
 
@@ -516,6 +518,62 @@ Folder layout verified on a fenix 6X Pro (firmware 28.02): `Activity/` holds one
 and `HRVStatus/` (not `HRV`) the rest. The watch keeps wellness files only for a short time (on
 first contact `Monitor/` held just the current day), so import regularly, ideally daily.
 
+## Web dashboard
+
+A small web app for the phone and the browser: **Today** (resting HR, HRV, sleep, stress, steps
+and body battery against your 28-day mean, warning signs, training load, the latest coach check,
+when each source last synced) and **Trends** (4 weeks, 12 weeks or a year: resting HR and HRV of
+watch and strap, sleep, stress, training hours per week, acute:chronic load with the 0.8–1.3
+band). Missing days stay gaps. It shows the same numbers as CLI and TUI because it calls the same
+library functions. Coach runs, ratings, journal and the workout editor follow in the next waves
+([concept](docs/dashboard-concept.md)); importing from the watch and the phone stays on the laptop.
+
+**Docker (recommended, reachable from the phone over HTTPS):**
+
+```sh
+cp .env.example .env               # then fill it in:
+id -u; id -g                       #   UID / GID
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"   # WRISTPULL_WEB_SECRET
+uv run wristpull serve --hash-password                          # WRISTPULL_WEB_PASSWORD_HASH=...
+docker compose up -d --build
+```
+
+`.env` also names the data directory, the config file and `WRISTPULL_SITE`, the addresses Caddy
+serves (for example `https://192.168.1.10:8443, https://localhost:8443`). Caddy terminates HTTPS
+with its own local certificate authority; the app container has no published port. To make the
+phone trust it, copy the root certificate out once and install it on the phone (Android:
+Settings → Security → Encryption & credentials → Install a certificate → CA certificate):
+
+```sh
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./wristpull-root.crt
+```
+
+Keep the `caddy_data` volume: it holds that CA, and a new one would have to be installed again.
+
+- **Password:** only its scrypt hash is configured (`WRISTPULL_WEB_PASSWORD_HASH`), never the
+  password and never in the config file. Five failed logins from one address (twenty overall)
+  lock the login for 15 minutes.
+- **Session secret:** `WRISTPULL_WEB_SECRET` signs the session cookie, so you stay logged in
+  across restarts (30 days). Compose refuses to start without it. A local `wristpull serve`
+  without it uses a random secret per start and warns that logins end with the process.
+- **One worker:** the server runs exactly one uvicorn worker, because the login limit (and later
+  the background jobs) live in process memory. Do not scale the `web` service.
+- Cookies are `Secure`, `HttpOnly`, `SameSite=Strict`; every form carries a CSRF token; a strict
+  Content-Security-Policy allows scripts only from the app itself (htmx and ECharts are vendored,
+  nothing is loaded from the internet).
+- **Ollama for coach runs from the container** (next wave): the container reaches the host as
+  `host.docker.internal`. Never set `OLLAMA_HOST=0.0.0.0` (that opens Ollama to the whole LAN
+  without authentication). Either bind Ollama to the docker0 address (`OLLAMA_HOST=172.17.0.1`;
+  then the coach on the host must use `http://172.17.0.1:11434` as well, and the Ollama service
+  needs `After=docker.service`), or keep it on localhost and allow port 11434 only from the Docker
+  subnets with a firewall rule.
+
+**Without Docker** (on the laptop only): `uv sync --extra web`, export
+`WRISTPULL_WEB_PASSWORD_HASH` (and `WRISTPULL_WEB_SECRET`), then
+`uv run wristpull serve` and open `http://127.0.0.1:8765`. Options: `--host`, `--port`,
+`--data-dir` (overrides `[storage] data_dir`), `--behind-proxy` (trust `X-Forwarded-For`, only
+when a proxy is the sole way in).
+
 ## Automation
 
 `contrib/systemd/` has user units and timers for the morning routine (`pull phone` at 06:45, `coach
@@ -692,5 +750,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md); the licence is MIT ([LICENSE](LICENSE)).
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [docs/screenshots/](docs/screenshots/README.md)
 6. ~~Training coach via LLM: C1 daily check and questions with Ollama, goal profile, local memory; C2 weekly review, Claude API and OpenRouter backends, number check, ratings; C3 goal wizard, TUI coach screen; C4 journal, plan adherence, ICS export, systemd/udev templates~~ — concept in [docs/coach-concept.md](docs/coach-concept.md)
 7. ~~Workouts to the watch: Markdown workouts, FIT encoder, `workout push|verify|from-plan`, TUI screen 0; `NewFiles` import confirmed on the fenix 6X Pro~~ — interval blocks (`repeat`) added; next: the schedule file (calendar date)
-8. Web dashboard in Docker (phone in the home network, HTTPS + password, coach and workout actions): concept in [docs/dashboard-concept.md](docs/dashboard-concept.md), waves D1–D3 next
+8. Web dashboard in Docker (phone in the home network, HTTPS + password): concept in [docs/dashboard-concept.md](docs/dashboard-concept.md); ~~D1 login, Today, Trends, Docker + Caddy~~ — next: D2 activities and sleep, D3 coach, journal and workout actions
 9. Later: MCP server / Claude skill over the SQLite, nutrition source (MyNetDiary or own logging)

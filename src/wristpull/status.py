@@ -35,6 +35,12 @@ def _range(conn: sqlite3.Connection, table: str, column: str) -> tuple[str | Non
     return (row[0], row[1]) if row else (None, None)
 
 
+def last_imports(conn: sqlite3.Connection) -> dict[str, str]:
+    """When each source (``garmin_usb``, ``gadgetbridge``, ...) last delivered a raw file (UTC ISO)."""
+    rows = conn.execute("SELECT source, MAX(imported_at_utc) FROM raw_files GROUP BY source").fetchall()
+    return {str(r[0]): str(r[1]) for r in rows if r[1]}
+
+
 def collect_status(
     conn: sqlite3.Connection,
     config: Config,

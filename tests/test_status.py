@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from wristpull.importers.garmin import import_garmin
-from wristpull.status import collect_status, render_status
+from wristpull.status import collect_status, last_imports, render_status
 
 
 def test_status_device_detection_is_injectable(conn, config, garmin_tree: Path):
@@ -19,3 +19,10 @@ def test_status_device_detection_is_injectable(conn, config, garmin_tree: Path):
 
     status = collect_status(conn, config, roots=lambda: [], mtp_urls=lambda: [])
     assert "not connected" in render_status(status)
+
+
+def test_last_imports_per_source(conn, config, garmin_tree: Path):
+    assert last_imports(conn) == {}
+    import_garmin(conn, config, path=garmin_tree)
+    stamps = last_imports(conn)
+    assert list(stamps) == ["garmin_usb"] and stamps["garmin_usb"].endswith("Z")

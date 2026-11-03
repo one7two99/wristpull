@@ -1,0 +1,15 @@
+.git
+.venv
+**/__pycache__
+.pytest_cache
+.env
+tests
+docs
+contrib
+deploy
+mockups
+Health
+*.sqlite*
+*.fit
+*.FIT
+INIT-PROMPT.md

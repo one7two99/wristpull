@@ -1,0 +1,45 @@
+# wristpull web dashboard: the app plus Caddy for HTTPS in the home network.
+# 1. cp .env.example .env and fill it in (secret, password hash, UID/GID, site address)
+# 2. docker compose up -d --build
+# 3. open https://<laptop-ip>:8443 (install Caddy's root certificate on the phone once, see README)
+name: wristpull
+
+services:
+  web:
+    build: .
+    image: wristpull-web:latest
+    restart: unless-stopped
+    # Exactly ONE worker (see Dockerfile CMD): do not scale this service or add workers.
+    user: "${UID:?set UID in .env}:${GID:?set GID in .env}"
+    env_file: .env
+    environment:
+      WRISTPULL_WEB_SECRET: ${WRISTPULL_WEB_SECRET:?set WRISTPULL_WEB_SECRET in .env, see .env.example}
+      WRISTPULL_WEB_PASSWORD_HASH: ${WRISTPULL_WEB_PASSWORD_HASH:?set WRISTPULL_WEB_PASSWORD_HASH in .env, see .env.example}
+    volumes:
+      # Read-write: coach runs, ratings, journal notes and workout files are written from the browser.
+      - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}:/data
+      - ${WRISTPULL_CONFIG:?set WRISTPULL_CONFIG in .env}:/config/config.toml:ro
+    extra_hosts:
+      # Ollama on the host as http://host.docker.internal:11434 (never OLLAMA_HOST=0.0.0.0, see README).
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8000"
+    # No published port: the app is reachable only through Caddy.
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment:
+      WRISTPULL_SITE: ${WRISTPULL_SITE:-https://localhost:8443}
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:   # holds Caddy's local CA (root.crt): keep it, or phones must trust a new one
+  caddy_config:

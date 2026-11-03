@@ -1,7 +1,8 @@
 # wristpull web dashboard – concept
 
-Status: concept (wave D0), awaiting approval together with the clickable mockup. Implementation
-waves D1–D3 at the end.
+Status: concept approved 2026-11-03; D1 implemented the same day (`wristpull serve`, login with
+scrypt hash, signed session, CSRF, rate limit, pages Today and Trends, Dockerfile, Compose, Caddy).
+Implementation waves at the end.
 
 ## Why
 

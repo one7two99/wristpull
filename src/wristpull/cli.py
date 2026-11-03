@@ -69,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("tui", help="open the terminal UI (requires the 'tui' extra: uv sync --extra tui)")
 
+    p_serve = sub.add_parser("serve", help="run the web dashboard (requires the 'web' extra: uv sync --extra web)")
+    p_serve.add_argument("--host", default="127.0.0.1", help="address to listen on (default 127.0.0.1; the Docker image uses 0.0.0.0 behind Caddy)")
+    p_serve.add_argument("--port", type=int, default=8765, help="port (default 8765)")
+    p_serve.add_argument("--data-dir", type=Path, help="use this data directory instead of [storage] data_dir (/data in the container)")
+    p_serve.add_argument("--behind-proxy", action="store_true", help="trust X-Forwarded-For from the reverse proxy (only when the proxy is the sole way in)")
+    p_serve.add_argument("--hash-password", action="store_true", help="ask for a password and print the hash for WRISTPULL_WEB_PASSWORD_HASH")
+
     p_coach = sub.add_parser("coach", help="training coach: send aggregated data to an LLM and store the answer")
     coach_sub = p_coach.add_subparsers(dest="coach_cmd", required=True)
     for name, help_text in (
@@ -632,6 +639,24 @@ def cmd_tui(args: argparse.Namespace, config: Config) -> int:
     return run_tui(config)
 
 
+def cmd_serve(args: argparse.Namespace, config: Config) -> int:
+    if args.hash_password:
+        from .web.server import PASSWORD_ENV, prompt_hash
+
+        encoded = prompt_hash()
+        if encoded is None:
+            print("the passwords differ or are empty", file=sys.stderr)
+            return 1
+        print(f"{PASSWORD_ENV}={encoded}")
+        return 0
+    try:
+        from .web.server import serve
+    except ImportError as exc:
+        print(f"the web dashboard needs the optional dependencies: uv sync --extra web ({exc})", file=sys.stderr)
+        return 1
+    return serve(config, host=args.host, port=args.port, data_dir=args.data_dir, behind_proxy=args.behind_proxy)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -654,6 +679,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_export(args, config)
     if args.command == "tui":
         return cmd_tui(args, config)
+    if args.command == "serve":
+        return cmd_serve(args, config)
     if args.command == "reparse":
         return cmd_reparse(args, config)
     if args.command == "coach":

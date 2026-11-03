@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Today") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Today") }}</h1>
+<p class="muted">
+{% if d.as_of %}{{ _("Latest data: {date}").format(date=d.as_of) }}{% else %}{{ _("No data yet") }}{% endif %}
+{% for source, when in imports.items() %} · {{ _(source_labels.get(source, source)) }} {{ when }}{% endfor %}
+</p>
+</header>
+
+<section class="tiles" aria-label="{{ _('Key values') }}">
+{% for t in d.tiles %}
+<article class="tile">
+<h2>{{ _(t.label) }}</h2>
+<p class="value"><span class="num">{{ t.text }}</span>{% if t.unit %} <span class="unit">{{ _(t.unit) }}</span>{% endif %}</p>
+{% if t.delta_text %}
+<p class="delta {{ t.tone }}">{{ _("{delta} vs. 28-day mean {mean}").format(delta=t.delta_text, mean=t.mean_text) }}</p>
+{% elif t.value is not none %}
+<p class="delta neutral">{{ _("no baseline yet") }}</p>
+{% endif %}
+{% if t.metric == "sleep_duration_s" and d.sleep_score is not none %}<p class="delta neutral">{{ _("Score {score}").format(score=d.sleep_score|num) }}</p>{% endif %}
+</article>
+{% endfor %}
+</section>
+
+{% if d.flags %}
+<section class="card warn" aria-label="{{ _('Warning signs') }}">
+<h2>{{ ngettext("{n} warning sign", "{n} warning signs", d.flags|length).format(n=d.flags|length) }}</h2>
+<ul>{% for flag in d.flags %}<li>{{ flag }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<section class="card">
+<h2>{{ _("Training load") }}</h2>
+{% if d.load and d.load.sufficient_history and d.load.acwr is not none %}
+<p>{{ _("Acute:chronic ratio {acwr} (green band 0.8–1.3), acute load {acute}, chronic {chronic} per week.").format(acwr=d.load.acwr|num(2), acute=d.load.acute_load|num, chronic=d.load.chronic_weekly_load|num) }}</p>
+{% else %}
+<p class="muted">{{ _("Not enough history yet (28 days with data are needed).") }}</p>
+{% endif %}
+</section>
+
+<section class="card">
+<h2>{{ _("Coach · daily check") }}</h2>
+{% if d.coach %}
+<p class="muted small">{{ coach_time }} · {{ d.coach.backend }}{% if d.coach.model %} · {{ d.coach.model }}{% endif %}</p>
+<div class="prose">
+{% for b in d.coach.blocks %}{% if b.kind == "heading" %}<h3>{{ b.text }}</h3>{% else %}<p>{{ b.text }}</p>{% endif %}{% endfor %}
+</div>
+{% else %}
+<p class="muted">{{ _("No daily check yet. Run one with: wristpull coach daily") }}</p>
+{% endif %}
+</section>
+{% endblock %}

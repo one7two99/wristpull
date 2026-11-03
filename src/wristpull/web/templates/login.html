@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Log in") }}{% endblock %}
+{% block public %}
+<main class="login">
+<h1>wristpull</h1>
+<p class="muted">{{ _("Your health data, on your own machine.") }}</p>
+<form method="post" action="/login">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="password">{{ _("Password") }}</label>
+<input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+{% if error == "wrong" %}<p class="error" role="alert">{{ _("Wrong password.") }}</p>{% endif %}
+{% if error == "blocked" %}<p class="error" role="alert">{{ _("Too many failed attempts. Try again in 15 minutes.") }}</p>{% endif %}
+<button type="submit" class="primary">{{ _("Log in") }}</button>
+</form>
+</main>
+{% endblock %}

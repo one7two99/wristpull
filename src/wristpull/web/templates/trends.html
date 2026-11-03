@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Trends") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Trends") }}</h1>
+<p class="muted">{{ _("{start} to {end}, {n} days with data").format(start=d.start, end=d.end, n=d.days_with_data) }}</p>
+</header>
+<nav class="segmented" aria-label="{{ _('Period') }}">
+{% for w in choices %}
+<a href="/trends?weeks={{ w }}" {% if w == d.weeks %}aria-current="page"{% endif %}>{% if w == 52 %}{{ _("1 year") }}{% else %}{{ _("{n} weeks").format(n=w) }}{% endif %}</a>
+{% endfor %}
+</nav>
+<section class="charts">
+{% for c in d.charts %}
+<article class="card chart-card">
+<h2>{{ c.title }}{% if c.unit %} <span class="unit">({{ _(c.unit) }})</span>{% endif %}</h2>
+<div class="chart" id="chart-{{ c.id }}" data-chart="{{ c.id }}" role="img" aria-label="{{ c.title }}"></div>
+</article>
+{% endfor %}
+</section>
+<p class="muted small">{{ _("Gaps mean no data for that day, not zero.") }}</p>
+<script type="application/json" id="chart-data">{{ charts_json|safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+{% endblock %}

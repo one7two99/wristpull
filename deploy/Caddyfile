@@ -1,0 +1,16 @@
+# HTTPS for the wristpull dashboard with Caddy's own local certificate authority.
+# WRISTPULL_SITE lists the addresses the phone uses, e.g. "https://192.168.1.10:8443, https://localhost:8443".
+{
+	admin off
+	auto_https disable_redirects
+}
+
+{$WRISTPULL_SITE} {
+	tls internal
+	encode zstd gzip
+	reverse_proxy web:8000
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}
