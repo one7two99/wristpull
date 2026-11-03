@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ check.name or file }}{% endblock %}
+{% block main %}
+<a class="back" href="/workouts">← {{ _("All workouts") }}</a>
+<header class="page-head">
+<h1>{{ check.name or file }}</h1>
+<p class="muted small num">{{ file }}</p>
+</header>
+{% if saved %}<p class="note ok">{{ _("Saved.") }}</p>{% endif %}
+<form method="post" action="/workouts/save" class="editor">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="file" value="{{ file }}">
+<label class="sr-only" for="text">{{ _("Workout Markdown") }}</label>
+<textarea id="text" name="text" rows="16" spellcheck="false" hx-post="/workouts/check" hx-trigger="input changed delay:400ms" hx-target="#check" hx-swap="outerHTML" hx-include="closest form">{{ text }}</textarea>
+{% include "_check.html" %}
+<button type="submit" class="primary">{{ _("Save") }}</button>
+</form>
+<details class="card help">
+<summary>{{ _("Syntax") }}</summary>
+<pre>- warmup 10 min hr &lt;= 130
+- run 40 min hr Z2          # or 5 km, 135-150, 70-80 %
+- repeat 6x
+  - run 400 m hr Z5
+  - recovery 2 min hr &lt;= 130
+- cooldown 5 min hr &lt;= 125</pre>
+</details>
+{% endblock %}

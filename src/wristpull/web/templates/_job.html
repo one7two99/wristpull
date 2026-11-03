@@ -1,0 +1,14 @@
+<div id="job" class="job"{% if job and job.running %} hx-get="/coach/job?poll=1" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %} aria-live="polite">
+{% if busy %}<p class="note warn-text">{{ _("Another run is still in progress.") }}</p>{% endif %}
+{% if job %}
+{% if job.running %}
+<p class="note info"><span class="spinner" aria-hidden="true"></span> {{ _("Coach run ({kind}) in progress … {s} s").format(kind=_(job.title), s=job.seconds) }}</p>
+{% if job.log %}<p class="muted small">{{ job.log[-1] }}</p>{% endif %}
+{% elif job.status == "error" %}
+<p class="note error-box">{{ _("Coach run ({kind}) failed: {error}").format(kind=_(job.title), error=job.error) }}</p>
+{% else %}
+<p class="note ok">{{ _("Coach run ({kind}) finished in {s} s.").format(kind=_(job.title), s=job.seconds) }}</p>
+{% if job.result and job.result.warnings %}<ul class="muted small">{% for w in job.result.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+{% endif %}
+{% endif %}
+</div>

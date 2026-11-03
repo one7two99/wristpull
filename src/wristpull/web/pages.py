@@ -8,17 +8,21 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..aggregate import daily_frame, weekly_frame
 from ..coach.metrics import acute_chronic, deltas, recovery_flags, value
-from ..coach.store import recent_runs
+from ..coach.store import recent_notes, recent_runs
+from ..config import Config
 from ..detail import activity_detail, downsample, local_clock, sleep_night, sports
 from ..merge import STRAP_SOURCE, merged_activities, merged_sleep
 from ..status import last_imports
 from ..timeutil import parse_iso_utc
 from ..tui.queries import day_rows
+from ..workouts.model import MAX_NAME_LEN, Workout, describe_steps, template
+from ..workouts.store import list_workouts, push_status, save, workouts_dir
 
 # (metric, label msgid, unit, display kind, which direction is good)
 TILES: tuple[tuple[str, str, str, str, str | None], ...] = (
@@ -278,3 +282,68 @@ def night_page(conn: sqlite3.Connection, sleep_id: int, tz: ZoneInfo) -> dict[st
         "other": other,
         "other_device": DEVICE_LABELS.get(other["device"], "") if other else None,
     }
+
+
+# ---- coach, journal, workouts (wave D3) -------------------------------------------------------
+
+COACH_KINDS = ("daily", "weekly", "ask")
+TEMPLATE_KINDS = ("time", "distance", "intervals")
+
+
+def coach_data(conn: sqlite3.Connection, tz: ZoneInfo, *, runs: int = 10, notes: int = 10) -> dict[str, Any]:
+    """Recent successful runs with their answer as blocks, and the latest journal notes."""
+    items = []
+    for run in recent_runs(conn, limit=runs):
+        stamp = run.get("created_at_utc")
+        items.append({
+            "id": run["id"],
+            "kind": run["kind"],
+            "when": parse_iso_utc(stamp).astimezone(tz).strftime("%d.%m. %H:%M") if stamp else "–",
+            "backend": run.get("backend"),
+            "model": run.get("model"),
+            "question": run.get("question"),
+            "rating": run.get("rating"),
+            "cost_usd": run.get("cost_usd"),
+            "blocks": coach_blocks(run.get("answer_md") or ""),
+        })
+    return {"runs": items, "notes": recent_notes(conn, notes)}
+
+
+def workouts_data(config: Config, conn: sqlite3.Connection, today: date) -> dict[str, Any]:
+    """Workout files from a week ago on, with the push state from the history and validation errors."""
+    rows = []
+    for w in list_workouts(config, start=today - timedelta(days=7)):
+        state = (push_status(conn, w.path or "") if w.path else None) or w.status
+        total = w.total_seconds
+        rows.append({
+            "file": Path(w.path).name if w.path else "",
+            "name": w.name,
+            "day": w.day.isoformat() if w.day else None,
+            "sport": w.sport,
+            "steps": len(w.steps),
+            "minutes": total // 60 if total else None,
+            "metres": w.total_metres or None,
+            "state": state,
+            "errors": list(w.errors),
+        })
+    return {"rows": rows, "folder": str(workouts_dir(config)), "kinds": TEMPLATE_KINDS, "tomorrow": (today + timedelta(days=1)).isoformat()}
+
+
+def check_lines(workout: Workout) -> dict[str, Any]:
+    """What the live check shows: the steps as the watch will show them, plus every problem."""
+    return {"valid": workout.valid, "steps": describe_steps(workout) if workout.steps else [], "errors": list(workout.errors),
+            "name": workout.name, "day": workout.day.isoformat() if workout.day else None}
+
+
+def new_workout(config: Config, kind: str, day: date) -> Path:
+    """A file from the template; a second one for the same day and kind gets a numbered name."""
+    kind = kind if kind in TEMPLATE_KINDS else "time"
+    workout = template(kind, day, config.workout.defaults())
+    base = workout.name
+    for attempt in range(2, 12):
+        try:
+            return save(config, workout)
+        except FileExistsError:
+            workout.path = None
+            workout.name = f"{base[: MAX_NAME_LEN - 3]} {attempt}"
+    raise FileExistsError("no free file name for a new workout")

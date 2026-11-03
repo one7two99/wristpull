@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_rating.html" import rating with context %}
 {% block title %}wristpull · {{ _("Today") }}{% endblock %}
 {% block main %}
 <header class="page-head">
@@ -47,6 +48,8 @@
 <div class="prose">
 {% for b in d.coach.blocks %}{% if b.kind == "heading" %}<h3>{{ b.text }}</h3>{% else %}<p>{{ b.text }}</p>{% endif %}{% endfor %}
 </div>
+{{ rating(d.coach.id, d.coach.rating, "/") }}
+<p class="small"><a href="/coach">{{ _("All coach runs") }} →</a></p>
 {% else %}
 <p class="muted">{{ _("No daily check yet. Run one with: wristpull coach daily") }}</p>
 {% endif %}

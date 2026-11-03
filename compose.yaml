@@ -15,6 +15,11 @@ services:
     environment:
       WRISTPULL_WEB_SECRET: ${WRISTPULL_WEB_SECRET:?set WRISTPULL_WEB_SECRET in .env, see .env.example}
       WRISTPULL_WEB_PASSWORD_HASH: ${WRISTPULL_WEB_PASSWORD_HASH:?set WRISTPULL_WEB_PASSWORD_HASH in .env, see .env.example}
+      # Coach runs with Ollama: the host as seen from the container (see README before changing OLLAMA_HOST).
+      WRISTPULL_OLLAMA_URL: ${WRISTPULL_OLLAMA_URL:-http://host.docker.internal:11434}
+      # Coach API keys: taken from the shell that runs `docker compose up`, or from .env.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       # Read-write: coach runs, ratings, journal notes and workout files are written from the browser.
       - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}:/data

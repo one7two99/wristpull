@@ -1332,3 +1332,137 @@ msgid "{n} activity"
 msgid_plural "{n} activities"
 msgstr[0] "{n} Aktivität"
 msgstr[1] "{n} Aktivitäten"
+
+msgid "Another run is still in progress."
+msgstr "Ein anderer Lauf ist noch nicht fertig."
+
+msgid "Coach run ({kind}) in progress … {s} s"
+msgstr "Coach-Lauf ({kind}) läuft … {s} s"
+
+msgid "Coach run ({kind}) failed: {error}"
+msgstr "Coach-Lauf ({kind}) fehlgeschlagen: {error}"
+
+msgid "Coach run ({kind}) finished in {s} s."
+msgstr "Coach-Lauf ({kind}) fertig nach {s} s."
+
+msgid "Helpful"
+msgstr "Hilfreich"
+
+msgid "Neutral"
+msgstr "Neutral"
+
+msgid "Not helpful"
+msgstr "Nicht hilfreich"
+
+msgid "Runs use the backend from the config; the data package is built here, from your database."
+msgstr "Läufe nutzen das Backend aus der Config; das Datenpaket entsteht hier aus deiner Datenbank."
+
+msgid "Daily check"
+msgstr "Tagescheck"
+
+msgid "Weekly review"
+msgstr "Wochenrückblick"
+
+msgid "Ask a question"
+msgstr "Frage stellen"
+
+msgid "e.g. Should I run today with heavy legs?"
+msgstr "z. B. Soll ich heute mit schweren Beinen laufen?"
+
+msgid "Ask"
+msgstr "Fragen"
+
+msgid "No coach runs yet."
+msgstr "Noch keine Coach-Läufe."
+
+msgid "Journal"
+msgstr "Journal"
+
+msgid "Note for today"
+msgstr "Notiz für heute"
+
+msgid "e.g. heavy legs, slept badly"
+msgstr "z. B. schwere Beine, schlecht geschlafen"
+
+msgid "Note saved for {date}."
+msgstr "Notiz für {date} gespeichert."
+
+msgid "Check: ok – this is what the watch will show"
+msgstr "Prüfung: ok – so zeigt es die Uhr"
+
+msgid "Check: needs fixing before it can be pushed"
+msgstr "Prüfung: vor dem Push noch zu korrigieren"
+
+msgid "To get them onto the watch, run on the laptop:"
+msgstr "Auf die Uhr kommen sie am Laptop mit:"
+
+msgid "{n} drafts written, {m} days skipped."
+msgstr "{n} Entwürfe geschrieben, {m} Tage übersprungen."
+
+msgid "No weekly plan stored yet: run the weekly review first."
+msgstr "Noch kein Wochenplan gespeichert: zuerst den Wochenrückblick laufen lassen."
+
+msgid "New from template"
+msgstr "Neu aus Vorlage"
+
+msgid "Create"
+msgstr "Anlegen"
+
+msgid "Drafts from the weekly plan"
+msgstr "Entwürfe aus dem Wochenplan"
+
+msgid "No workout files from last week on."
+msgstr "Keine Trainingsdateien ab letzter Woche."
+
+msgid "All workouts"
+msgstr "Alle Trainings"
+
+msgid "Saved."
+msgstr "Gespeichert."
+
+msgid "Workout Markdown"
+msgstr "Training als Markdown"
+
+msgid "Syntax"
+msgstr "Schreibweise"
+
+msgid "All coach runs"
+msgstr "Alle Coach-Läufe"
+
+msgid "running"
+msgstr "Laufen"
+
+msgid "cycling"
+msgstr "Radfahren"
+
+msgid "walking"
+msgstr "Gehen"
+
+msgid "strength"
+msgstr "Kraft"
+
+msgid "cardio"
+msgstr "Cardio"
+
+msgid "draft"
+msgstr "Entwurf"
+
+msgid "ready"
+msgstr "bereit"
+
+msgid "pushed"
+msgstr "gepusht"
+
+msgid "verified"
+msgstr "auf der Uhr"
+
+msgid "removed"
+msgstr "entfernt"
+
+msgid "dry_run"
+msgstr "Probelauf"
+
+msgid "{n} step"
+msgid_plural "{n} steps"
+msgstr[0] "{n} Schritt"
+msgstr[1] "{n} Schritte"

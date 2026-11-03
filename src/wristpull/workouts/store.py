@@ -71,6 +71,47 @@ def save(config: Config, workout: Workout, *, overwrite: bool = False) -> Path:
     return path
 
 
+FILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.md$")
+MAX_FILE_BYTES = 64 * 1024
+
+
+def workout_file(config: Config, name: str) -> Path:
+    """The path of a workout file given by its bare name; anything that could leave the folder is refused."""
+    if not FILE_NAME.match(name or "") or ".." in name:
+        raise ValueError(f"not a workout file name: {name!r}")
+    folder = workouts_dir(config).resolve()
+    path = (folder / name).resolve()
+    if path.parent != folder:
+        raise ValueError(f"not a workout file name: {name!r}")
+    return path
+
+
+def check_text(config: Config, name: str | None, text: str) -> Workout:
+    """Parse edited Markdown as if it were saved under ``name`` (for a live check), name clashes included."""
+    path = workout_file(config, name) if name else None
+    workout = parse_markdown(text, path=str(path) if path else None)
+    mark_folder_clashes(config, [workout])
+    return workout
+
+
+def write_text(config: Config, name: str, text: str) -> Workout:
+    """Replace an existing workout file with edited Markdown (kept verbatim) and return it parsed.
+
+    Only files that already exist in the workouts folder can be written; new ones come from ``save``.
+    Invalid Markdown is still written (the user may save work in progress); the errors come back.
+    """
+    path = workout_file(config, name)
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    data = text.replace("\r\n", "\n")
+    if len(data.encode("utf-8")) > MAX_FILE_BYTES:
+        raise ValueError("workout file too large")
+    tmp = path.with_suffix(".md.tmp")
+    tmp.write_text(data if data.endswith("\n") else data + "\n", "utf-8")
+    tmp.replace(path)
+    return check_text(config, name, data)
+
+
 def set_status(path: Path, status: str) -> None:
     """Change only the ``status:`` line of a file (the user's text and comments stay untouched)."""
     text = path.read_text("utf-8")

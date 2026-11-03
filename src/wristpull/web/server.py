@@ -16,6 +16,7 @@ from .auth import hash_password, valid_hash
 
 PASSWORD_ENV = "WRISTPULL_WEB_PASSWORD_HASH"
 SECRET_ENV = "WRISTPULL_WEB_SECRET"
+OLLAMA_ENV = "WRISTPULL_OLLAMA_URL"  # the container reaches Ollama on the host under another address
 
 
 def prompt_hash(ask: Callable[[str], str] | None = None) -> str | None:
@@ -56,9 +57,13 @@ def serve(
     secret = resolve_secret(env, warn)
     if data_dir is not None:
         config = replace(config, data_dir=data_dir)
+    ollama_url = env.get(OLLAMA_ENV, "").strip()
+    if ollama_url:
+        config = replace(config, coach=replace(config.coach, ollama_url=ollama_url))
     from .app import create_app
 
     app = create_app(config, password_hash=password_hash, secret=secret)
+    app.state.config = config  # what the app actually runs with (tests read it)
     if run is None:
         import uvicorn
 

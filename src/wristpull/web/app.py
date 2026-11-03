@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from jinja2 import pass_context
@@ -31,6 +32,7 @@ from ..db import connect
 from . import pages
 from .auth import RateLimiter, SessionCodec, new_session, verify_password
 from .i18n import pick_language, translations
+from .jobs import JobRegistry
 
 HERE = Path(__file__).parent
 COOKIE = "wristpull_session"
@@ -39,10 +41,12 @@ CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; 
 
 @dataclass
 class WebDeps:
-    """Side effects the tests replace: the clock and the login limiter."""
+    """Side effects the tests replace: the clock, the login limiter, the coach backend, the job runner."""
 
     today: Callable[[], date] | None = None  # None: today in the configured time zone
     limiter: RateLimiter = field(default_factory=RateLimiter)
+    coach_backend: Callable[[Config, str], Any] | None = None  # None: make_backend from the config
+    jobs: JobRegistry | None = None  # None: a threaded registry on the configured database
 
 
 def _number(value: float | None, digits: int, lang: str) -> str:
@@ -116,6 +120,7 @@ def local_time(iso_utc: str | None, tz: ZoneInfo) -> str:
 def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps | None = None) -> Starlette:
     deps = deps or WebDeps()
     codec = SessionCodec(secret)
+    jobs = deps.jobs or JobRegistry(config.db_path)
     tz = ZoneInfo(config.timezone)
     templates = Jinja2Templates(directory=str(HERE / "templates"))
 
@@ -280,6 +285,178 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
             return render(request, "missing.html", session, {"page": "sleep"}, status_code=404)
         return render(request, "night.html", session, {"page": "sleep", "d": data})
 
+    async def posted(request: Request) -> tuple[dict[str, Any], Any] | Response:
+        """Session and form of a logged-in POST with a valid CSRF token, else the response to send."""
+        session = session_of(request)
+        if not session or not session.get("user"):
+            return RedirectResponse("/login", status_code=303)
+        form = await request.form()
+        if not csrf_ok(request, session, form):
+            return PlainTextResponse("CSRF token missing or wrong", status_code=403)
+        return session, form
+
+    def is_htmx(request: Request) -> bool:
+        return request.headers.get("hx-request") == "true"
+
+    def job_partial(request: Request, session: dict[str, Any], *, refresh: bool = False, busy: bool = False) -> Response:
+        response = render(request, "_job.html", session, {"job": jobs.current(), "busy": busy})
+        if refresh:
+            response.headers["HX-Refresh"] = "true"
+        return response
+
+    def coach_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        with closing(connect(config.db_path)) as conn:
+            data = pages.coach_data(conn, tz)
+        return render(request, "coach.html", session, {"page": "coach", "d": data, "job": jobs.current(), "busy": False, "today": today().isoformat(),
+                                                       "saved": request.query_params.get("saved")})
+
+    async def coach_run(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        kind = str(form.get("kind") or "")
+        question = str(form.get("question") or "").strip() or None
+        if kind not in pages.COACH_KINDS or (kind == "ask" and not question):
+            return PlainTextResponse("unknown run kind or empty question", status_code=400)
+        day = today()
+
+        def run(conn: Any, log: Callable[[str], None]) -> dict[str, Any]:
+            from ..coach.runner import run_coach
+
+            backend = deps.coach_backend(config, kind) if deps.coach_backend else None
+            result = run_coach(conn, config, kind, today=day, question=question, backend=backend, log=log)
+            return {"run_id": result.run_id, "warnings": result.warnings}
+
+        started = jobs.start(f"coach-{kind}", kind, run)
+        if is_htmx(request):
+            return job_partial(request, session, busy=started is None)
+        return RedirectResponse("/coach", status_code=303)
+
+    def coach_job(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        job = jobs.current()
+        # The page polls while a job runs; the first answer after it finished reloads the page once.
+        return job_partial(request, session, refresh=bool(request.query_params.get("poll") and job and not job.running))
+
+    async def coach_rate(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        _session, form = got
+        try:
+            run_id, rating = int(str(form.get("run_id"))), int(str(form.get("rating")))
+        except ValueError:
+            return PlainTextResponse("bad rating", status_code=400)
+        if rating not in (-1, 0, 1):
+            return PlainTextResponse("bad rating", status_code=400)
+        from ..coach.store import add_feedback, get_run
+
+        with closing(connect(config.db_path)) as conn:
+            if get_run(conn, run_id) is None:
+                return PlainTextResponse("unknown run", status_code=404)
+            add_feedback(conn, run_id, rating, str(form.get("note") or "").strip() or None)
+        target = "/" if form.get("next") == "/" else f"/coach#run-{run_id}"
+        return RedirectResponse(target, status_code=303)
+
+    async def journal_add(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        _session, form = got
+        note = str(form.get("note") or "").strip()
+        if note:
+            from ..coach.store import add_note
+
+            with closing(connect(config.db_path)) as conn:
+                add_note(conn, today().isoformat(), note[:2000])
+        return RedirectResponse("/coach?saved=note#journal", status_code=303)
+
+    def workouts_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        with closing(connect(config.db_path)) as conn:
+            data = pages.workouts_data(config, conn, today())
+        q = request.query_params
+        return render(request, "workouts.html", session, {"page": "workouts", "d": data, "drafts": q.get("drafts"), "skipped": q.get("skipped"), "message": q.get("message")})
+
+    async def workout_new(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        _session, form = got
+        try:
+            day = date.fromisoformat(str(form.get("date") or ""))
+        except ValueError:
+            day = today()
+        path = pages.new_workout(config, str(form.get("kind") or "time"), day)
+        return RedirectResponse(f"/workouts/edit?file={quote(path.name)}", status_code=303)
+
+    async def workout_drafts(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        from ..workouts.drafts import drafts_from_plan
+
+        with closing(connect(config.db_path)) as conn:
+            result = drafts_from_plan(conn, config)
+        if result.message:
+            return RedirectResponse("/workouts?message=noplan", status_code=303)
+        return RedirectResponse(f"/workouts?drafts={len(result.created)}&skipped={len(result.skipped)}", status_code=303)
+
+    def workout_edit(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        from ..workouts.store import check_text, workout_file
+
+        name = request.query_params.get("file", "")
+        try:
+            path = workout_file(config, name)
+        except ValueError:
+            return render(request, "missing.html", session, {"page": "workouts"}, status_code=404)
+        if not path.is_file():
+            return render(request, "missing.html", session, {"page": "workouts"}, status_code=404)
+        text = path.read_text("utf-8")
+        check = pages.check_lines(check_text(config, name, text))
+        return render(request, "workout_edit.html", session, {"page": "workouts", "file": name, "text": text, "check": check,
+                                                             "saved": request.query_params.get("saved")})
+
+    async def workout_check(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        from ..workouts.store import check_text
+
+        try:
+            workout = check_text(config, str(form.get("file") or "") or None, str(form.get("text") or ""))
+        except ValueError:
+            return PlainTextResponse("bad file name", status_code=400)
+        return render(request, "_check.html", session, {"check": pages.check_lines(workout)})
+
+    async def workout_save(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        _session, form = got
+        from ..workouts.store import write_text
+
+        name = str(form.get("file") or "")
+        try:
+            write_text(config, name, str(form.get("text") or ""))
+        except FileNotFoundError:
+            return PlainTextResponse("unknown workout file", status_code=404)
+        except ValueError as exc:
+            return PlainTextResponse(str(exc), status_code=400)
+        return RedirectResponse(f"/workouts/edit?file={quote(name)}&saved=1", status_code=303)
+
     def healthz(request: Request) -> Response:
         return JSONResponse({"ok": True})
 
@@ -301,6 +478,17 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
             Route("/activities/{activity_id:int}", activity_page),
             Route("/sleep", sleep_page),
             Route("/sleep/{sleep_id:int}", night_page),
+            Route("/coach", coach_page),
+            Route("/coach/run", coach_run, methods=["POST"]),
+            Route("/coach/job", coach_job),
+            Route("/coach/rate", coach_rate, methods=["POST"]),
+            Route("/journal", journal_add, methods=["POST"]),
+            Route("/workouts", workouts_page),
+            Route("/workouts/new", workout_new, methods=["POST"]),
+            Route("/workouts/drafts", workout_drafts, methods=["POST"]),
+            Route("/workouts/edit", workout_edit),
+            Route("/workouts/check", workout_check, methods=["POST"]),
+            Route("/workouts/save", workout_save, methods=["POST"]),
             Route("/login", login_page, methods=["GET"]),
             Route("/login", login_submit, methods=["POST"]),
             Route("/logout", logout, methods=["POST"]),

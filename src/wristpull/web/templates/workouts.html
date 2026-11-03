@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Workouts") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Workouts") }}</h1>
+<p class="muted">{{ _("To get them onto the watch, run on the laptop:") }} <code>wristpull workout push --upcoming</code></p>
+</header>
+{% if drafts is not none %}<p class="note ok">{{ _("{n} drafts written, {m} days skipped.").format(n=drafts, m=skipped) }}</p>{% endif %}
+{% if message == "noplan" %}<p class="note warn-text">{{ _("No weekly plan stored yet: run the weekly review first.") }}</p>{% endif %}
+<section class="card actions">
+<form method="post" action="/workouts/new" class="inline wrap">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="kind">{{ _("New from template") }}</label>
+<select id="kind" name="kind">
+{% for k in d.kinds %}<option value="{{ k }}">{{ _(k) }}</option>{% endfor %}
+</select>
+<input type="date" name="date" value="{{ d.tomorrow }}" aria-label="{{ _('Date') }}">
+<button type="submit" class="primary">{{ _("Create") }}</button>
+</form>
+<form method="post" action="/workouts/drafts">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button type="submit" class="secondary">{{ _("Drafts from the weekly plan") }}</button>
+</form>
+</section>
+<ul class="list">
+{% for w in d.rows %}
+<li><a class="row" href="/workouts/edit?file={{ w.file|urlencode }}">
+<span class="row-main"><span class="row-title">{{ w.name }}</span><span class="muted small">{{ w.day or "–" }} · {{ _(w.sport) }} · {{ ngettext("{n} step", "{n} steps", w.steps).format(n=w.steps) }}{% if w.minutes %} · {{ w.minutes }} min{% endif %}{% if w.metres %} · {{ w.metres|km }}{% endif %}</span>
+{% if w.errors %}<span class="check-error small">✗ {{ w.errors[0] }}</span>{% endif %}</span>
+<span class="chip state-{{ w.state }}">{{ _(w.state) }}</span>
+</a></li>
+{% else %}
+<li class="card muted">{{ _("No workout files from last week on.") }}</li>
+{% endfor %}
+</ul>
+{% endblock %}

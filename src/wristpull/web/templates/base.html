@@ -28,11 +28,17 @@
 <a href="/sleep" {% if page == "sleep" %}aria-current="page"{% endif %}>
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
 <span>{{ _("Sleep") }}</span></a>
+<a href="/coach" {% if page == "coach" %}aria-current="page"{% endif %}>
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>
+<span>Coach</span></a>
+<a href="/workouts" {% if page == "workouts" %}aria-current="page"{% endif %}>
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
+<span>{{ _("Workouts") }}</span></a>
 <form method="post" action="/logout" class="logout">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <button type="submit">
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg>
-<span>{{ _("Log out") }}</span></button>
+<span class="logout-label">{{ _("Log out") }}</span></button>
 </form>
 </nav>
 <main class="main">

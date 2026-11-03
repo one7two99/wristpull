@@ -1,0 +1,10 @@
+{% macro rating(run_id, current, next="/coach") %}
+<form method="post" action="/coach/rate" class="rating">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="run_id" value="{{ run_id }}">
+<input type="hidden" name="next" value="{{ next }}">
+{% for value, label, title in ((1, "+1", _("Helpful")), (0, "0", _("Neutral")), (-1, "−1", _("Not helpful"))) %}
+<button type="submit" name="rating" value="{{ value }}" title="{{ title }}" {% if current == value %}aria-pressed="true"{% endif %}>{{ label }}</button>
+{% endfor %}
+</form>
+{% endmacro %}

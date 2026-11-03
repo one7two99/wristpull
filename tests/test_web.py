@@ -51,8 +51,11 @@ def seeded(config: Config, conn, garmin_tree: Path) -> Config:
     return config
 
 
-def client_for(config: Config, password_hash: str, limiter: RateLimiter | None = None) -> TestClient:
-    app = create_app(config, password_hash=password_hash, secret=SECRET, deps=WebDeps(today=lambda: TODAY, limiter=limiter or RateLimiter()))
+def client_for(config: Config, password_hash: str, limiter: RateLimiter | None = None, **deps) -> TestClient:
+    from wristpull.web.jobs import JobRegistry
+
+    deps.setdefault("jobs", JobRegistry(config.db_path, threaded=False))
+    app = create_app(config, password_hash=password_hash, secret=SECRET, deps=WebDeps(today=lambda: TODAY, limiter=limiter or RateLimiter(), **deps))
     return TestClient(app, base_url="https://testserver", follow_redirects=False)
 
 
@@ -261,6 +264,135 @@ def test_activity_and_sleep_pages(seeded: Config, password_hash: str):
     assert client.get("/sleep/99999").status_code == 404 and client.get("/sleep/abc").status_code == 404
 
 
+# ---- coach, journal, workouts (D3) ---------------------------------------------------------
+
+
+def test_job_registry_runs_one_job_at_a_time(config: Config, conn):
+    import threading
+    import time as _time
+
+    from wristpull.web.jobs import JobRegistry
+
+    inline = JobRegistry(config.db_path, threaded=False)
+    job = inline.start("k", "t", lambda c, log: (log("step 1"), c.execute("SELECT 1").fetchone()[0])[1])
+    assert job.status == "done" and job.result == 1 and job.log == ["step 1"] and inline.current() is job and inline.get(job.id) is job
+    failed = inline.start("k", "t", lambda c, log: 1 / 0)
+    assert failed.status == "error" and "division" in failed.error and inline.get(99) is None
+    gate = threading.Event()
+    threaded = JobRegistry(config.db_path)
+    first = threaded.start("a", "a", lambda c, log: gate.wait(5))
+    assert first.running and threaded.start("b", "b", lambda c, log: None) is None  # busy
+    gate.set()
+    for _ in range(100):
+        if not first.running:
+            break
+        _time.sleep(0.02)
+    assert first.status == "done" and first.seconds >= 0
+
+
+def test_coach_page_run_rate_and_journal(seeded: Config, password_hash: str):
+    from wristpull.coach.backends import FakeBackend
+    from wristpull.coach.profile import profile_path
+    from wristpull.coach.store import recent_notes, recent_runs
+    from wristpull.db import connect
+
+    profile = profile_path(seeded)
+    profile.parent.mkdir(parents=True, exist_ok=True)
+    profile.write_text("# Goal profile\n- Goals: run\n", "utf-8")
+    fake = FakeBackend(["## Status\nFine.\n## Today's suggestion\nEasy 30 min.\n"])
+    client = client_for(seeded, password_hash, coach_backend=lambda cfg, kind: fake)
+    login(client)
+    page = client.get("/coach", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "Tagescheck" in page.text and "Well recovered" in page.text
+    token = csrf_of(page.text)
+    assert client.post("/coach/run", data={"kind": "daily"}).status_code == 403  # no CSRF token
+    assert client.post("/coach/run", data={"csrf": token, "kind": "nope"}).status_code == 400
+    assert client.post("/coach/run", data={"csrf": token, "kind": "ask"}).status_code == 400  # empty question
+    started = client.post("/coach/run", data={"csrf": token, "kind": "daily"}, headers={"hx-request": "true"})
+    assert started.status_code == 200 and 'id="job"' in started.text and "finished" in started.text and len(fake.requests) == 1
+    poll = client.get("/coach/job?poll=1")
+    assert poll.headers.get("hx-refresh") == "true" and "hx-get" not in poll.text  # done: reload once, stop polling
+    asked = client.post("/coach/run", data={"csrf": token, "kind": "ask", "question": "Run today?"})
+    assert asked.status_code == 303 and asked.headers["location"] == "/coach"
+    with connect(seeded.db_path) as conn:
+        runs = recent_runs(conn, limit=5)
+    assert [r["kind"] for r in runs][:2] == ["ask", "daily"] and runs[0]["question"] == "Run today?"
+    page = client.get("/coach")
+    assert "Easy 30 min." in page.text and "<h3>Today&#39;s suggestion</h3>" in page.text and "Run today?" in page.text
+    rated = client.post("/coach/rate", data={"csrf": token, "run_id": runs[1]["id"], "rating": "1", "next": "/"})
+    assert rated.status_code == 303 and rated.headers["location"] == "/"
+    assert client.post("/coach/rate", data={"csrf": token, "run_id": runs[1]["id"], "rating": "5"}).status_code == 400
+    assert client.post("/coach/rate", data={"csrf": token, "run_id": 9999, "rating": "1"}).status_code == 404
+    assert client.post("/coach/rate", data={"csrf": token, "run_id": "x", "rating": "1"}).status_code == 400
+    assert 'aria-pressed="true">+1' in client.get("/coach").text
+    noted = client.post("/journal", data={"csrf": token, "note": "heavy legs"})
+    assert noted.status_code == 303 and "saved=note" in noted.headers["location"]
+    with connect(seeded.db_path) as conn:
+        assert recent_notes(conn, 1)[0] == {"local_date": TODAY.isoformat(), "note": "heavy legs"}
+    assert "heavy legs" in client.get("/coach?saved=note").text
+    # a failing backend ends the job visibly
+    broken = client_for(seeded, password_hash, coach_backend=lambda cfg, kind: FakeBackend(fail=RuntimeError("backend down")))
+    login(broken)
+    failed = broken.post("/coach/run", data={"csrf": csrf_of(broken.get("/coach").text), "kind": "daily"}, headers={"hx-request": "true"})
+    assert "backend down" in failed.text
+
+
+def test_workouts_pages_new_edit_check_save(seeded: Config, password_hash: str):
+    from wristpull.workouts.store import workouts_dir
+
+    client = client_for(seeded, password_hash)
+    login(client)
+    page = client.get("/workouts", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "Trainings" in page.text and "workout push --upcoming" in page.text
+    token = csrf_of(page.text)
+    created = client.post("/workouts/new", data={"csrf": token, "kind": "intervals", "date": "2026-10-09"})
+    assert created.status_code == 303 and created.headers["location"].startswith("/workouts/edit?file=2026-10-09-intervals")
+    again = client.post("/workouts/new", data={"csrf": token, "kind": "intervals", "date": "2026-10-09"})
+    assert again.headers["location"] != created.headers["location"]  # a second one gets its own file
+    edit = client.get(created.headers["location"])
+    assert edit.status_code == 200 and "repeat 2-3 × 6" in edit.text and "Check: ok" in edit.text
+    name = created.headers["location"].split("file=")[1]
+    text = (workouts_dir(seeded) / name).read_text("utf-8")
+    check = client.post("/workouts/check", data={"file": name, "text": text.replace("repeat 6x", "repeat 1x")}, headers={"x-csrf-token": token})
+    assert check.status_code == 200 and "repeat count 1 outside 2-99" in check.text and "needs fixing" in check.text
+    saved = client.post("/workouts/save", data={"csrf": token, "file": name, "text": text.replace("repeat 6x", "repeat 8x")})
+    assert saved.status_code == 303 and "saved=1" in saved.headers["location"]
+    assert "repeat 8x" in (workouts_dir(seeded) / name).read_text("utf-8")
+    assert "Saved." in client.get(saved.headers["location"]).text
+    listing = client.get("/workouts")
+    assert "Intervals 6x400 m 09.10." in listing.text
+    # paths outside the folder and unknown files are refused
+    assert client.post("/workouts/save", data={"csrf": token, "file": "../evil.md", "text": "x"}).status_code == 400
+    assert client.post("/workouts/save", data={"csrf": token, "file": "2026-01-01-none.md", "text": "x"}).status_code == 404
+    assert client.get("/workouts/edit?file=../../etc/passwd").status_code == 404
+    assert client.get("/workouts/edit?file=2026-01-01-none.md").status_code == 404
+    assert client.post("/workouts/check", data={"file": "../x.md", "text": ""}, headers={"x-csrf-token": token}).status_code == 400
+    assert client.post("/workouts/save", data={"file": name, "text": "x"}).status_code == 403  # no CSRF token
+    drafts = client.post("/workouts/drafts", data={"csrf": token})
+    assert drafts.status_code == 303 and drafts.headers["location"] == "/workouts?message=noplan"
+    assert "No weekly plan stored yet" in client.get("/workouts?message=noplan").text
+
+
+def test_new_workout_names_and_check_lines(config: Config):
+    path = pages.new_workout(config, "nonsense", date(2026, 10, 9))
+    assert path.name == "2026-10-09-easy-run-40-min.md"
+    second = pages.new_workout(config, "time", date(2026, 10, 9))
+    assert second.name != path.name
+    from wristpull.workouts.store import load
+
+    lines = pages.check_lines(load(path))
+    assert lines["valid"] and lines["steps"][0].startswith("1 warmup") and lines["day"] == "2026-10-09"
+
+
+def test_unauthenticated_posts_go_to_login(config: Config, password_hash: str):
+    client = client_for(config, password_hash)
+    for url in ("/coach/run", "/coach/rate", "/journal", "/workouts/new", "/workouts/save", "/workouts/check", "/workouts/drafts"):
+        response = client.post(url, data={})
+        assert response.status_code == 303 and response.headers["location"] == "/login", url
+    for url in ("/coach", "/coach/job", "/workouts", "/workouts/edit?file=x.md"):
+        assert client.get(url).status_code == 303, url
+
+
 # ---- serve ------------------------------------------------------------------------------
 
 
@@ -273,6 +405,8 @@ def test_serve_requires_hash_runs_one_worker_and_warns_without_secret(config: Co
     app, kwargs = calls[0]
     assert kwargs["workers"] == 1 and kwargs["proxy_headers"] is True and kwargs["forwarded_allow_ips"] == "*"
     assert SECRET_ENV in warnings[-1]
+    assert serve(config, env={**env, "WRISTPULL_OLLAMA_URL": "http://host.docker.internal:11434"}, run=lambda app, **k: calls.append((app, k)), warn=warnings.append) == 0
+    assert calls[-1][0].state.config.coach.ollama_url == "http://host.docker.internal:11434"
     assert resolve_secret({SECRET_ENV: "x" * 20}, warnings.append) == "x" * 20
     answers = iter(["pw1", "pw1"])
     assert verify_password("pw1", prompt_hash(lambda _p: next(answers)))
@@ -317,7 +451,10 @@ def test_web_strings_have_german_translations():
     ids.update(pages.DEVICE_LABELS.values())
     ids.update(pages.STAGE_ORDER)
     ids.update({"Heart rate", "Altitude", "m"})
+    ids.update(pages.COACH_KINDS)
+    ids.update(pages.TEMPLATE_KINDS)
+    ids.update({"draft", "pushed", "verified", "removed", "running", "cycling", "walking", "strength", "cardio"})
     ids.update({"Resting HR", "HRV last night", "Sleep", "Stress", "Training per week", "Acute:chronic load", "Watch", "Strap", "Hours", "ACWR"})
-    missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem"})
+    missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"

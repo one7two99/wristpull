@@ -181,3 +181,27 @@ def test_push_refuses_same_named_workouts_of_one_week(config: Config, conn, garm
     other = [Workout(name="Outdoor run", day=date(2026, 11, 12), steps=[Step("active", duration_s=60)])]
     mark_folder_clashes(config, other)
     assert other[0].valid
+
+
+def test_workout_file_check_and_write_text(config: Config):
+    from wristpull.workouts.store import check_text, workout_file, write_text
+
+    path = save(config, Workout(name="Easy run", day=date(2026, 11, 5), steps=[Step("active", duration_s=600)]))
+    assert workout_file(config, path.name) == path.resolve()
+    for bad in ("../x.md", "a/b.md", ".hidden.md", "x.txt", "", "..md"):
+        with pytest.raises(ValueError):
+            workout_file(config, bad)
+    text = path.read_text("utf-8").replace("run 10 min", "run 12 min") + "# my comment stays\n"
+    written = write_text(config, path.name, text.replace("\n", "\r\n"))
+    assert written.valid and written.steps[0].duration_s == 720 and "my comment stays" in path.read_text("utf-8")
+    assert "\r" not in path.read_text("utf-8")
+    with pytest.raises(FileNotFoundError):
+        write_text(config, "2026-11-09-new.md", text)
+    with pytest.raises(ValueError):
+        write_text(config, path.name, "x" * 70000)
+    # the live check sees a clash with another file of the same week, but not with the file itself
+    save(config, Workout(name="Tempo", day=date(2026, 11, 6), steps=[Step("active", duration_s=600)]))
+    assert check_text(config, path.name, text).valid
+    clash = check_text(config, path.name, text.replace("name: Easy run", "name: Tempo"))
+    assert not clash.valid and "same week" in clash.errors[0]
+    assert not check_text(config, None, "no front matter").valid

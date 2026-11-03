@@ -2,7 +2,8 @@
 
 Status: concept approved 2026-11-03; D1 implemented the same day (`wristpull serve`, login with
 scrypt hash, signed session, CSRF, rate limit, pages Today and Trends, Dockerfile, Compose, Caddy); D2 the same day (Activities and Sleep with
-detail pages).
+detail pages); D3 the same day (coach runs as background jobs, rating, journal, workout list, templates,
+drafts from the plan, Markdown editor with live check).
 Implementation waves at the end.
 
 ## Why

@@ -527,9 +527,15 @@ watch and strap, sleep, stress, training hours per week, acute:chronic load with
 band), **Activities** (period and sport filter, Garmin duplicates from USB and phone merged; detail
 with heart-rate and altitude curves, zone times and laps) and **Sleep** (watch and strap side by
 side per night; detail with a stage band, HRV, SpO2, respiration and the other device's night).
-Missing days stay gaps. It shows the same numbers as CLI and TUI because it calls the same
-library functions. Coach runs, ratings, journal and the workout editor follow in the next waves
-([concept](docs/dashboard-concept.md)); importing from the watch and the phone stays on the laptop.
+Missing days stay gaps. **Coach** starts a daily check, a weekly review or a question in the
+background (one at a time; the page shows the progress and reloads when the answer is there),
+lists the recent runs with rating buttons (+1/0/−1, also under the daily check on Today) and keeps
+the journal. **Workouts** lists the workout files, creates new ones from the time, distance or
+interval template, drafts the week from the coach's plan, and edits a file as Markdown with a live
+check (the steps as the watch will show them, name clashes in the same week). It shows the same
+numbers as CLI and TUI because it calls the same library functions
+([concept](docs/dashboard-concept.md)). Importing from the watch and the phone and pushing workouts
+to the watch stay on the laptop (`wristpull workout push --upcoming`).
 
 **Docker (recommended, reachable from the phone over HTTPS):**
 
@@ -564,8 +570,11 @@ Keep the `caddy_data` volume: it holds that CA, and a new one would have to be i
 - Cookies are `Secure`, `HttpOnly`, `SameSite=Strict`; every form carries a CSRF token; a strict
   Content-Security-Policy allows scripts only from the app itself (htmx and ECharts are vendored,
   nothing is loaded from the internet).
-- **Ollama for coach runs from the container** (next wave): the container reaches the host as
-  `host.docker.internal`. Never set `OLLAMA_HOST=0.0.0.0` (that opens Ollama to the whole LAN
+- **Coach backend in the container:** the backend and model come from the mounted config file.
+  OpenRouter and Claude need their API key (`OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`) either in `.env`
+  or exported in the shell that runs `docker compose up`.
+- **Ollama for coach runs from the container:** the container reaches the host as
+  `host.docker.internal` (`WRISTPULL_OLLAMA_URL`, default `http://host.docker.internal:11434`). Never set `OLLAMA_HOST=0.0.0.0` (that opens Ollama to the whole LAN
   without authentication). Either bind Ollama to the docker0 address (`OLLAMA_HOST=172.17.0.1`;
   then the coach on the host must use `http://172.17.0.1:11434` as well, and the Ollama service
   needs `After=docker.service`), or keep it on localhost and allow port 11434 only from the Docker
@@ -753,5 +762,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md); the licence is MIT ([LICENSE](LICENSE)).
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [docs/screenshots/](docs/screenshots/README.md)
 6. ~~Training coach via LLM: C1 daily check and questions with Ollama, goal profile, local memory; C2 weekly review, Claude API and OpenRouter backends, number check, ratings; C3 goal wizard, TUI coach screen; C4 journal, plan adherence, ICS export, systemd/udev templates~~ — concept in [docs/coach-concept.md](docs/coach-concept.md)
 7. ~~Workouts to the watch: Markdown workouts, FIT encoder, `workout push|verify|from-plan`, TUI screen 0; `NewFiles` import confirmed on the fenix 6X Pro~~ — interval blocks (`repeat`) added; next: the schedule file (calendar date)
-8. Web dashboard in Docker (phone in the home network, HTTPS + password): concept in [docs/dashboard-concept.md](docs/dashboard-concept.md); ~~D1 login, Today, Trends, Docker + Caddy~~, ~~D2 activities and sleep~~ — next: D3 coach, journal and workout actions
+8. Web dashboard in Docker (phone in the home network, HTTPS + password): concept in [docs/dashboard-concept.md](docs/dashboard-concept.md); ~~D1 login, Today, Trends, Docker + Caddy~~, ~~D2 activities and sleep~~, ~~D3 coach runs, rating, journal, workout editor~~ — later: moving to a server (raw-file transfer + import there)
 9. Later: MCP server / Claude skill over the SQLite, nutrition source (MyNetDiary or own logging)

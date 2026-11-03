@@ -1,0 +1,5 @@
+<div id="check" class="check {% if check.valid %}valid{% else %}invalid{% endif %}" aria-live="polite">
+<p class="check-head">{% if check.valid %}{{ _("Check: ok – this is what the watch will show") }}{% else %}{{ _("Check: needs fixing before it can be pushed") }}{% endif %}</p>
+{% for line in check.steps %}<div class="num">{{ line }}</div>{% endfor %}
+{% for e in check.errors %}<div class="check-error">✗ {{ e }}</div>{% endfor %}
+</div>

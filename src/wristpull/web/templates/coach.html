@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_rating.html" import rating with context %}
+{% block title %}wristpull · Coach{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>Coach</h1>
+<p class="muted">{{ _("Runs use the backend from the config; the data package is built here, from your database.") }}</p>
+</header>
+<section class="card actions">
+<form method="post" action="/coach/run" hx-post="/coach/run" hx-target="#job" hx-swap="outerHTML">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button type="submit" name="kind" value="daily" class="primary">{{ _("Daily check") }}</button>
+<button type="submit" name="kind" value="weekly" class="secondary">{{ _("Weekly review") }}</button>
+</form>
+<form method="post" action="/coach/run" hx-post="/coach/run" hx-target="#job" hx-swap="outerHTML" class="ask">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="kind" value="ask">
+<label for="question">{{ _("Ask a question") }}</label>
+<div class="inline">
+<input id="question" name="question" type="text" maxlength="500" required placeholder="{{ _('e.g. Should I run today with heavy legs?') }}">
+<button type="submit" class="secondary">{{ _("Ask") }}</button>
+</div>
+</form>
+{% include "_job.html" %}
+</section>
+
+{% for r in d.runs %}
+<article class="card run" id="run-{{ r.id }}">
+<details {% if loop.first %}open{% endif %}>
+<summary><span class="run-kind">{{ _(r.kind) }}</span> <span class="muted small">{{ r.when }} · {{ r.backend }}{% if r.model %} · {{ r.model }}{% endif %}{% if r.cost_usd %} · ${{ "%.3f"|format(r.cost_usd) }}{% endif %}</span></summary>
+{% if r.question %}<p class="question">„{{ r.question }}“</p>{% endif %}
+<div class="prose">
+{% for b in r.blocks %}{% if b.kind == "heading" %}<h3>{{ b.text }}</h3>{% else %}<p>{{ b.text }}</p>{% endif %}{% endfor %}
+</div>
+</details>
+{{ rating(r.id, r.rating) }}
+</article>
+{% else %}
+<p class="card muted">{{ _("No coach runs yet.") }}</p>
+{% endfor %}
+
+<section class="card" id="journal">
+<h2>{{ _("Journal") }}</h2>
+<form method="post" action="/journal" class="inline">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label class="sr-only" for="note">{{ _("Note for today") }}</label>
+<input id="note" name="note" type="text" maxlength="2000" required placeholder="{{ _('e.g. heavy legs, slept badly') }}">
+<button type="submit" class="secondary">{{ _("Save") }}</button>
+</form>
+{% if saved == "note" %}<p class="note ok">{{ _("Note saved for {date}.").format(date=today) }}</p>{% endif %}
+<ul class="notes">
+{% for n in d.notes %}<li><span class="muted small num">{{ n.local_date }}</span> {{ n.note }}</li>{% endfor %}
+</ul>
+</section>
+{% endblock %}
