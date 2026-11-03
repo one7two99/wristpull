@@ -586,6 +586,11 @@ Keep the `caddy_data` volume: it holds that CA, and a new one would have to be i
 `--data-dir` (overrides `[storage] data_dir`), `--behind-proxy` (trust `X-Forwarded-For`, only
 when a proxy is the sole way in).
 
+**Updating** after `git pull`: `docker compose build web && docker compose up -d web`. Only the app
+container is recreated; Caddy and its certificate authority stay, and you stay logged in as long as
+`WRISTPULL_WEB_SECRET` is unchanged. While the container runs it writes to the data directory:
+coach runs, ratings, journal notes and edited workout files.
+
 ## Automation
 
 `contrib/systemd/` has user units and timers for the morning routine (`pull phone` at 06:45, `coach
@@ -727,7 +732,7 @@ Conventions worth knowing:
 ## Development
 
 ```sh
-uv sync --extra tui --extra coach        # create .venv and install dependencies incl. TUI and Claude SDK
+uv sync --extra tui --extra coach --extra web   # create .venv incl. TUI, Claude SDK and web dashboard
 uv run pytest -q                         # run the test suite (TUI tests skip without the extra)
 uv run pytest -q tests/test_fit_garmin.py -k sleep   # a subset
 uv run pyflakes src tests                # lint
@@ -742,6 +747,11 @@ uv run pybabel compile -d src/wristpull/tui/locale -D wristpull   # after editin
 The TUI (`src/wristpull/tui/`) only calls library functions: no SQL and no FIT parsing in there
 (`tests/test_tui_boundary.py` enforces it). Strings are wrapped in `_()` at render time; a test
 fails when the German catalog misses a string or the compiled `.mo` is stale.
+
+The web dashboard (`src/wristpull/web/`) follows the same rule (`tests/test_web.py` checks it):
+page data in `pages.py`, routes and login in `app.py`, background coach runs in `jobs.py`, strings
+from the shared catalog translated per request. Its tests use Starlette's `TestClient` on
+synthetic data and a `FakeBackend`.
 
 The coach (`src/wristpull/coach/`) keeps SQL in `store.py` and `context.py`; everything the model
 sees is built from the aggregate functions, and all tests talk to a `FakeBackend` (no network). The

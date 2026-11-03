@@ -45,3 +45,6 @@
   environment (`WRISTPULL_WEB_PASSWORD_HASH`, `WRISTPULL_WEB_SECRET`). Exactly one uvicorn worker (in-process rate limit
   and jobs) – never add a workers option. Docker: `Dockerfile`, `compose.yaml`, `deploy/Caddyfile`, `.env.example`.
   Never suggest `OLLAMA_HOST=0.0.0.0`. Tests use Starlette's `TestClient` with `base_url="https://testserver"`.
+  Coach runs go through `web/jobs.py` (inject `JobRegistry(threaded=False)` and `WebDeps.coach_backend` in tests);
+  workout files are written only via `workouts/store.write_text` (bare names, nothing outside the folder).
+  Rebuild a running stack with `docker compose build web && docker compose up -d web` (Caddy keeps its CA).
