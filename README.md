@@ -692,4 +692,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md); the licence is MIT ([LICENSE](LICENSE)).
 5. ~~Terminal UI (`wristpull tui`): overview, sync jobs with cancel, days, activities, sleep, files, export & report, editable settings; German/English~~ — concept in [docs/tui-concept.md](docs/tui-concept.md), screenshots in [docs/screenshots/](docs/screenshots/README.md)
 6. ~~Training coach via LLM: C1 daily check and questions with Ollama, goal profile, local memory; C2 weekly review, Claude API and OpenRouter backends, number check, ratings; C3 goal wizard, TUI coach screen; C4 journal, plan adherence, ICS export, systemd/udev templates~~ — concept in [docs/coach-concept.md](docs/coach-concept.md)
 7. ~~Workouts to the watch: Markdown workouts, FIT encoder, `workout push|verify|from-plan`, TUI screen 0; `NewFiles` import confirmed on the fenix 6X Pro~~ — interval blocks (`repeat`) added; next: the schedule file (calendar date)
-8. Later: MCP server / Claude skill over the SQLite, dashboards, nutrition source (MyNetDiary or own logging)
+8. Web dashboard in Docker (phone in the home network, HTTPS + password, coach and workout actions): concept in [docs/dashboard-concept.md](docs/dashboard-concept.md), waves D1–D3 next
+9. Later: MCP server / Claude skill over the SQLite, nutrition source (MyNetDiary or own logging)
