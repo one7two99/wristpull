@@ -10,8 +10,9 @@ data stays on the band unless ``keep_on_band`` is off.
 from __future__ import annotations
 
 import asyncio
+import os
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -19,6 +20,7 @@ from pathlib import Path
 from ..archive import RawArchive
 from ..config import Config
 from ..daily import rebuild_daily_summary
+from ..runtime import STRAP_AUTHKEY_ENV
 from ..timeutil import iso_utc, zone
 from ..zeppos import SOURCE
 from ..zeppos.band import Band, BandError, Transport
@@ -49,11 +51,26 @@ class StrapStats:
             self.rows[key] = self.rows.get(key, 0) + value
 
 
-def read_auth_key(path: Path) -> bytes:
-    try:
-        text = path.read_text("utf-8")
-    except FileNotFoundError as exc:
-        raise BandError(f"no auth key at {path}: run `wristpull strap pair --authkey <hex>` (the key from Gadgetbridge or huami-token)") from exc
+AUTHKEY_HINT = f"set {STRAP_AUTHKEY_ENV} (in .env for Docker, or the shell) to the band's 16-byte key; `wristpull strap pair --authkey <hex>` checks it against the band"
+
+
+def auth_key_source(path: Path, env: Mapping[str, str] | None = None) -> str | None:
+    """Where the key comes from: "env", "file" or None."""
+    env = os.environ if env is None else env
+    if env.get(STRAP_AUTHKEY_ENV, "").strip():
+        return "env"
+    return "file" if path.is_file() else None
+
+
+def read_auth_key(path: Path, env: Mapping[str, str] | None = None) -> bytes:
+    """``WRISTPULL_STRAP_AUTHKEY`` wins; the file (``[strap] authkey_file``) is the fallback for native installs."""
+    env = os.environ if env is None else env
+    text = env.get(STRAP_AUTHKEY_ENV, "").strip()
+    if not text:
+        try:
+            text = path.read_text("utf-8")
+        except FileNotFoundError as exc:
+            raise BandError(f"no auth key: {AUTHKEY_HINT}") from exc
     return parse_auth_key(text)
 
 

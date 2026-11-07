@@ -13,7 +13,7 @@ from zepp_buffers import activity_minutes, build_sleep_session_blob, hr_max_reco
 from wristpull.config import Config
 from wristpull.db import connect, table_count
 from wristpull.importers.reparse import reparse_raw_file, select_raw_files
-from wristpull.importers.strap import import_buffer, pull_strap, read_auth_key, since_for
+from wristpull.importers.strap import auth_key_source, import_buffer, pull_strap, read_auth_key, since_for
 from wristpull.zeppos import SOURCE
 from wristpull.zeppos.band import BandError, NoBandError
 from wristpull.zeppos.fetch import BY_NAME, Buffer
@@ -190,12 +190,25 @@ def test_since_for_rules():
     assert since_for(BY_NAME["activity"], None, now, since_days=1, tz=TZ) == datetime(2026, 11, 5, 23, 0, tzinfo=UTC)
 
 
-def test_read_auth_key_errors(tmp_path: Path):
-    with pytest.raises(BandError, match="strap pair"):
-        read_auth_key(tmp_path / "missing")
+def test_read_auth_key_env_first_then_file(tmp_path: Path):
+    with pytest.raises(BandError, match="WRISTPULL_STRAP_AUTHKEY"):
+        read_auth_key(tmp_path / "missing", env={})
     (tmp_path / "bad").write_text("xyz")
     with pytest.raises(ValueError):
-        read_auth_key(tmp_path / "bad")
+        read_auth_key(tmp_path / "bad", env={})
+    (tmp_path / "key").write_text("0x" + "11" * 16)
+    assert read_auth_key(tmp_path / "key", env={}) == bytes([0x11] * 16)
+    assert read_auth_key(tmp_path / "key", env={"WRISTPULL_STRAP_AUTHKEY": "0x" + "22" * 16}) == bytes([0x22] * 16)
+    assert read_auth_key(tmp_path / "missing", env={"WRISTPULL_STRAP_AUTHKEY": "33" * 16}) == bytes([0x33] * 16)
+    assert auth_key_source(tmp_path / "key", env={}) == "file" and auth_key_source(tmp_path / "missing", env={}) is None
+    assert auth_key_source(tmp_path / "missing", env={"WRISTPULL_STRAP_AUTHKEY": "x"}) == "env"
+
+
+def test_pull_takes_the_key_from_the_environment(cfg: Config, band: FakeBandState, monkeypatch):
+    cfg.strap_authkey_path.unlink()
+    monkeypatch.setenv("WRISTPULL_STRAP_AUTHKEY", "0x" + FAKE_KEY.hex())
+    conn, stats, _, _ = run_pull(cfg, band)
+    assert stats.files_new == 11
 
 
 def test_reparse_and_duplicate_buffer(cfg: Config, band: FakeBandState):

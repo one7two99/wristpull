@@ -195,14 +195,17 @@ midnight of the last synced day because its step counts are cumulative per day.
 
 ```sh
 wristpull strap scan                                   # bands in range, strongest first
-wristpull strap pair --authkey 0x<32 hex> --address AA:BB:CC:DD:EE:02   # stores the key, writes the address, probes the band
+wristpull strap pair --authkey 0x<32 hex> --address AA:BB:CC:DD:EE:02   # checks the key against the band, writes the address
 wristpull pull strap
-wristpull strap info                                   # address, key file, last sample per kind
+wristpull strap info                                   # address, where the key comes from, last sample per kind
 ```
 
 The auth key is the one Gadgetbridge uses (device settings → *Auth key*; it is also in a Gadgetbridge
-backup under `preferences/device_<MAC>.json`) or comes from the Zepp account with `huami-token`. It is
-written to `<data_dir>/strap/authkey` with mode 0600 and never into the config file.
+backup under `preferences/device_<MAC>.json`) or comes from the Zepp account with `huami-token`. Like
+the coach API keys it lives in the environment, never in the config file: `WRISTPULL_STRAP_AUTHKEY`
+in `.env` for Docker (`strap pair` prints the line), or exported in the shell. A native install may
+keep it in `<data_dir>/strap/authkey` instead (`strap pair --to-file`, mode 0600, `[strap]
+authkey_file`); the environment wins when both exist.
 
 #### `wristpull import gadgetbridge`
 

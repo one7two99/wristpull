@@ -159,7 +159,7 @@ def test_strap_pull_job_runs_against_a_fake_band(config: Config, tmp_path: Path)
 
     config.strap_address = FAKE_ADDRESS
     config.strap_authkey_path.parent.mkdir(parents=True, exist_ok=True)
-    config.strap_authkey_path.write_text(FAKE_KEY.hex())
+    config.strap_authkey_path.write_text(FAKE_KEY.hex())  # the native fallback; Docker sets WRISTPULL_STRAP_AUTHKEY
     state = FakeBandState()
     state.minutes["stress"] = (datetime(2026, 11, 6, 23, 0, tzinfo=UTC), stress_minutes([20, None, 35]))
     deps = make_deps(tmp_path)

@@ -267,3 +267,8 @@ die Gadgetbridge kannte, byteidentisch; achtzehn Workouts importiert (alle autom
 0xdf, den auch Gadgetbridge nicht kennt, daher Sportart `auto_detected`), 29 000 Datensätze. PAI als
 Metriken `pai_total`/`pai_today`, Maximalpuls als `hr_max`, die VO2max-Schätzung des Bands als `vo2_max`.
 Offen bleibt nur Phase 3 (die Box); Schwimm-Intervalle werden erkannt, aber noch nicht als Zeilen abgelegt.
+
+**Auth-Key (Änderung 2026-11-07, spät):** Der Schlüssel liegt wie die Coach-API-Keys in der Umgebung,
+`WRISTPULL_STRAP_AUTHKEY` in der `.env` (Compose reicht ihn an `cli` durch); die Datei
+`<data_dir>/strap/authkey` ist nur noch der Fallback für eine native Installation (`strap pair --to-file`).
+Grund: ein Ablageort für alle Geheimnisse, Philipp betreibt alles über die Container.

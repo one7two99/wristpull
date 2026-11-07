@@ -83,6 +83,8 @@ services:
       VISUAL: ${VISUAL:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # The band's auth key for `pull strap`, like the API keys: from .env, never from the config file.
+      WRISTPULL_STRAP_AUTHKEY: ${WRISTPULL_STRAP_AUTHKEY:-}
     volumes:
       - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}:/data
       # Read-write: the TUI settings screen saves the config file.

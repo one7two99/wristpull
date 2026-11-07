@@ -47,7 +47,8 @@ export_dir = "/sdcard/Gadgetbridge"
 address = "{strap_address}"
 # Bluetooth adapter (empty: the default one).
 adapter = "{strap_adapter}"
-# The band's 16-byte auth key lives in this file (never in the config): <data_dir>/strap/authkey by default.
+# The band's 16-byte auth key comes from the environment variable WRISTPULL_STRAP_AUTHKEY (.env for Docker),
+# like the coach API keys; this file is only the fallback for a native install (empty: <data_dir>/strap/authkey).
 authkey_file = "{strap_authkey_file}"
 # How far back the first pull asks the band for data.
 since_days = {strap_since_days}

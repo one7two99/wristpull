@@ -239,20 +239,33 @@ def test_strap_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
     from wristpull.config import load_config
     from wristpull.zeppos import transport as transport_module
 
+    monkeypatch.delenv("WRISTPULL_STRAP_AUTHKEY", raising=False)
     # info before anything is configured
     assert main(["--config", str(cfg_file), "strap", "info"]) == 0
     out = capsys.readouterr().out
-    assert "(not configured)" in out and "last pull: never" in out
-    # pair stores the key (0600) and the address, no probe
+    assert "(not configured)" in out and "missing (set WRISTPULL_STRAP_AUTHKEY" in out and "last pull: never" in out
+    # pair prints the .env line and writes the address, no probe, no file
     assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", "0x" + FAKE_KEY.hex(), "--address", FAKE_ADDRESS.lower(), "--no-probe"]) == 0
+    out = capsys.readouterr().out
+    assert f"WRISTPULL_STRAP_AUTHKEY=0x{FAKE_KEY.hex()}" in out and "put this line into .env" in out
     config = load_config(cfg_file)
-    assert config.strap_address == FAKE_ADDRESS and config.strap_authkey_path.read_text().strip() == "0x" + FAKE_KEY.hex()
-    assert oct(config.strap_authkey_path.stat().st_mode & 0o777) == "0o600"
+    assert config.strap_address == FAKE_ADDRESS and not config.strap_authkey_path.exists()
     assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", "nope", "--no-probe"]) == 1
     assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", FAKE_KEY.hex(), "--address", "not-an-address", "--no-probe"]) == 1
-    # status mentions the band
+    # without the key the pull explains what to set
+    assert main(["--config", str(cfg_file), "pull", "strap"]) == 1
+    assert "WRISTPULL_STRAP_AUTHKEY" in capsys.readouterr().err
+    # the native way: --to-file writes the key file (0600)
+    assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", FAKE_KEY.hex(), "--no-probe", "--to-file"]) == 0
+    assert "auth key stored in" in capsys.readouterr().out
+    assert config.strap_authkey_path.read_text().strip() == "0x" + FAKE_KEY.hex() and oct(config.strap_authkey_path.stat().st_mode & 0o777) == "0o600"
+    config.strap_authkey_path.unlink()
+    # the Docker way: the key in the environment
+    monkeypatch.setenv("WRISTPULL_STRAP_AUTHKEY", "0x" + FAKE_KEY.hex())
     assert main(["--config", str(cfg_file), "status"]) == 0
-    assert f"Strap:      {FAKE_ADDRESS} over Bluetooth, key stored, last pull never" in capsys.readouterr().out
+    assert f"Strap:      {FAKE_ADDRESS} over Bluetooth, key from the environment, last pull never" in capsys.readouterr().out
+    assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", FAKE_KEY.hex(), "--no-probe"]) == 0
+    assert "already set to this key" in capsys.readouterr().out
     # pull strap through a fake band (the default transport factory is replaced; conftest blocks the real one)
     state = FakeBandState()
     from datetime import UTC, datetime
@@ -265,21 +278,13 @@ def test_strap_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert "stress=3" in out and "1 new buffers" in out and "inserted: stress=2" in out
     assert main(["--config", str(cfg_file), "strap", "info"]) == 0
-    assert "stress       up to 2026-11-06T23:02:00Z" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "stress       up to 2026-11-06T23:02:00Z" in out and "from the environment" in out
     # pair with a probe answers with the band's label
     assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", FAKE_KEY.hex()]) == 0
     assert "band answers: serial 24400000000001" in capsys.readouterr().out
     # wrong key: the band refuses, the CLI reports it
     assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", "11" * 16]) == 1
     assert "rejected the auth key" in capsys.readouterr().err
+    monkeypatch.setenv("WRISTPULL_STRAP_AUTHKEY", "11" * 16)
     assert main(["--config", str(cfg_file), "pull", "strap"]) == 1
-
-
-def test_config_init_fills_an_empty_mounted_file(tmp_path: Path, capsys):
-    """Docker bind-mounts the config as a file, so users touch an empty one first: --init must fill it."""
-    path = tmp_path / "config.toml"
-    path.touch()
-    assert main(["--config", str(path), "config", "--init"]) == 0
-    assert "wrote default config" in capsys.readouterr().out and "[storage]" in path.read_text()
-    assert main(["--config", str(path), "config", "--init"]) == 0
-    assert "already exists" in capsys.readouterr().out

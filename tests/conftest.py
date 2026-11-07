@@ -278,6 +278,7 @@ def _block_real_ble(monkeypatch):
     def _blocked(*_args, **_kwargs):
         raise AssertionError("tests must not touch Bluetooth; inject FakeTransport (tests/fake_band.py)")
 
+    monkeypatch.delenv("WRISTPULL_STRAP_AUTHKEY", raising=False)  # the developer's own key must not leak into tests
     monkeypatch.setattr(transport, "open_transport", _blocked)
     monkeypatch.setattr(transport, "scan", _blocked)
     monkeypatch.setattr(transport.BleakTransport, "connect", _blocked)

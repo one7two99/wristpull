@@ -82,6 +82,8 @@
   `strap_sync` (activity from the local midnight of the last synced day: steps are cumulative per day), archives every
   answer as `raw/zepp_ble/<year>/zepp_<kind>/…` and keeps the data on the band; workouts come one per request (summary
   0x05, then details 0x06 for that start, `WORKOUT_ROUNDS` per pull) and are archived together (`pack_workout`). Merge `STRAP_PRIORITY = ("zepp_ble",
-  "gadgetbridge_zepp")`. The auth key lives in `<data_dir>/strap/authkey` (0600), never in config or repo. Tests inject
+  "gadgetbridge_zepp")`. The auth key comes from `WRISTPULL_STRAP_AUTHKEY` (`.env` for Docker, like the API keys;
+  `runtime.STRAP_AUTHKEY_ENV`), the file `<data_dir>/strap/authkey` (0600, `strap pair --to-file`) is only the native fallback;
+  never in config or repo. Tests inject
   `FakeTransport` (`tests/fake_band.py`, plays the band behind the real codec) and synthetic buffers
   (`tests/zepp_buffers.py`); an autouse fixture blocks bleak. Never put real fetch buffers into the repository.

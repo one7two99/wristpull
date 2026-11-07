@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -15,6 +16,7 @@ from .adb import AdbError
 from .importers.garmin import import_garmin
 from .importers.phone import import_gadgetbridge_db, import_gadgetbridge_fit_dir, pull_phone
 from .timeutil import iso_utc
+from .runtime import STRAP_AUTHKEY_ENV
 from .zeppos import SOURCE as ZEPP_SOURCE
 from .status import collect_status, render_status
 
@@ -68,7 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_spair = strap_sub.add_parser("pair", help="store the band's auth key (and address) and check them against the band")
     p_spair.add_argument("--authkey", required=True, help="32 hex digits, from Gadgetbridge's device settings or huami-token")
     p_spair.add_argument("--address", help="Bluetooth address AA:BB:CC:DD:EE:FF; written to [strap] address in the config")
-    p_spair.add_argument("--no-probe", action="store_true", help="only store, do not connect")
+    p_spair.add_argument("--no-probe", action="store_true", help="do not connect to the band")
+    p_spair.add_argument("--to-file", action="store_true", help="native install: write the key to [strap] authkey_file instead of printing the .env line")
     strap_sub.add_parser("info", help="address, key file and where every fetch kind left off")
     p_export = sub.add_parser("export", help="export a compact Markdown summary plus CSVs for a date range")
     p_export.add_argument("--for-claude", action="store_true", help="compact Markdown + CSV attachments (the only format so far)")
@@ -273,6 +276,7 @@ def cmd_pull_strap(args: argparse.Namespace, config: Config) -> int:
 def cmd_strap(args: argparse.Namespace, config: Config) -> int:
     import asyncio
 
+    from .importers.strap import auth_key_source
     from .zeppos.band import Band, BandError
     from .zeppos.protocol import parse_auth_key
     from .zeppos.store import all_sync, clear_sync
@@ -303,15 +307,21 @@ def cmd_strap(args: argparse.Namespace, config: Config) -> int:
                 return 1
             config.strap_address = args.address.upper()
             write_config(config, config.path)
-        path = config.strap_authkey_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.touch(mode=0o600, exist_ok=True)
-        path.chmod(0o600)
-        path.write_text("0x" + key.hex() + "\n")
         conn = _open(config)
         cleared = clear_sync(conn, ZEPP_SOURCE)
         conn.commit()
-        print(f"auth key stored in {path}" + (f"; address {config.strap_address} written to {config.path}" if args.address else "") + (f"; sync state of {cleared} kinds reset" if cleared else ""))
+        if args.to_file:
+            path = config.strap_authkey_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch(mode=0o600, exist_ok=True)
+            path.chmod(0o600)
+            path.write_text("0x" + key.hex() + "\n")
+            stored = f"auth key stored in {path}"
+        else:
+            stored = f"put this line into .env (Docker) or export it in the shell:\n{STRAP_AUTHKEY_ENV}=0x{key.hex()}"
+            if os.environ.get(STRAP_AUTHKEY_ENV, "").strip().lower().removeprefix("0x") == key.hex():
+                stored = f"{STRAP_AUTHKEY_ENV} is already set to this key"
+        print(stored + (f"\naddress {config.strap_address} written to {config.path}" if args.address else "") + (f"\nsync state of {cleared} kinds reset" if cleared else ""))
         if args.no_probe:
             return 0
         if not config.strap_address:
@@ -337,7 +347,8 @@ def cmd_strap(args: argparse.Namespace, config: Config) -> int:
         return 0
     # info
     print(f"address:   {config.strap_address or '(not configured)'}")
-    print(f"auth key:  {config.strap_authkey_path} ({'present' if config.strap_authkey_path.exists() else 'missing'})")
+    source = auth_key_source(config.strap_authkey_path)
+    print("auth key:  " + {"env": f"from the environment ({STRAP_AUTHKEY_ENV})", "file": f"from the file {config.strap_authkey_path}"}.get(source or "", f"missing (set {STRAP_AUTHKEY_ENV}, or `strap pair --to-file` for a native install)"))
     conn = _open(config)
     synced = all_sync(conn, ZEPP_SOURCE)
     if not synced:

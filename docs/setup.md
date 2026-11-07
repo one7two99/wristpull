@@ -61,15 +61,16 @@ desktop session).
 sudo install -m 0644 contrib/apparmor/wristpull-cli /etc/apparmor.d/wristpull-cli
 sudo apparmor_parser -r -W /etc/apparmor.d/wristpull-cli        # once; /etc/apparmor.d loads it at boot
 docker compose run --rm cli wristpull strap scan                 # the band must not be connected to a phone
-docker compose run --rm cli wristpull strap pair --authkey 0x<32 hex> --address <AA:BB:CC:DD:EE:FF>
+echo 'WRISTPULL_STRAP_AUTHKEY=0x<32 hex>' >> .env                  # the band's auth key, next to the other secrets
+docker compose run --rm cli wristpull strap pair --authkey 0x<32 hex> --address <AA:BB:CC:DD:EE:FF>   # checks it, writes the address
 docker compose run --rm cli wristpull pull strap
 ```
 
 The `cli` service runs under that profile (Docker's default plus system D-Bus); without it Docker
 refuses to start the container. The auth key is the band's 16-byte key: in Gadgetbridge under the
 band's settings → *Auth key* (or in a Gadgetbridge backup, `preferences/device_<MAC>.json`), or
-from the Zepp account with [huami-token](https://codeberg.org/argrento/huami-token). `pair` stores
-it in `<data_dir>/strap/authkey` (mode 0600) and writes the address into the config.
+from the Zepp account with [huami-token](https://codeberg.org/argrento/huami-token). It lives in
+`.env` like the API keys (`WRISTPULL_STRAP_AUTHKEY`), never in the config file.
 
 ## 6. Dashboard (phone in the home network)
 
@@ -118,16 +119,16 @@ Everything wristpull knows lives in three places; nothing is stored inside the c
 
 | What | Where | Holds |
 |---|---|---|
-| data directory | `~/Health/wristpull` (`WRISTPULL_DATA`) | `raw/` (every device file, immutable), `wristpull.sqlite`, `strap/authkey`, `adb/` (phone authorisation), `coach/` (goal profile, prompts), `workouts/`, `exports/`, `reports/`, `staging/` (may be empty) |
+| data directory | `~/Health/wristpull` (`WRISTPULL_DATA`) | `raw/` (every device file, immutable), `wristpull.sqlite`, `adb/` (phone authorisation), `coach/` (goal profile, prompts), `workouts/`, `exports/`, `reports/`, `staging/` (may be empty) |
 | config | `~/.config/wristpull/config.toml` (`WRISTPULL_CONFIG`) | timezone, folders, `[strap] address`, coach and UI settings |
-| `.env` next to `compose.yaml` | the checkout | UID/GID, the two paths above, dashboard secrets, API keys |
+| `.env` next to `compose.yaml` | the checkout | UID/GID, the two paths above, dashboard secrets, API keys, the band's auth key (`WRISTPULL_STRAP_AUTHKEY`) |
 
 Steps, with the old machine still available:
 
 ```sh
 # on the old machine: stop the dashboard so the database is not written while copying
 cd ~/dev/wristpull && docker compose down
-rsync -a --delete ~/Health/wristpull/ newhost:~/Health/wristpull/     # keeps the 0600 of strap/authkey and the read-only raw files
+rsync -a --delete ~/Health/wristpull/ newhost:~/Health/wristpull/     # keeps the read-only raw files
 scp ~/.config/wristpull/config.toml newhost:~/.config/wristpull/config.toml
 scp ~/dev/wristpull/.env newhost:~/dev/wristpull/.env                 # contains secrets: scp/rsync only, never mail or chat
 ```
@@ -143,8 +144,8 @@ AppArmor profile):
   if the UID changed); the files under `raw/` stay read-only.
 - `docker compose run --rm cli wristpull status` shows the same tables and raw-file counts as on
   the old machine; `wristpull strap info` the same sync state, so the next `pull strap` only brings
-  what the band recorded since. The band's auth key works on every host, but the band holds one
-  connection: the old machine (or the phone) must not be talking to it.
+  what the band recorded since. The band's auth key travels in `.env` and works on every host, but
+  the band holds one connection: the old machine (or the phone) must not be talking to it.
 - The phone keeps trusting the copied adb keys (`adb/`); without them it asks once for a new
   authorisation.
 - Caddy's certificate authority is **not** copied (it lives in the Docker volume `caddy_data`): the

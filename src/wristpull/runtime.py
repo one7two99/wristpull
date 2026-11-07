@@ -15,6 +15,7 @@ from pathlib import Path
 CONTAINER_ENV = "WRISTPULL_IN_CONTAINER"
 CONFIG_FILE_ENV = "WRISTPULL_CONFIG_FILE"  # the config file when --config is not given (the container mounts it)
 DATA_DIR_ENV = "WRISTPULL_DATA_DIR"
+STRAP_AUTHKEY_ENV = "WRISTPULL_STRAP_AUTHKEY"  # the band's 16-byte auth key, like the coach API keys: environment, never config
 HOST_DATA_DIR_ENV = "WRISTPULL_HOST_DATA_DIR"
 
 
