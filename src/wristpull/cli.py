@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path
 
 from . import __version__
-from .config import Config, default_config_path, is_bluetooth_address, load_config, write_config, write_default_config
+from .config import Config, config_file_present, default_config_path, is_bluetooth_address, load_config, write_config, write_default_config
 from .db import connect
 from .fit.decode import decode_fit, summarize
 from .adb import AdbError
@@ -441,13 +441,13 @@ def cmd_mount(args: argparse.Namespace, config: Config) -> int:
 def cmd_config(args: argparse.Namespace, config: Config) -> int:
     path = args.config or default_config_path()
     if args.init:
-        if path.exists():
+        if config_file_present(path):
             print(f"config already exists: {path}")
         else:
             write_default_config(path)
             print(f"wrote default config to {path}")
         return 0
-    print(f"# config file: {path} ({'exists' if path.exists() else 'missing, showing defaults'})")
+    print(f"# config file: {path} ({'exists' if config_file_present(path) else 'missing, showing defaults'})")
     print(config.render(), end="")
     return 0
 

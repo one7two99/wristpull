@@ -333,9 +333,18 @@ def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = Non
     return cfg
 
 
+def config_file_present(path: Path) -> bool:
+    """A config exists when the file has content: Docker bind-mounts the file, so an empty one is often
+    created first (``touch``) just to have something to mount, and must count as missing."""
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
+
 def write_default_config(path: Path | None = None, *, overwrite: bool = False) -> Path:
     cfg_path = path or default_config_path()
-    if cfg_path.exists() and not overwrite:
+    if config_file_present(cfg_path) and not overwrite:
         raise FileExistsError(cfg_path)
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(Config().render(), "utf-8")

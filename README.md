@@ -33,8 +33,9 @@ uv sync --extra web                # optional: the web dashboard (Starlette); se
 ```
 
 The second, equivalent way is Docker: one image runs the web dashboard and every command,
-including the watch and the phone over USB, so the host needs neither Python nor uv (Linux only).
-See "Running everything in Docker".
+including the watch over USB, the phone over ADB and the strap over Bluetooth, so the host needs
+neither Python nor uv (Linux only). [docs/setup.md](docs/setup.md) is the ordered checklist for a
+fresh machine; the details are under "Running everything in Docker".
 
 ## Usage
 
@@ -638,6 +639,7 @@ cp .env.example .env               # then fill it in:
 id -u; id -g                       #   UID / GID
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"   # WRISTPULL_WEB_SECRET
 uv run wristpull serve --hash-password                          # WRISTPULL_WEB_PASSWORD_HASH=...
+# or without uv on the host: docker compose run --rm cli wristpull serve --hash-password
 docker compose up -d --build
 ```
 
@@ -695,8 +697,10 @@ as your user so files in the data directory keep their owner.
 
 ```sh
 cp .env.example .env                       # UID/GID, WRISTPULL_DATA, WRISTPULL_CONFIG (+ dashboard secrets)
+mkdir -p ~/Health/wristpull && touch ~/.config/wristpull/config.toml   # the config is bind-mounted as a file
 mkdir -p ~/Health/wristpull/adb && cp ~/.android/adbkey* ~/Health/wristpull/adb/   # once, if the phone already trusts this laptop
 docker compose build
+docker compose run --rm cli wristpull config --init     # fills the empty file with the defaults
 docker compose run --rm cli wristpull status
 docker compose run --rm cli wristpull tui
 docker compose run --rm cli wristpull pull phone

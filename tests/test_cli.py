@@ -273,3 +273,13 @@ def test_strap_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
     assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", "11" * 16]) == 1
     assert "rejected the auth key" in capsys.readouterr().err
     assert main(["--config", str(cfg_file), "pull", "strap"]) == 1
+
+
+def test_config_init_fills_an_empty_mounted_file(tmp_path: Path, capsys):
+    """Docker bind-mounts the config as a file, so users touch an empty one first: --init must fill it."""
+    path = tmp_path / "config.toml"
+    path.touch()
+    assert main(["--config", str(path), "config", "--init"]) == 0
+    assert "wrote default config" in capsys.readouterr().out and "[storage]" in path.read_text()
+    assert main(["--config", str(path), "config", "--init"]) == 0
+    assert "already exists" in capsys.readouterr().out
