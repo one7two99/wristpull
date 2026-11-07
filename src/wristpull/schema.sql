@@ -1,6 +1,7 @@
 -- wristpull schema. All timestamps are ISO-8601 UTC strings ("2026-10-31T06:12:33Z");
 -- tz holds the IANA zone used to derive local_date.
 -- source is one of: garmin_usb | gadgetbridge_garmin | garmin_connect (account export) | gadgetbridge_zepp
+-- raw_files.kind: activity | monitor | sleep | metrics | hrv | other (FIT), database (Gadgetbridge), uds | sleep_json (Connect export)
 
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
@@ -290,6 +291,33 @@ CREATE TABLE IF NOT EXISTS metrics (
 );
 
 -- Derived per local day, rebuilt from the sample tables after every import.
+-- Daily values the Garmin Connect account export delivers as aggregates (UDS files): no time series,
+-- so they stay out of the sample tables; rebuild_daily_summary overlays them on NULL columns only.
+CREATE TABLE IF NOT EXISTS connect_daily (
+    id                  INTEGER PRIMARY KEY,
+    source              TEXT NOT NULL,
+    raw_file_id         INTEGER REFERENCES raw_files(id),
+    local_date          TEXT NOT NULL,
+    tz                  TEXT NOT NULL,
+    steps               INTEGER,
+    distance_m          REAL,
+    active_calories     INTEGER,
+    active_time_s       REAL,
+    moderate_min        INTEGER,
+    vigorous_min        INTEGER,
+    hr_min              INTEGER,
+    hr_max              INTEGER,
+    resting_hr          INTEGER,
+    stress_avg          REAL,
+    stress_max          INTEGER,
+    body_battery_min    INTEGER,
+    body_battery_max    INTEGER,
+    spo2_avg            REAL,
+    spo2_min            INTEGER,
+    respiration_avg     REAL,
+    UNIQUE (source, local_date)
+);
+
 CREATE TABLE IF NOT EXISTS daily_summary (
     id                      INTEGER PRIMARY KEY,
     source                  TEXT NOT NULL,

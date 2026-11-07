@@ -7,7 +7,7 @@ import sqlite3
 from .timeutil import iso_utc, now_utc
 
 
-_DAY_TABLES = ("steps", "heart_rate", "stress", "body_battery", "sleep", "activities", "spo2", "respiration", "hrv", "resting_hr", "intensity_minutes", "temperature")
+_DAY_TABLES = ("steps", "heart_rate", "stress", "body_battery", "sleep", "activities", "spo2", "respiration", "hrv", "resting_hr", "intensity_minutes", "temperature", "connect_daily")
 
 
 def _days(conn: sqlite3.Connection, source: str) -> list[tuple[str, str]]:
@@ -112,6 +112,11 @@ def rebuild_daily_summary(conn: sqlite3.Connection, *, source: str, days: list[s
     stamp = iso_utc(now_utc())
     for day, tz in all_days:
         values = summarize_day(conn, source, day)
+        overlay = conn.execute("SELECT * FROM connect_daily WHERE source = ? AND local_date = ?", (source, day)).fetchone()
+        if overlay is not None:  # aggregates from the Connect export fill only what the samples could not give
+            for key in overlay.keys():
+                if key in values and values[key] is None and overlay[key] is not None:
+                    values[key] = overlay[key]
         cols = ["source", "local_date", "tz", *values.keys(), "updated_at_utc"]
         params = [source, day, tz, *values.values(), stamp]
         updates = ", ".join(f"{c} = excluded.{c}" for c in cols if c not in ("source", "local_date"))

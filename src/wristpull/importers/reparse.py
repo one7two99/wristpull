@@ -35,6 +35,9 @@ class ReparseStats:
             self.rows[key] = self.rows.get(key, 0) + value
 
 
+JSON_KINDS = ("uds", "sleep_json")  # Garmin Connect export files parsed by garmin_connect.py
+
+
 def sources_of(parsed) -> list[str]:
     """Distinct sources that actually have rows in a ParsedRows."""
     found = {a.row["source"] for a in parsed.activities} | {n.row["source"] for n in parsed.sleep}
@@ -51,7 +54,7 @@ def delete_rows_of(conn: sqlite3.Connection, raw_file_id: int) -> int:
         deleted += conn.execute(
             f"DELETE FROM {child} WHERE {key} IN (SELECT id FROM {parent} WHERE raw_file_id = ?)", (raw_file_id,)
         ).rowcount
-    for table in ("activities", "sleep", *SAMPLE_TABLES):
+    for table in ("activities", "sleep", "connect_daily", *SAMPLE_TABLES):
         deleted += conn.execute(f"DELETE FROM {table} WHERE raw_file_id = ?", (raw_file_id,)).rowcount
     return deleted
 
@@ -94,6 +97,12 @@ def reparse_raw_file(conn: sqlite3.Connection, config: Config, raw_file: sqlite3
             sources = sources_of(parsed)
             counts = store_parsed(conn, parsed, raw_file_id)
             archive.mark_parsed(raw_file_id, status="ok", fit_file_type="gadgetbridge_db")
+        elif raw_file["kind"] in JSON_KINDS:
+            from .connect import store_json
+
+            counts, _discarded = store_json(conn, path.read_bytes(), kind=raw_file["kind"], raw_file_id=raw_file_id, source=raw_file["source"], tz_name=config.timezone)
+            sources = [raw_file["source"]]
+            archive.mark_parsed(raw_file_id, status="ok", fit_file_type=raw_file["kind"])
         else:
             fit = decode_fit(path)
             parsed = parse_fit(fit, tz, raw_file["source"])

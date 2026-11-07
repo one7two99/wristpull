@@ -59,3 +59,46 @@ def build_export_dir(path: Path, *, fits: list[tuple[str, bytes]] | None = None,
     else:
         (uploads / "UploadedFiles_0-_Part1.zip").write_bytes(uploads_zip(fits))
     return path
+
+
+# --- JSON files (phase 2) -----------------------------------------------------------------------
+
+
+def uds_record(date: str, *, steps: int | None = 6000, resting_hr: int | None = 55, stress: int | None = 30, spo2: float | None = 96.0) -> dict:
+    """One daily summary as the Aggregator UDS files carry it (fields that wristpull reads, plus noise)."""
+    rec: dict = {
+        "userProfilePK": 1, "calendarDate": date, "uuid": "x", "durationInMilliseconds": 86400000,
+        "totalSteps": steps, "totalDistanceMeters": steps * 0.7 if steps is not None else None,
+        "activeKilocalories": 420.0, "activeSeconds": 3000, "highlyActiveSeconds": 600,
+        "moderateIntensityMinutes": 20, "vigorousIntensityMinutes": 5,
+        "minHeartRate": 48, "maxHeartRate": 150, "restingHeartRate": resting_hr,
+        "includesWellnessData": True, "averageSpo2Value": spo2, "lowestSpo2Value": 91,
+        "respiration": {"avgWakingRespirationValue": 14.5, "highestRespirationValue": 20.0},
+        "bodyBattery": {"bodyBatteryStatList": [
+            {"bodyBatteryStatType": "HIGHEST", "statsValue": 88, "statTimestamp": f"{date}T07:00:00.0"},
+            {"bodyBatteryStatType": "LOWEST", "statsValue": 23, "statTimestamp": f"{date}T22:00:00.0"},
+        ]},
+    }
+    if stress is not None:
+        rec["allDayStress"] = {"aggregatorList": [
+            {"type": "AWAKE", "averageStressLevel": stress + 10, "maxStressLevel": 80},
+            {"type": "TOTAL", "averageStressLevel": stress, "maxStressLevel": 77},
+        ]}
+    return rec
+
+
+def junk_uds_records() -> list[dict]:
+    """The placeholder rows real exports carry: FIT epoch and empty days."""
+    return [
+        {"userProfilePK": 1, "calendarDate": "1989-12-31", "totalSteps": None, "includesWellnessData": False},
+        {"userProfilePK": 1, "calendarDate": "2006-01-01", "totalSteps": None, "includesWellnessData": None},
+    ]
+
+
+def sleep_record(date: str, *, start: str, end: str, scores: bool = True, stages: bool = True) -> dict:
+    rec: dict = {"sleepStartTimestampGMT": start, "sleepEndTimestampGMT": end, "calendarDate": date, "sleepWindowConfirmationType": "ENHANCED_CONFIRMED_FINAL", "retro": False}
+    if stages:
+        rec.update({"deepSleepSeconds": 3660, "lightSleepSeconds": 20460, "remSleepSeconds": 7080, "awakeSleepSeconds": 360, "unmeasurableSeconds": 0, "awakeCount": 2, "avgSleepStress": 13.85, "averageRespiration": 14.3})
+    if scores:
+        rec["sleepScores"] = {"overallScore": 81, "qualityScore": 77, "durationScore": 90, "recoveryScore": 70, "deepScore": 60}
+    return rec

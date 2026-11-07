@@ -45,6 +45,7 @@ class ImportStats:
     new: int = 0
     skipped: int = 0
     fetched: int = 0  # files downloaded over MTP (0 on a mount)
+    discarded: int = 0  # JSON records dropped as placeholders/junk (Connect export)
     parsed_ok: int = 0
     errors: int = 0
     rows: dict[str, int] = field(default_factory=dict)

@@ -188,8 +188,7 @@ uv run wristpull import garmin-export ~/Downloads/Garmin-Export/<id>_1.zip
 docker compose run --rm -v ~/Downloads/Garmin-Export:/export:ro cli wristpull import garmin-export /export/<id>_1.zip
 ```
 
-What it does (phase 1 of the work order – daily values and sleep from the JSON files follow in
-phase 2):
+What it does:
 
 - Reads `DI_CONNECT/DI-Connect-Uploaded-Files/UploadedFiles_*.zip` in place, file by file, nothing
   is extracted to disk. Every FIT file the account ever uploaded goes through the normal parser
@@ -202,8 +201,20 @@ phase 2):
   `parse_status = 'error'` and listed at the end (`reparse --source garmin_connect --errors`).
 - Expect about 15 minutes for a ten-year export (15,000 files); a progress line appears every 500
   files, one commit per file so an interrupted run can simply be repeated.
+- The JSON files come along: the **daily summaries** (`DI-Connect-Aggregator/UDSFile_*.json`,
+  kind `uds`) go into their own table `connect_daily` (steps, distance, calories, intensity
+  minutes, HR min/max, resting HR, stress, body battery, SpO2, respiration per day) because they
+  are aggregates, not samples; `daily_summary` takes them only for columns the samples left
+  empty. The **nights** (`DI-Connect-Wellness/*_sleepData.json`, kind `sleep_json`) become
+  `sleep` rows with stage totals, sleep score, quality/recovery score and awakenings; the export
+  has no stage timeline, so no `sleep_stages`. Placeholder records (the FIT epoch 1989-12-31,
+  empty days) are discarded and counted. Later date blocks win on overlapping days.
+- Local dates are the export's `calendarDate`; the `tz` column carries your configured zone, past
+  time zones are not reconstructed. Hydration, nutrition, gear, training plans and the other
+  JSON files are not imported.
 - The merge keeps the watch and the phone first: the export only fills days and nights they do
-  not have (`merge.GARMIN_PRIORITY`).
+  not have (`merge.GARMIN_PRIORITY`). `reparse --source garmin_connect --kind uds` (or
+  `sleep_json`) re-parses the JSON files after a parser change.
 
 #### `wristpull export --for-claude --from DATE --to DATE`
 
@@ -743,7 +754,7 @@ can be re-run at any time. Coach answers are not files but rows in `coach_runs`
 |---|---|---|---|
 | `garmin_usb` | fenix | FIT files from the watch over USB | complete, including activities with per-second records |
 | `gadgetbridge_garmin` | fenix | the same FIT files, fetched by Gadgetbridge over Bluetooth and pulled from the phone | same parser; the watch splits them into smaller files |
-| `garmin_connect` | every Garmin device the account ever had | the FIT files of the Garmin Connect account export (`import garmin-export`) | same parser; fills the history from before wristpull, lowest priority in the merge |
+| `garmin_connect` | every Garmin device the account ever had | the FIT files of the Garmin Connect account export plus its daily summaries and nights (`import garmin-export`) | same parser for FIT; daily aggregates in `connect_daily`; fills the history from before wristpull, lowest priority in the merge |
 | `gadgetbridge_zepp` | Helio Strap | tables of the exported Gadgetbridge database | per-minute samples, no raw files exist |
 
 Two things seen on the first real night (2026-11-01) shape how the sources complement each other:

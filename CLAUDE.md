@@ -32,9 +32,12 @@
 - Garmin Connect account export (`src/wristpull/importers/connect.py`, source `garmin_connect`, lowest merge priority):
   the portal zip is read in place (inner `UploadedFiles_*.zip` from memory), every FIT goes through
   `importers.garmin.import_file(kind=None, …)` which derives the kind from the FIT type (`FIT_TYPE_KINDS`); the
-  `<e-mail>_` prefix of the file names is stripped. Tests build synthetic exports with `tests/connect_export.py`.
-  Phase 2 (UDS daily values, sleep JSON → `connect_daily` + overlay) and 3 (activity names, VO2max) per
-  `workorders/garmin-connect-import.md`.
+  `<e-mail>_` prefix of the file names is stripped. JSON parsers live in `garmin_connect.py` (every field
+  optional, placeholders before 2013 discarded and counted): UDS daily summaries → table `connect_daily`
+  (kind `uds`, `INSERT OR REPLACE` per day, later blocks win), nights → `sleep` rows without stages (kind
+  `sleep_json`); `daily.rebuild_daily_summary` overlays `connect_daily` on NULL columns only. `reparse`
+  dispatches on these kinds (`reparse.JSON_KINDS`). Tests build synthetic exports with
+  `tests/connect_export.py`. Phase 3 (activity names, VO2max) per `workorders/garmin-connect-import.md`.
 - Workouts (`src/wristpull/workouts/`): one Markdown file per workout under `<data_dir>/workouts/` (grammar in
   `model.py`), FIT encoding in `fit/workout.py` on top of `fit/writer.py`, push/verify in `push.py` via
   `importers.garmin.locate_garmin` (inject `roots`/`mounter`), SQL only in `store.py` (`workout_pushes`).
