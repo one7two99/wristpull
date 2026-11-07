@@ -157,3 +157,33 @@ AppArmor profile):
 Without the old machine (restoring from a backup): the same files from the backup, then the same
 checks. A backup therefore means the data directory plus the config file plus `.env`; the repository
 is on GitHub.
+
+### Backups
+
+A snapshot is a copy of the data directory next to it, plus a note how to restore it. Stop the
+dashboard first and make sure no `cli` command runs: with no writer, copying the database together
+with its `-wal`/`-shm` files is consistent.
+
+```sh
+cd ~/dev/wristpull && docker compose stop web
+d=~/Health/wristpull-backup-$(date +%F)
+rsync -a --exclude staging/ ~/Health/wristpull/ "$d"/
+cp ~/.config/wristpull/config.toml "$d"/config.toml && cp .env "$d"/env     # the other two parts of the state
+(cd "$d" && find . -type f ! -name SHA256SUMS -exec sha256sum {} + > SHA256SUMS)
+tar czf "$d.tar.gz" -C ~/Health "$(basename "$d")"                           # optional, for an external disk
+docker compose start web
+```
+
+Restoring is the reverse (stop `web`, `rsync -a --delete` the snapshot over the data directory,
+start `web`); `wristpull status` then shows the snapshot's counts. The database schema migrates
+itself on the first connect, so an older snapshot opens fine, but whatever was imported after it has
+to be imported again (`import garmin-export`, `pull strap`, `import garmin`: the device files are
+re-fetched only where the device still has them, which is why the raw files are the part worth
+keeping).
+
+Existing snapshot on this laptop:
+
+| Snapshot | Taken | Holds | Restore |
+|---|---|---|---|
+| `~/Health/wristpull-backup-2026-11-07/` (35 MB) and `~/Health/wristpull-backup-2026-11-07.tar.gz` | 2026-11-07 morning, before the Garmin Connect export import, schema version 3 | raw files, workouts, coach, exports, reports, adb keys, a consistent `wristpull.sqlite`, `SHA256SUMS` | its `RESTORE.md`; afterwards re-run `import garmin-export exports/<zip>` and `pull strap` (the strap over Bluetooth did not exist yet, nor the `.env` key) |
+| `~/Health/wristpull.tar` (7.6 MB, 75 files) | 2026-10-31 evening, the first day | an early copy of the data directory (reports, first raw files) | superseded by the snapshot above; keep or delete |
