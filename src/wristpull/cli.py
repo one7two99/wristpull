@@ -537,7 +537,7 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
 
             listing = read_watch(conn, config, path=args.path)
             if listing.root is None:
-                print("No Garmin device found. Connect the watch (MTP) or pass --path <GARMIN folder>.", file=sys.stderr)
+                print("No Garmin device found. Connect the watch (MTP), pass --path <GARMIN folder> or set [garmin] access.", file=sys.stderr)
                 if listing.mount_message:
                     print(listing.mount_message, file=sys.stderr)
                 return 1
@@ -549,7 +549,7 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
                     keys = [i.key for i in hits if input(f'Remove "{i.name}" ({i.location}: {i.path.name}) from the watch? [y/N] ').strip().lower() in ("y", "yes", "j", "ja")]
                     unknown = wanted - {n for i in hits for n in (i.key.lower(), i.path.name.lower(), i.path.stem.lower(), i.name.lower())}
                     keys += sorted(unknown)  # reported as not found below
-                result = remove_from_watch(conn, config, keys, path=listing.root, log=log)
+                result = remove_from_watch(conn, config, keys, watch=listing.watch, log=log)
                 print(f"removed {len(result.removed)} workouts from the watch; backups in {result.backups[0].parent if result.backups else 'n/a'}")
                 for key, error in result.errors:
                     print(f"  ✗ {key}: {error}", file=sys.stderr)
@@ -560,7 +560,7 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
                 created = item.time_created_utc[:16].replace("T", " ") if item.time_created_utc else "–"
                 flags = (f"  ✗ {item.error}" if item.error else "") + ("  ⚠ same name as another workout" if item.name_clash else "")
                 print(f"{item.location:<8} {item.name[:32]:<32}  {item.sport:<9} {item.steps:>2} steps  {created:<16}  {item.origin:<9}  {item.path.name}" + flags)
-            print(f"{len(listing.active)} active + {len(listing.pending)} pending (active after unplugging) of ~{WORKOUT_LIMIT} workouts ({listing.root})")
+            print(f"{len(listing.active)} active + {len(listing.pending)} pending (active after unplugging) of ~{WORKOUT_LIMIT} workouts ({listing.device or listing.root})")
             if any(i.name_clash for i in listing.items):
                 print("warning: workouts with the same name may replace each other on the watch; give them distinct names.", file=sys.stderr)
             if listing.near_limit:

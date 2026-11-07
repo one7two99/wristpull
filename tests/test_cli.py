@@ -210,3 +210,24 @@ def test_mount_import_and_status_with_mtp_access(cfg_file: Path, garmin_tree: Pa
     assert main(["--config", str(cfg_file), "import", "garmin"]) == 1
     assert "no MTP device" in capsys.readouterr().err
     assert main(["--config", str(cfg_file), "mount"]) == 1
+
+
+def test_workout_remove_cli_over_mtp_reuses_the_connection(cfg_file: Path, garmin_tree: Path, capsys, monkeypatch):
+    import wristpull.mtp as mtp_module
+    from fake_mtp import FakeMtp, fake_mtp_runner
+    from wristpull.config import load_config
+    from wristpull.workouts.model import Step, Workout
+    from wristpull.workouts.store import save
+
+    (garmin_tree / "Workouts").mkdir()
+    (garmin_tree / "Workouts" / "W1.FIT").write_bytes(__import__("wristpull.fit.workout", fromlist=["build_workout_fit"]).build_workout_fit(Workout(name="Old one", steps=[Step("active", duration_s=600)])))
+    save(load_config(cfg_file), Workout(name="Easy run", steps=[Step("active", duration_s=600)]))
+    fake = FakeMtp(garmin_tree.parent)
+    monkeypatch.setattr(mtp_module, "run_command", fake_mtp_runner(fake))
+    monkeypatch.setenv("WRISTPULL_IN_CONTAINER", "1")
+    assert main(["--config", str(cfg_file), "workout", "watch"]) == 0
+    out = capsys.readouterr().out
+    assert "1 active + 0 pending" in out and "mtp://GARMIN on fenix 6 Pro" in out
+    assert main(["--config", str(cfg_file), "workout", "remove", "--yes", "Old one"]) == 0
+    out = capsys.readouterr().out
+    assert "removed 1 workouts" in out and "0 of ~25 workouts left" in out and fake.deleted and not (garmin_tree / "Workouts" / "W1.FIT").exists()
