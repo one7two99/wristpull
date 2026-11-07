@@ -254,9 +254,7 @@ Weg hätte nur Dubletten erzeugt).
 
 Offen (Phase 2/3): Workouts (`0x05`/`0x06`), PAI- und Maximalpuls-Parser, Echtzeit-Puls; die Box.
 
-**Docker, offen:** Das Image hat `bleak`, `cli` bekommt den D-Bus-Socket, aber Dockers Standard-
-AppArmor-Profil verweigert die D-Bus-Aufrufe (`AccessDenied … AppArmor policy`). `pull strap` läuft
-deshalb vorerst nativ (`uv run wristpull pull strap`; das Morgen-Skript mit `WRISTPULL_CMD="uv run
-wristpull"`). Entscheidung nötig: `security_opt: [apparmor:unconfined]` nur für `cli` (schwächt die
-Isolation des Containers, den ohnehin nur der Nutzer selbst startet) oder ein eigenes AppArmor-Profil,
-das D-Bus erlaubt. Für die Box (Phase 3) gilt dasselbe, dort ist nativ ohne Docker ebenso denkbar.
+**Docker:** Das Image hat `bleak`, `cli` bekommt den D-Bus-Socket. Dockers Standard-AppArmor-Profil
+verweigert D-Bus-Aufrufe, deshalb läuft `cli` unter dem eigenen Profil `contrib/apparmor/wristpull-cli`
+(docker-default plus `dbus (send, receive) bus=system`), das einmal auf dem Host geladen wird. Philipp
+hat entschieden, dass alles über den Container laufen soll, nichts nativ (2026-11-07).

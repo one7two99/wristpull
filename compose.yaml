@@ -97,6 +97,10 @@ services:
       - /etc/localtime:/etc/localtime:ro
     device_cgroup_rules:
       - "c 189:* rmw"
+    # Docker's default AppArmor profile denies the D-Bus calls bleak needs for Bluetooth. contrib/apparmor/
+    # has that profile plus the system-bus rule; install it once (see its README). `web` keeps docker-default.
+    security_opt:
+      - "apparmor:wristpull-cli"
     command: ["wristpull", "--help"]
 
 volumes:

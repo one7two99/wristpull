@@ -97,20 +97,24 @@ class BleakTransport:
     async def connect(self) -> None:
         bleak = _bleak()
         kwargs = {"adapter": self.adapter} if self.adapter else {}
-        try:
-            device = await bleak.BleakScanner.find_device_by_address(self.address, timeout=self.timeout, **kwargs)
-        except Exception as exc:  # noqa: BLE001 - bleak raises backend-specific errors
-            raise ble_error(exc, f"cannot look for {self.address}") from exc
-        if device is None:
-            raise NoBandError(f"band {self.address} not found: out of range, asleep, or connected to the phone (disconnect it in Gadgetbridge)")
 
         async def open_client():
+            # Scan again on every attempt: BlueZ forgets an unbonded device shortly after a disconnect, so a
+            # BLEDevice found a few seconds ago may already be gone ("device … not found").
+            try:
+                device = await bleak.BleakScanner.find_device_by_address(self.address, timeout=self.timeout, **kwargs)
+            except Exception as exc:  # noqa: BLE001 - bleak raises backend-specific errors
+                raise ble_error(exc, f"cannot look for {self.address}") from exc
+            if device is None:
+                raise NoBandError(f"band {self.address} not found: out of range, asleep, or connected to the phone (disconnect it in Gadgetbridge)")
             client = bleak.BleakClient(device, timeout=self.timeout, **kwargs)
             await client.connect()
             return client
 
         try:
             client = await attempts(open_client)
+        except NoBandError:
+            raise
         except Exception as exc:  # noqa: BLE001 - bleak raises backend-specific errors
             raise ble_error(exc, f"could not connect to {self.address}") from exc
         self._client = client

@@ -39,3 +39,5 @@ Workouts: while the watch is on the cable, `wristpull workout push --upcoming` c
 workouts (Markdown files under `<data_dir>/workouts/`) to `GARMIN/NewFiles/`; the watch imports them
 when the cable is unplugged. Both import services show the second `ExecStart=` line for it (commented
 out in the Docker one); it exits 2 when nothing is pending, so set `SuccessExitStatus=2` too.
+
+The Docker variants start the `cli` service, which runs under the AppArmor profile `contrib/apparmor/wristpull-cli` (install it once, see that README); without it Docker refuses to start the container.

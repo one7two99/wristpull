@@ -1,0 +1,62 @@
+# AppArmor profile for the wristpull `cli` Docker service: Docker's default container profile plus
+# the D-Bus access bleak needs to talk to the host's BlueZ (`wristpull pull strap`).
+#
+# Docker's built-in `docker-default` denies every D-Bus call ("An AppArmor policy prevents this sender
+# from sending this message"). Running the container unconfined would lift all of its rules; this
+# profile keeps them and only adds the system-bus traffic. `web` keeps docker-default.
+#
+# Install (as root), then `docker compose run --rm cli ...` uses it through compose.yaml:
+#   sudo install -m 0644 contrib/apparmor/wristpull-cli /etc/apparmor.d/wristpull-cli
+#   sudo apparmor_parser -r -W /etc/apparmor.d/wristpull-cli
+#   aa-status | grep wristpull-cli
+# The rules below the D-Bus block are Docker's template (moby, profiles/apparmor/template.go).
+
+#include <tunables/global>
+
+profile wristpull-cli flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/dbus-strict>
+
+  # BlueZ over the system bus (/run/dbus/system_bus_socket is mounted into the container).
+  dbus (send, receive) bus=system,
+
+  network,
+  capability,
+  file,
+  umount,
+  # Host (privileged) processes may send signals to container processes.
+  signal (receive) peer=unconfined,
+  # runc may send signals to container processes.
+  signal (receive) peer=runc,
+  # crun may send signals to container processes.
+  signal (receive) peer=crun,
+  # dockerd may send signals to container processes.
+  signal (receive) peer=dockerd,
+  # containerd may send signals to container processes.
+  signal (receive) peer=containerd,
+  # Container processes may send signals amongst themselves.
+  signal (send,receive) peer=wristpull-cli,
+
+  deny @{PROC}/* w,   # deny write for all files directly in /proc (not in a subdir)
+  # deny write to files not in /proc/<number>/** or /proc/sys/**
+  deny @{PROC}/{[^1-9],[^1-9][^0-9],[^1-9s][^0-9y][^0-9s],[^1-9][^0-9][^0-9][^0-9]*}/** w,
+  deny @{PROC}/sys/[^k]** w,  # deny /proc/sys except /proc/sys/k* (effectively /proc/sys/kernel)
+  deny @{PROC}/sys/kernel/{?,??,[^s][^h][^m]**} w,  # deny everything except shm* in /proc/sys/kernel/
+  deny @{PROC}/sysrq-trigger rwklx,
+  deny @{PROC}/kcore rwklx,
+
+  deny mount,
+
+  deny /sys/[^f]*/** wklx,
+  deny /sys/f[^s]*/** wklx,
+  deny /sys/fs/[^c]*/** wklx,
+  deny /sys/fs/c[^g]*/** wklx,
+  deny /sys/fs/cg[^r]*/** wklx,
+  deny /sys/firmware/** rwklx,
+  deny /sys/devices/virtual/powercap/** rwklx,
+  deny /sys/kernel/security/** rwklx,
+
+  # allow processes within the container to trace each other,
+  # provided all of them are confined by this same profile.
+  ptrace (trace,read,tracedby,readby) peer=wristpull-cli,
+}

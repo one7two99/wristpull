@@ -725,13 +725,12 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
   contrib udev rule (phase C) sets `GROUP="plugdev"` for timers without one; `WRISTPULL_USB_GID`
   in `.env` names that group (default 46).
 - **Strap (Bluetooth):** bleak talks to the host's `bluetoothd` over the system D-Bus, so `cli`
-  mounts `/run/dbus/system_bus_socket`. On this laptop Docker's default AppArmor profile still denies
-  the D-Bus calls (`org.freedesktop.DBus.Error.AccessDenied … AppArmor policy`), so `pull strap` is
-  **not yet usable from the container**; run it natively (`uv run wristpull pull strap`, the
-  `wristpull-morning` script does so with `WRISTPULL_CMD`) until a decision on the profile is made
-  (an unconfined `cli` service, or a custom AppArmor profile that allows D-Bus). The host user must be
-  allowed to use BlueZ either way (`bluetooth` group, or a desktop session). `web` has no Bluetooth.
-  Linux only, like USB.
+  mounts `/run/dbus/system_bus_socket`. Docker's default AppArmor profile denies D-Bus calls
+  (`org.freedesktop.DBus.Error.AccessDenied … AppArmor policy`), so `cli` runs under
+  `contrib/apparmor/wristpull-cli`: the default profile plus the system-bus rule, installed once with
+  `apparmor_parser` (see `contrib/apparmor/README.md`; without it Docker refuses to start `cli`). The
+  host user must be allowed to use BlueZ (a desktop session, or the `bluetooth` group). `web` has no
+  Bluetooth. Linux only, like USB.
 - **Coach:** `cli` runs with `network_mode: host`, so `[coach] ollama_url =
   "http://localhost:11434"` works unchanged; API keys come from `.env` or your shell as for `web`.
   Never set `OLLAMA_HOST=0.0.0.0` and never run `adb -a`.

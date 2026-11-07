@@ -51,5 +51,5 @@ Fetch kinds and record layouts (verified byte-identical against Gadgetbridge's t
 ## Open
 
 - Workouts (`0x05`/`0x06`), PAI and maximum heart rate parsers (phase 2); the buffers of the last two are archived already.
-- Docker: `cli` mounts the D-Bus socket, but Docker's default AppArmor profile denies the D-Bus calls (seen 2026-11-07 on Ubuntu 26.04); `pull strap` runs natively for now. Options: an unconfined `cli` service, or a custom AppArmor profile that allows D-Bus; the user decides.
+- Docker: Docker's default AppArmor profile denies the D-Bus calls (seen 2026-11-07 on Ubuntu 26.04), so `cli` runs under `contrib/apparmor/wristpull-cli` (docker-default plus `dbus (send, receive) bus=system`), installed once on the host.
 - The box: Raspberry Pi image, scan loop, auth key provisioning for other users (needs a Zepp account once per band), licence question (Gadgetbridge is AGPL).

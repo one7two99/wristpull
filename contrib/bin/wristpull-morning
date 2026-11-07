@@ -60,13 +60,7 @@ fi
 
 if has strap; then
     say "2/3  Strap: pulling the band over Bluetooth (it must be in range and not connected to the phone) …"
-    # Bluetooth needs the host's D-Bus, which Docker's AppArmor profile blocks: this step runs natively
-    # unless WRISTPULL_CMD already says otherwise (see README "Running everything in Docker").
-    if [ -n "${WRISTPULL_CMD:-}" ]; then
-        wristpull pull strap || failed+=("pull strap")
-    else
-        (cd "$(dirname "$compose")" && uv run wristpull pull strap) || failed+=("pull strap")
-    fi
+    wristpull pull strap || failed+=("pull strap")
 fi
 
 if has phone; then
