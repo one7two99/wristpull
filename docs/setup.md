@@ -26,9 +26,7 @@ touch ~/.config/wristpull/config.toml          # compose bind-mounts this file; 
 cp .env.example .env                           # then edit: UID/GID (id -u, id -g), WRISTPULL_DATA, WRISTPULL_CONFIG
 ```
 
-Moving from another machine? Copy `~/Health/wristpull` (raw files, `wristpull.sqlite`,
-`strap/authkey`, `adb/`, `coach/`, `workouts/`), `~/.config/wristpull/config.toml` and `.env` instead;
-nothing else holds state except Caddy's certificate authority (see step 6).
+Moving from another machine? Copy the data instead of starting empty: see step 10.
 
 ## 3. Build and first run
 
@@ -113,3 +111,48 @@ git pull && docker compose build && docker compose up -d web
 
 After a Docker upgrade that changes its default AppArmor profile, compare
 `contrib/apparmor/wristpull-cli` with moby's template and reload it.
+
+## 10. Moving the data to another machine
+
+Everything wristpull knows lives in three places; nothing is stored inside the containers:
+
+| What | Where | Holds |
+|---|---|---|
+| data directory | `~/Health/wristpull` (`WRISTPULL_DATA`) | `raw/` (every device file, immutable), `wristpull.sqlite`, `strap/authkey`, `adb/` (phone authorisation), `coach/` (goal profile, prompts), `workouts/`, `exports/`, `reports/`, `staging/` (may be empty) |
+| config | `~/.config/wristpull/config.toml` (`WRISTPULL_CONFIG`) | timezone, folders, `[strap] address`, coach and UI settings |
+| `.env` next to `compose.yaml` | the checkout | UID/GID, the two paths above, dashboard secrets, API keys |
+
+Steps, with the old machine still available:
+
+```sh
+# on the old machine: stop the dashboard so the database is not written while copying
+cd ~/dev/wristpull && docker compose down
+rsync -a --delete ~/Health/wristpull/ newhost:~/Health/wristpull/     # keeps the 0600 of strap/authkey and the read-only raw files
+scp ~/.config/wristpull/config.toml newhost:~/.config/wristpull/config.toml
+scp ~/dev/wristpull/.env newhost:~/dev/wristpull/.env                 # contains secrets: scp/rsync only, never mail or chat
+```
+
+On the new machine, after steps 1 to 5 of this guide (packages, checkout, build, udev rule,
+AppArmor profile):
+
+- `.env`: adjust `UID`/`GID` (`id -u`, `id -g`) and the two paths if the user or home differ;
+  `WRISTPULL_SITE` to the new LAN address. Keep `WRISTPULL_WEB_SECRET` to stay logged in on the phone.
+- `config.toml`: `[storage] data_dir` must be the host path of the copied data directory; everything
+  else (timezone, `[strap] address`, coach backend) stays as it was.
+- The data directory must be owned by the new user (`chown -R $USER:$USER ~/Health/wristpull`
+  if the UID changed); the files under `raw/` stay read-only.
+- `docker compose run --rm cli wristpull status` shows the same tables and raw-file counts as on
+  the old machine; `wristpull strap info` the same sync state, so the next `pull strap` only brings
+  what the band recorded since. The band's auth key works on every host, but the band holds one
+  connection: the old machine (or the phone) must not be talking to it.
+- The phone keeps trusting the copied adb keys (`adb/`); without them it asks once for a new
+  authorisation.
+- Caddy's certificate authority is **not** copied (it lives in the Docker volume `caddy_data`): the
+  new machine mints a new one, so install the new `wristpull-root.crt` on the phone (step 6) and
+  remove the old one.
+- Optional on the old machine afterwards: `docker compose down -v` removes its containers and the
+  Caddy volume; the data directory can stay as a backup.
+
+Without the old machine (restoring from a backup): the same files from the backup, then the same
+checks. A backup therefore means the data directory plus the config file plus `.env`; the repository
+is on GitHub.

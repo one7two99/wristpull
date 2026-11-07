@@ -760,6 +760,9 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
   phone can still be reached over wireless ADB).
 - **Updating:** `git pull && docker compose build` rebuilds the one image for both services;
   `docker compose up -d web` restarts the dashboard.
+- **Moving to another machine or restoring a backup:** the data directory, the config file and
+  `.env` are the whole state; [docs/setup.md](docs/setup.md) step 10 lists what to copy, what to
+  adjust and what Caddy regenerates.
 
 ## Automation
 
