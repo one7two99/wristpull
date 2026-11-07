@@ -17,7 +17,7 @@ from ..coach.metrics import acute_chronic, deltas, recovery_flags, value
 from ..coach.store import recent_notes, recent_runs
 from ..config import Config
 from ..detail import activity_detail, downsample, local_clock, sleep_night, sports
-from ..merge import STRAP_SOURCE, merged_activities, merged_metric_by_day, merged_sleep
+from ..merge import STRAP_PRIORITY, merged_activities, merged_metric_by_day, merged_sleep
 from ..status import last_imports
 from ..timeutil import parse_iso_utc
 from ..tui.queries import day_rows
@@ -35,7 +35,7 @@ TILES: tuple[tuple[str, str, str, str, str | None], ...] = (
 )
 TREND_WEEKS = (4, 12, 52, 104, 260, 520)  # beyond a year the trend charts aggregate per week
 # raw_files.source -> label msgid shown as "last sync"
-SOURCE_LABELS = {"garmin_usb": "Watch (USB)", "gadgetbridge_garmin": "Watch (phone)", "garmin_connect": "Connect export", "gadgetbridge": "Strap (phone)"}
+SOURCE_LABELS = {"garmin_usb": "Watch (USB)", "gadgetbridge_garmin": "Watch (phone)", "garmin_connect": "Connect export", "zepp_ble": "Strap (Bluetooth)", "gadgetbridge_zepp": "Strap (phone)", "gadgetbridge": "Strap (phone)"}
 COACH_EXCERPT_CHARS = 700
 
 
@@ -308,7 +308,7 @@ def night_page(conn: sqlite3.Connection, sleep_id: int, tz: ZoneInfo) -> dict[st
         return None
     same_day = merged_sleep(conn, night["local_date"], night["local_date"])
     this = next((s for s in same_day if s["id"] == sleep_id), None)
-    device = this["device"] if this else ("strap" if night["source"] == STRAP_SOURCE else "garmin")
+    device = this["device"] if this else ("strap" if night["source"] in STRAP_PRIORITY else "garmin")
     other = max((s for s in same_day if s["device"] != device), key=lambda s: s.get("duration_s") or 0, default=None)
     stage_totals = [{"stage": k, "seconds": night.get(f"{k}_s")} for k in STAGE_ORDER if night.get(f"{k}_s")]
     return {

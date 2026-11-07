@@ -46,6 +46,8 @@ form.
 |---|---|
 | `import garmin` | copy and parse new FIT files from the USB-connected watch |
 | `pull phone` | trigger a Gadgetbridge export, pull database and FIT files over ADB, import them |
+| `pull strap` | read the Helio Strap directly over Bluetooth (no phone, no Gadgetbridge) and import it |
+| `strap scan\|pair\|info` | find the band, store its auth key, show where every fetch kind left off |
 | `import gadgetbridge` | import an already copied Gadgetbridge export |
 | `import garmin-export` | import the Garmin Connect account export (your whole history as FIT files) |
 | `status` | what is stored, which device is connected |
@@ -161,6 +163,39 @@ wristpull pull phone --dry-run
 ```
 
 Requirements on the phone are in [docs/gadgetbridge.md](docs/gadgetbridge.md).
+
+#### `wristpull pull strap`
+
+Talks to the Amazfit Helio Strap (any Zepp OS band) over Bluetooth Low Energy, the way Gadgetbridge
+does, so the phone is not needed at all ([concept](docs/strap-ble-concept.md)). It needs the `ble`
+extra (`uv sync --extra ble`; the Docker image has it), the band's 16-byte auth key and the band in
+range and not connected to the phone (a band holds one connection; disconnect it in Gadgetbridge or
+remove it there).
+
+Per fetch kind (activity minutes, stress, SpO2, HRV, resting heart rate, respiration, the band's
+sleep sessions; PAI and maximum heart rate are archived for a later parser) the band is asked for
+everything since the last sample wristpull stored (`strap_sync`, first run: `[strap] since_days`).
+Each answer is archived as an immutable buffer file under `raw/zepp_ble/`, parsed into the sample
+tables as source `zepp_ble` and the daily summaries are rebuilt. The data stays on the band
+(`keep_on_band`); a second run only brings what is new. Activity is always asked from the local
+midnight of the last synced day because its step counts are cumulative per day.
+
+| Option | Effect |
+|---|---|
+| `--since-days N` | how far back the first pull asks (default `[strap] since_days`, 30) |
+| `--delete` | let the band delete what it sent (default: keep) |
+| `--dry-run` | ask the band how much it holds per kind, transfer nothing |
+
+```sh
+wristpull strap scan                                   # bands in range, strongest first
+wristpull strap pair --authkey 0x<32 hex> --address AA:BB:CC:DD:EE:02   # stores the key, writes the address, probes the band
+wristpull pull strap
+wristpull strap info                                   # address, key file, last sample per kind
+```
+
+The auth key is the one Gadgetbridge uses (device settings → *Auth key*; it is also in a Gadgetbridge
+backup under `preferences/device_<MAC>.json`) or comes from the Zepp account with `huami-token`. It is
+written to `<data_dir>/strap/authkey` with mode 0600 and never into the config file.
 
 #### `wristpull import gadgetbridge`
 
@@ -654,7 +689,7 @@ coach runs, ratings, journal notes and edited workout files.
 
 The same image also runs every other command through the `cli` service of `compose.yaml`
 ([concept](docs/docker-concept.md)): the TUI, export, report, coach, workouts, `pull phone`
-over ADB and (from phase B on) `import garmin` over MTP. `web` stays as it is: reachable from the
+over ADB, `pull strap` over Bluetooth and `import garmin` over MTP. `web` stays as it is: reachable from the
 network, no USB. `cli` is started per command, has USB pass-through and the host network, and runs
 as your user so files in the data directory keep their owner.
 
@@ -665,10 +700,11 @@ docker compose build
 docker compose run --rm cli wristpull status
 docker compose run --rm cli wristpull tui
 docker compose run --rm cli wristpull pull phone
+docker compose run --rm cli wristpull pull strap
 contrib/bin/wristpull tui                  # wrapper for the line above (works from the checkout)
 ```
 
-- **What is inside:** the extras `web`, `coach`, `tui`, plus `adb`, `mtp-tools` (libmtp) and
+- **What is inside:** the extras `web`, `coach`, `tui`, `ble`, plus `adb`, `mtp-tools` (libmtp) and
   `nano` and `micro` (`EDITOR` from your shell picks one). `TERM`, `COLORTERM`, `LANG`, `EDITOR` and `VISUAL` come from your shell; the config file
   is mounted read-write (the TUI settings screen saves it) and found through
   `WRISTPULL_CONFIG_FILE`; the data directory is mounted at `/data` (`WRISTPULL_DATA_DIR`
@@ -688,6 +724,14 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
   must be readable by your user: the desktop's `uaccess` ACL covers an active session, the
   contrib udev rule (phase C) sets `GROUP="plugdev"` for timers without one; `WRISTPULL_USB_GID`
   in `.env` names that group (default 46).
+- **Strap (Bluetooth):** bleak talks to the host's `bluetoothd` over the system D-Bus, so `cli`
+  mounts `/run/dbus/system_bus_socket`. On this laptop Docker's default AppArmor profile still denies
+  the D-Bus calls (`org.freedesktop.DBus.Error.AccessDenied … AppArmor policy`), so `pull strap` is
+  **not yet usable from the container**; run it natively (`uv run wristpull pull strap`, the
+  `wristpull-morning` script does so with `WRISTPULL_CMD`) until a decision on the profile is made
+  (an unconfined `cli` service, or a custom AppArmor profile that allows D-Bus). The host user must be
+  allowed to use BlueZ either way (`bluetooth` group, or a desktop session). `web` has no Bluetooth.
+  Linux only, like USB.
 - **Coach:** `cli` runs with `network_mode: host`, so `[coach] ollama_url =
   "http://localhost:11434"` works unchanged; API keys come from `.env` or your shell as for `web`.
   Never set `OLLAMA_HOST=0.0.0.0` and never run `adb -a`.
@@ -711,9 +755,10 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
 ## Automation
 
 Devices that are only sometimes on the cable do not fit timers. `contrib/bin/wristpull-morning` walks
-through the routine instead: plug the watch in (import, optional workout push), unplug it, sync watch
-and strap in Gadgetbridge, plug the phone in (`pull phone`), optionally run the daily coach – each step
-waits for the device and can be run on its own (`wristpull-morning phone`).
+through the routine instead: plug the watch in (import, optional workout push), unplug it, pull the
+strap over Bluetooth (`pull strap`), optionally run the daily coach – each step waits for the device
+and can be run on its own (`wristpull-morning strap`). The Gadgetbridge way (sync in the app, plug the
+phone in, `pull phone`) is still there as the `phone` step for anyone who keeps the app.
 
 
 `contrib/systemd/` has user units and timers for the morning routine (`pull phone` at 06:45, `coach
@@ -753,7 +798,7 @@ open `/docs/`.
     └── watch-backup/               copies of workout files removed from the watch
 ```
 
-`source` is `garmin_usb`, `gadgetbridge_garmin` or `gadgetbridge_zepp`; the exported Gadgetbridge
+`source` is `garmin_usb`, `gadgetbridge_garmin`, `garmin_connect`, `zepp_ble` or `gadgetbridge_zepp`; the exported Gadgetbridge
 database itself is archived under `gadgetbridge/<year>/database/`. Every raw file is identified by
 its SHA-256 (`raw_files` table), stored read-only and never overwritten; an import is idempotent and
 can be re-run at any time. Coach answers are not files but rows in `coach_runs`
@@ -766,7 +811,8 @@ can be re-run at any time. Coach answers are not files but rows in `coach_runs`
 | `garmin_usb` | fenix | FIT files from the watch over USB | complete, including activities with per-second records |
 | `gadgetbridge_garmin` | fenix | the same FIT files, fetched by Gadgetbridge over Bluetooth and pulled from the phone | same parser; the watch splits them into smaller files |
 | `garmin_connect` | every Garmin device the account ever had | the FIT files of the Garmin Connect account export plus its daily summaries and nights (`import garmin-export`) | same parser for FIT; daily aggregates in `connect_daily`; fills the history from before wristpull, lowest priority in the merge |
-| `gadgetbridge_zepp` | Helio Strap | tables of the exported Gadgetbridge database | per-minute samples, no raw files exist |
+| `zepp_ble` | Helio Strap | fetched from the band over Bluetooth by wristpull (`pull strap`) | the band's own byte buffers, archived as raw files; first choice for the strap |
+| `gadgetbridge_zepp` | Helio Strap | tables of the exported Gadgetbridge database | per-minute samples, no raw files exist; fills gaps behind `zepp_ble` |
 
 Two things seen on the first real night (2026-11-01) shape how the sources complement each other:
 
@@ -797,7 +843,8 @@ readings overlap. They are kept apart in the sample tables and in `daily_summary
 source and day). The export and report layer merges them (`merge.py`): daily metrics are
 coalesced column by column, USB first, Gadgetbridge fills gaps, the Connect export comes last;
 activities and nights are de-duplicated by start minute. The Helio Strap is a separate device and
-stays a separate source throughout (`strap_*` columns).
+stays separate throughout (`strap_*` columns); its two sources are merged the same way, `zepp_ble`
+first and `gadgetbridge_zepp` filling gaps.
 
 ### Tables
 
@@ -905,4 +952,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md); the licence is MIT ([LICENSE](LICENSE)).
 8. Web dashboard in Docker (phone in the home network, HTTPS + password): concept in [docs/dashboard-concept.md](docs/dashboard-concept.md); ~~D1 login, Today, Trends, Docker + Caddy~~, ~~D2 activities and sleep~~, ~~D3 coach runs, rating, journal, workout editor~~ — later: moving to a server (raw-file transfer + import there)
 9. ~~Everything in Docker: one image for the dashboard and the `cli` service (USB pass-through, the watch over the MTP tools without gvfs, the phone over ADB, udev rule and units for the container)~~ — concept in [docs/docker-concept.md](docs/docker-concept.md); next: publishing the image
 10. ~~Garmin Connect account export: `import garmin-export` (every uploaded FIT file, daily summaries, nights with scores, activity names, VO2max and weight history)~~ — the merge keeps the live sources first
-11. Later: MCP server / Claude skill over the SQLite, nutrition source (MyNetDiary or own logging)
+11. ~~Helio Strap over Bluetooth without Gadgetbridge: Zepp OS protocol (B-163 + AES), `pull strap`, `strap scan|pair|info`, archive + reparse of the band's buffers~~ — concept in [docs/strap-ble-concept.md](docs/strap-ble-concept.md); next: workouts/PAI parsers, then the standalone box (Raspberry Pi)
+12. Later: MCP server / Claude skill over the SQLite, nutrition source (MyNetDiary or own logging)

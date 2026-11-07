@@ -15,6 +15,8 @@ from ..fit.garmin import parse_fit
 from ..gadgetbridge import parse_gadgetbridge_db
 from ..rows import SAMPLE_TABLES
 from ..timeutil import zone
+from ..zeppos.fetch import RAW_KINDS as ZEPP_RAW_KINDS
+from ..zeppos.fetch import parse_buffer, unpack_buffer
 from .garmin import store_parsed
 
 Log = Callable[[str], None]
@@ -36,6 +38,7 @@ class ReparseStats:
 
 
 JSON_KINDS = ("uds", "sleep_json", "activities_json", "maxmet", "biometrics")  # Garmin Connect export files parsed by garmin_connect.py
+ZEPP_KINDS = ZEPP_RAW_KINDS  # buffers fetched from a Zepp OS band over BLE (zeppos/fetch.py)
 
 
 def sources_of(parsed) -> list[str]:
@@ -97,6 +100,12 @@ def reparse_raw_file(conn: sqlite3.Connection, config: Config, raw_file: sqlite3
             sources = sources_of(parsed)
             counts = store_parsed(conn, parsed, raw_file_id)
             archive.mark_parsed(raw_file_id, status="ok", fit_file_type="gadgetbridge_db")
+        elif raw_file["kind"] in ZEPP_KINDS:
+            buffer = unpack_buffer(path.read_bytes())
+            parsed = parse_buffer(buffer, tz, raw_file["source"])
+            sources = sources_of(parsed)
+            counts = store_parsed(conn, parsed, raw_file_id)
+            archive.mark_parsed(raw_file_id, status="ok", fit_file_type=raw_file["kind"])
         elif raw_file["kind"] in JSON_KINDS:
             from .connect import store_json
 

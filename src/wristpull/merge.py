@@ -3,7 +3,9 @@
 * Garmin: ``garmin_usb`` and ``gadgetbridge_garmin`` are the same watch. Daily
   metrics are coalesced column by column (USB first, Gadgetbridge fills gaps);
   activities and sleep sessions are de-duplicated by start time.
-* Helio Strap (``gadgetbridge_zepp``) is a separate device and stays separate.
+* Helio Strap: ``zepp_ble`` (pulled over Bluetooth by wristpull) and ``gadgetbridge_zepp`` (the
+  Gadgetbridge export) are the same band; BLE first, Gadgetbridge fills gaps. The strap is a
+  separate device from the watch and stays separate.
 """
 
 from __future__ import annotations
@@ -13,8 +15,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 GARMIN_PRIORITY = ("garmin_usb", "gadgetbridge_garmin", "garmin_connect")  # the account export only fills gaps
-STRAP_SOURCE = "gadgetbridge_zepp"
-DEVICES = {"garmin": GARMIN_PRIORITY, "strap": (STRAP_SOURCE,)}
+STRAP_PRIORITY = ("zepp_ble", "gadgetbridge_zepp")
+STRAP_SOURCE = STRAP_PRIORITY[1]  # the Gadgetbridge export; kept for callers that only know that name
+DEVICES = {"garmin": GARMIN_PRIORITY, "strap": STRAP_PRIORITY}
 
 DAILY_METRICS = (
     "steps",
@@ -76,7 +79,7 @@ def merged_daily(conn: sqlite3.Connection, start: str, end: str) -> list[MergedD
         day_rows = by_date[date]
         day = MergedDay(date=date, sources=sorted({r["source"] for r in day_rows}))
         day.garmin = _coalesce([r for r in day_rows if r["source"] in GARMIN_PRIORITY], GARMIN_PRIORITY)
-        day.strap = _coalesce([r for r in day_rows if r["source"] == STRAP_SOURCE], (STRAP_SOURCE,))
+        day.strap = _coalesce([r for r in day_rows if r["source"] in STRAP_PRIORITY], STRAP_PRIORITY)
         out.append(day)
     return out
 
@@ -97,7 +100,7 @@ def merged_activities(conn: sqlite3.Connection, start: str, end: str) -> list[di
         "SELECT * FROM activities WHERE local_date BETWEEN ? AND ? ORDER BY start_utc", (start, end)
     ).fetchall()
     garmin = _dedup_by_start([r for r in rows if r["source"] in GARMIN_PRIORITY], GARMIN_PRIORITY)
-    strap = [dict(r) for r in rows if r["source"] == STRAP_SOURCE]
+    strap = _dedup_by_start([r for r in rows if r["source"] in STRAP_PRIORITY], STRAP_PRIORITY)
     for a in garmin:
         a["device"] = "garmin"
     for a in strap:
@@ -108,7 +111,7 @@ def merged_activities(conn: sqlite3.Connection, start: str, end: str) -> list[di
 def merged_sleep(conn: sqlite3.Connection, start: str, end: str) -> list[dict[str, Any]]:
     rows = conn.execute("SELECT * FROM sleep WHERE local_date BETWEEN ? AND ? ORDER BY start_utc", (start, end)).fetchall()
     garmin = _dedup_by_start([r for r in rows if r["source"] in GARMIN_PRIORITY], GARMIN_PRIORITY)
-    strap = [dict(r) for r in rows if r["source"] == STRAP_SOURCE]
+    strap = _dedup_by_start([r for r in rows if r["source"] in STRAP_PRIORITY], STRAP_PRIORITY)
     for s in garmin:
         s["device"] = "garmin"
     for s in strap:

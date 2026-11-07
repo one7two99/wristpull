@@ -82,7 +82,7 @@ def test_decode_sleep_session_and_revisions():
     from datetime import UTC, datetime, timedelta
 
     from gb_db import build_sleep_session_blob
-    from wristpull.gadgetbridge import _sleep_from_sessions, decode_sleep_session
+    from wristpull.gadgetbridge import sleep_from_sessions, decode_sleep_session
 
     midnight = datetime(2026, 11, 1, 23, 0, tzinfo=UTC)
     assert decode_sleep_session(b"\x00" * 10) is None
@@ -95,7 +95,7 @@ def test_decode_sleep_session_and_revisions():
     # a later overlapping report revises the first; a disjoint one is a second session
     revised = build_sleep_session_blob(reported=midnight + timedelta(hours=7), midnight=midnight, stages=[(1440, 1529, "deep")], score=80)
     other = build_sleep_session_blob(reported=midnight + timedelta(hours=8), midnight=midnight, stages=[(1700, 1719, "light")])
-    sessions = _sleep_from_sessions([first, revised, other], TZ, "gadgetbridge_zepp")
+    sessions = sleep_from_sessions([first, revised, other], TZ, "gadgetbridge_zepp")
     assert [s.row["score"] for s in sessions] == [80, None]
     assert sessions[0].row["deep_s"] == 90 * 60 and sessions[0].row["awake_s"] == 0
     assert sessions[0].row["local_date"] == "2026-11-02"

@@ -12,7 +12,7 @@ from textual.widgets import Button, Checkbox, Input, Label
 
 from ..format import fmt_float
 from ..i18n import _
-from ..jobs import JobRecord, garmin_import_job, mount_job, phone_pull_job
+from ..jobs import JobRecord, garmin_import_job, mount_job, phone_pull_job, strap_pull_job
 from ..widgets import JobLog, Panel
 from .base import WristpullScreen
 
@@ -22,6 +22,7 @@ class SyncScreen(WristpullScreen):
     BINDINGS = [
         Binding("i", "import_garmin", "Import", show=False),
         Binding("p", "pull_phone", "Pull", show=False),
+        Binding("b", "pull_strap", "Pull strap", show=False),
         Binding("m", "mount", "Mount watch", show=False),
         Binding("x", "app.cancel_job", "Stop job", show=False),
         Binding("l", "clear_log", "Clear log", show=False),
@@ -33,7 +34,7 @@ class SyncScreen(WristpullScreen):
         return _("Devices & Sync")
 
     def keys(self) -> list[tuple[str, str]]:
-        return [("i", _("import")), ("p", _("pull")), ("m", _("mount")), ("x", _("stop job")), ("l", _("clear log")), ("c", _("copy CLI")), ("Esc", _("back"))]
+        return [("i", _("import")), ("p", _("pull")), ("b", _("strap")), ("m", _("mount")), ("x", _("stop job")), ("l", _("clear log")), ("c", _("copy CLI")), ("Esc", _("back"))]
 
     def body(self) -> ComposeResult:
         config = self.app.config
@@ -55,6 +56,11 @@ class SyncScreen(WristpullScreen):
                     yield Input(value="60", id="phone-wait", type="number")
                     yield Checkbox(_("Dry run (show only)"), id="phone-dry")
                     yield Button(_("p  Pull phone"), id="btn-pull", variant="primary")
+                with Vertical(classes="form"):
+                    yield Label(_("STRAP (Bluetooth)"), classes="form-title")
+                    yield Label(_("Band: {address}").format(address=config.strap_address or _("not configured")))
+                    yield Checkbox(_("Dry run (count only)"), id="strap-dry")
+                    yield Button(_("b  Pull strap"), id="btn-strap", variant="primary", disabled=not config.strap_address)
                 yield Button(_("x  Stop running job"), id="btn-stop", variant="error")
             with Vertical(id="log-side"):
                 log = JobLog(self.app.runner.lines, id="log")
@@ -67,6 +73,7 @@ class SyncScreen(WristpullScreen):
         busy = self.app.runner.busy
         self.query_one("#btn-import", Button).disabled = busy
         self.query_one("#btn-pull", Button).disabled = busy
+        self.query_one("#btn-strap", Button).disabled = busy or not self.app.config.strap_address
         self.query_one("#btn-stop", Button).disabled = not busy
 
     def _show_last(self, record: JobRecord | None) -> None:
@@ -101,6 +108,17 @@ class SyncScreen(WristpullScreen):
             wait = 60.0
         return phone_pull_job(self.app.config, self.app.deps, serial=serial, trigger=trigger, sync=sync, wait=wait, dry_run=dry, stop=self.app.runner.should_stop)
 
+    def _strap_spec(self):
+        dry = self.query_one("#strap-dry", Checkbox).value
+        return strap_pull_job(self.app.config, self.app.deps, dry_run=dry, stop=self.app.runner.should_stop)
+
+    def action_pull_strap(self) -> None:
+        if not self.app.config.strap_address:
+            self.app.notify(_("No band configured: set [strap] address (wristpull strap scan)"), severity="warning")
+            return
+        self.app.start_job(self._strap_spec())
+        self.refresh_data()
+
     def action_mount(self) -> None:
         self.app.start_job(mount_job(self.app.config, self.app.deps))
         self.refresh_data()
@@ -133,6 +151,10 @@ class SyncScreen(WristpullScreen):
     @on(Button.Pressed, "#btn-pull")
     def _on_pull(self) -> None:
         self.action_pull_phone()
+
+    @on(Button.Pressed, "#btn-strap")
+    def _on_strap(self) -> None:
+        self.action_pull_strap()
 
     @on(Button.Pressed, "#btn-stop")
     def _on_stop(self) -> None:

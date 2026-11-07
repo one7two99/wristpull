@@ -72,3 +72,13 @@
   prefilter, then the SHA-256 check); workouts talk to the watch only via `workouts/device.py` (`WatchFiles`:
   `LocalWatch` / `MtpWatch`, `open_watch`). Tests inject `FakeMtp` (`tests/fake_mtp.py`) or `fake_mtp_runner`; an
   autouse fixture blocks the real tools and clears `WRISTPULL_IN_CONTAINER`.
+- Helio Strap over Bluetooth (`src/wristpull/zeppos/`, source `zepp_ble`, concept `docs/strap-ble-concept.md`): the Zepp OS
+  protocol as Gadgetbridge speaks it; `ecdh.py` (B-163, pure Python), `aes.py` (pure Python, no dependency), `chunked.py`
+  (codec), `protocol.py` (pure builders/parsers), `band.py` (async client over the `Transport` protocol), `transport.py`
+  (bleak, extra `ble`, the only Bluetooth code), `fetch.py` (kinds, `WPZB` container, parsers reusing `gadgetbridge.py`),
+  `store.py` (SQL only: `strap_sync`, replaced nights). `importers/strap.py::pull_strap` asks each kind since
+  `strap_sync` (activity from the local midnight of the last synced day: steps are cumulative per day), archives every
+  answer as `raw/zepp_ble/<year>/zepp_<kind>/…` and keeps the data on the band. Merge `STRAP_PRIORITY = ("zepp_ble",
+  "gadgetbridge_zepp")`. The auth key lives in `<data_dir>/strap/authkey` (0600), never in config or repo. Tests inject
+  `FakeTransport` (`tests/fake_band.py`, plays the band behind the real codec) and synthetic buffers
+  (`tests/zepp_buffers.py`); an autouse fixture blocks bleak. Never put real fetch buffers into the repository.

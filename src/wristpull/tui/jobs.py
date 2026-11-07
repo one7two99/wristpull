@@ -23,6 +23,7 @@ from ..db import connect
 from ..export import ExportResult
 from ..importers.garmin import ImportStats, import_garmin
 from ..importers.phone import PullStats, pull_phone
+from ..importers.strap import StrapStats, pull_strap
 from ..coach.runner import CoachResult
 from ..report import ReportResult
 from ..workouts.model import Workout
@@ -178,6 +179,16 @@ def describe_result(record: JobRecord) -> list[str]:
             lines.append("  " + _("device: {label}").format(label=label))
         for message in result.messages:
             lines.append(f"  ! {message}")
+    elif isinstance(result, StrapStats):
+        fetched = ", ".join(f"{k}={v}" for k, v in result.fetched.items() if v) or _("nothing new")
+        lines.append(
+            "✓ "
+            + _("strap {device}: {fetched}; {new} new buffers, {skipped} already archived, {errors} errors").format(
+                device=result.device or result.address, fetched=fetched, new=result.files_new, skipped=result.files_skipped, errors=result.errors
+            )
+        )
+        for message in result.messages:
+            lines.append(f"  ! {message}")
     elif isinstance(result, ExportResult):
         lines.append("✓ " + ngettext("wrote {n} file to {dir}", "wrote {n} files to {dir}", len(result.files)).format(n=len(result.files), dir=result.directory))
     elif isinstance(result, ReportResult):
@@ -289,6 +300,19 @@ def phone_pull_job(
         return pull_phone(conn, cfg, adb=deps.adb_factory(), trigger=trigger, sync=sync, wait=wait, dry_run=dry_run, log=log, sleep=deps.sleep, stop=stop)
 
     return JobSpec("pull_phone", _("Pull phone"), cli, run)
+
+
+def strap_pull_job(config: Config, deps: TuiDeps, *, dry_run: bool = False, since_days: int | None = None, stop: Stop = None) -> JobSpec:
+    cli = "wristpull pull strap"
+    if since_days is not None:
+        cli += f" --since-days {since_days}"
+    if dry_run:
+        cli += " --dry-run"
+
+    def run(conn: sqlite3.Connection, log: Log) -> StrapStats:
+        return pull_strap(conn, config, transport_factory=deps.transport_factory, dry_run=dry_run, since_days=since_days, log=log, stop=stop)
+
+    return JobSpec("pull_strap", _("Pull strap"), cli, run)
 
 
 def export_job(config: Config, start: date, end: date, *, write_csv: bool = True) -> JobSpec:

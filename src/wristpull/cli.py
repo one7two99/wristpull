@@ -8,12 +8,14 @@ import zipfile
 from pathlib import Path
 
 from . import __version__
-from .config import Config, default_config_path, load_config, write_default_config
+from .config import Config, default_config_path, is_bluetooth_address, load_config, write_config, write_default_config
 from .db import connect
 from .fit.decode import decode_fit, summarize
 from .adb import AdbError
 from .importers.garmin import import_garmin
 from .importers.phone import import_gadgetbridge_db, import_gadgetbridge_fit_dir, pull_phone
+from .timeutil import iso_utc
+from .zeppos import SOURCE as ZEPP_SOURCE
 from .status import collect_status, render_status
 
 
@@ -36,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_gb.add_argument("--db", type=Path, help="exported Gadgetbridge.db")
     p_gb.add_argument("--files", type=Path, help="local copy of Android/data/nodomain.freeyourgadget.gadgetbridge/files")
 
-    sub.add_parser("status", help="show what is stored and whether a device is connected")
+    sub.add_parser("status", help="show what is stored and whether a device is connected")  # noqa: E501
 
     p_inspect = sub.add_parser("inspect", help="dump message types and fields of a FIT file")
     p_inspect.add_argument("file", type=Path)
@@ -49,13 +51,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_config = sub.add_parser("config", help="show or create the configuration file")
     p_config.add_argument("--init", action="store_true", help="write a default config file if none exists")
 
-    p_pull = sub.add_parser("pull", help="pull Gadgetbridge data from the phone over ADB")
-    p_pull.add_argument("what", nargs="?", default="phone", choices=["phone"])
-    p_pull.add_argument("--serial", help="ADB serial (default: [phone] serial from the config, or the only device)")
-    p_pull.add_argument("--no-trigger", action="store_true", help="do not ask Gadgetbridge to sync and export first")
-    p_pull.add_argument("--no-sync", action="store_true", help="trigger the export but not a device sync")
-    p_pull.add_argument("--wait", type=float, default=60.0, help="seconds to wait for the export to finish (default 60)")
-    p_pull.add_argument("--dry-run", action="store_true", help="show what would be pulled")
+    p_pull = sub.add_parser("pull", help="pull data from the phone (Gadgetbridge over ADB) or from the strap (Bluetooth)")
+    p_pull.add_argument("what", nargs="?", default="phone", choices=["phone", "strap"])
+    p_pull.add_argument("--serial", help="phone: ADB serial (default: [phone] serial from the config, or the only device)")
+    p_pull.add_argument("--no-trigger", action="store_true", help="phone: do not ask Gadgetbridge to sync and export first")
+    p_pull.add_argument("--no-sync", action="store_true", help="phone: trigger the export but not a device sync")
+    p_pull.add_argument("--wait", type=float, default=60.0, help="phone: seconds to wait for the export to finish (default 60)")
+    p_pull.add_argument("--since-days", type=int, help="strap: how far back the first pull asks the band (default [strap] since_days)")
+    p_pull.add_argument("--delete", action="store_true", help="strap: let the band delete what it sent (default: keep_on_band from the config)")
+    p_pull.add_argument("--dry-run", action="store_true", help="show what would be pulled (strap: ask the band how much it holds)")
+    p_strap = sub.add_parser("strap", help="the Zepp OS band over Bluetooth: scan for it, store its auth key, show the sync state")
+    strap_sub = p_strap.add_subparsers(dest="strap_cmd", required=True)
+    p_sscan = strap_sub.add_parser("scan", help="list advertising bands (needs the 'ble' extra)")
+    p_sscan.add_argument("--seconds", type=float, default=8.0, help="how long to listen (default 8)")
+    p_sscan.add_argument("--all", action="store_true", help="every BLE device, not only bands")
+    p_spair = strap_sub.add_parser("pair", help="store the band's auth key (and address) and check them against the band")
+    p_spair.add_argument("--authkey", required=True, help="32 hex digits, from Gadgetbridge's device settings or huami-token")
+    p_spair.add_argument("--address", help="Bluetooth address AA:BB:CC:DD:EE:FF; written to [strap] address in the config")
+    p_spair.add_argument("--no-probe", action="store_true", help="only store, do not connect")
+    strap_sub.add_parser("info", help="address, key file and where every fetch kind left off")
     p_export = sub.add_parser("export", help="export a compact Markdown summary plus CSVs for a date range")
     p_export.add_argument("--for-claude", action="store_true", help="compact Markdown + CSV attachments (the only format so far)")
     p_export.add_argument("--from", dest="date_from", required=True, help="first local date, YYYY-MM-DD")
@@ -202,6 +216,8 @@ def cmd_import_gadgetbridge(args: argparse.Namespace, config: Config) -> int:
 
 
 def cmd_pull(args: argparse.Namespace, config: Config) -> int:
+    if args.what == "strap":
+        return cmd_pull_strap(args, config)
     conn = _open(config)
     log = (lambda _m: None) if args.quiet else print
     if args.serial:
@@ -229,6 +245,106 @@ def cmd_pull(args: argparse.Namespace, config: Config) -> int:
     for message in stats.messages:
         print(f"  note: {message}", file=sys.stderr)
     return 0 if not stats.errors else 2
+
+
+def cmd_pull_strap(args: argparse.Namespace, config: Config) -> int:
+    from .importers.strap import pull_strap
+    from .zeppos.band import BandError
+
+    conn = _open(config)
+    log = (lambda _m: None) if args.quiet else print
+    try:
+        stats = pull_strap(conn, config, dry_run=args.dry_run, keep=False if args.delete else None, since_days=args.since_days, log=log)
+    except (BandError, ValueError) as exc:
+        print(f"strap: {exc}", file=sys.stderr)
+        return 1
+    mode = "dry run: " if args.dry_run else ""
+    fetched = ", ".join(f"{k}={v}" for k, v in stats.fetched.items() if v) or "nothing new"
+    print(f"{mode}strap {stats.address} ({stats.device}): {fetched}; {stats.files_new} new buffers, {stats.files_skipped} already archived, {stats.errors} errors")
+    if stats.rows:
+        print("inserted: " + _fmt(stats.rows))
+    for message in stats.messages:
+        print(f"  note: {message}", file=sys.stderr)
+    if stats.stopped:
+        print("  stopped before every kind was fetched", file=sys.stderr)
+    return 0 if not stats.errors else 2
+
+
+def cmd_strap(args: argparse.Namespace, config: Config) -> int:
+    import asyncio
+
+    from .zeppos.band import Band, BandError
+    from .zeppos.protocol import parse_auth_key
+    from .zeppos.store import all_sync, clear_sync
+
+    if args.strap_cmd == "scan":
+        from .zeppos import transport
+
+        try:
+            found = asyncio.run(transport.scan(args.seconds, adapter=config.strap_adapter or None, all_devices=args.all))
+        except BandError as exc:
+            print(f"strap: {exc}", file=sys.stderr)
+            return 1
+        if not found:
+            print("no band seen (is it connected to the phone? disconnect it in Gadgetbridge and try again)")
+            return 1
+        for f in found:
+            print(f"{f.address}  {f.rssi if f.rssi is not None else '?':>4} dBm  {f.name or ''}")
+        return 0
+    if args.strap_cmd == "pair":
+        try:
+            key = parse_auth_key(args.authkey)
+        except ValueError as exc:
+            print(f"strap: {exc}", file=sys.stderr)
+            return 1
+        if args.address:
+            if not is_bluetooth_address(args.address):
+                print("strap: the address must look like AA:BB:CC:DD:EE:FF", file=sys.stderr)
+                return 1
+            config.strap_address = args.address.upper()
+            write_config(config, config.path)
+        path = config.strap_authkey_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch(mode=0o600, exist_ok=True)
+        path.chmod(0o600)
+        path.write_text("0x" + key.hex() + "\n")
+        conn = _open(config)
+        cleared = clear_sync(conn, ZEPP_SOURCE)
+        conn.commit()
+        print(f"auth key stored in {path}" + (f"; address {config.strap_address} written to {config.path}" if args.address else "") + (f"; sync state of {cleared} kinds reset" if cleared else ""))
+        if args.no_probe:
+            return 0
+        if not config.strap_address:
+            print("no address configured: `wristpull strap scan`, then `wristpull strap pair --address …`", file=sys.stderr)
+            return 1
+        from .zeppos.transport import open_transport
+
+        async def probe() -> str:
+            band = Band(open_transport(config.strap_address, adapter=config.strap_adapter or None), key)
+            await band.connect()
+            try:
+                await band.authenticate()
+                await band.request_services()
+                return (await band.device_info()).label()
+            finally:
+                await band.close()
+
+        try:
+            print(f"band answers: {asyncio.run(probe())}")
+        except BandError as exc:
+            print(f"strap: {exc}", file=sys.stderr)
+            return 1
+        return 0
+    # info
+    print(f"address:   {config.strap_address or '(not configured)'}")
+    print(f"auth key:  {config.strap_authkey_path} ({'present' if config.strap_authkey_path.exists() else 'missing'})")
+    conn = _open(config)
+    synced = all_sync(conn, ZEPP_SOURCE)
+    if not synced:
+        print("last pull: never")
+    for kind, when in synced.items():
+        print(f"  {kind:<12} up to {iso_utc(when)}")
+    return 0
 
 
 def cmd_import_garmin_export(args: argparse.Namespace, config: Config) -> int:
@@ -704,6 +820,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_import_garmin(args, config)
     if args.command == "pull":
         return cmd_pull(args, config)
+    if args.command == "strap":
+        return cmd_strap(args, config)
     if args.command == "status":
         return cmd_status(args, config)
     if args.command == "inspect":

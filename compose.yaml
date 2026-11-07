@@ -91,6 +91,9 @@ services:
       - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}/adb:/home/wristpull/.android
       # USB pass-through for the watch (MTP) and the phone (ADB); hot-plug works because the whole bus is mounted.
       - /dev/bus/usb:/dev/bus/usb
+      # Bluetooth for `pull strap`: bleak talks to the host's bluetoothd over the system D-Bus (host network is
+      # already on). The host user must be allowed to use BlueZ (the `bluetooth` group on Debian/Ubuntu).
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - /etc/localtime:/etc/localtime:ro
     device_cgroup_rules:
       - "c 189:* rmw"

@@ -105,7 +105,8 @@ def _ts_s(value: int | None) -> datetime | None:
     return datetime.fromtimestamp(int(value), UTC)
 
 
-def _stamp(dt: datetime, tz: ZoneInfo, *, shift: int = 0) -> dict[str, str]:
+def stamp(dt: datetime, tz: ZoneInfo, *, shift: int = 0) -> dict[str, str]:
+    """``ts_utc``/``tz``/``local_date`` columns of a sample row."""
     return {"ts_utc": iso_utc(dt), "tz": tz.key, "local_date": local_date(dt, tz, shift_seconds=shift)}
 
 
@@ -151,7 +152,7 @@ def decode_sleep_session(data: bytes) -> dict[str, Any] | None:
     }
 
 
-def _sleep_from_sessions(blobs: list[bytes], tz: ZoneInfo, source: str) -> list[ParsedSleep]:
+def sleep_from_sessions(blobs: list[bytes], tz: ZoneInfo, source: str) -> list[ParsedSleep]:
     """Sleep sessions the band computed itself; a later report that overlaps an earlier one replaces it."""
     sessions: list[dict[str, Any]] = []
     for blob in blobs:
@@ -276,7 +277,7 @@ def parse_zepp_device(conn: sqlite3.Connection, device: GbDevice, tz: ZoneInfo, 
             continue
         hr = r["HEART_RATE"]
         if hr not in HUAMI_HR_INVALID and 25 <= int(hr) <= 250:
-            out.heart_rate.append({"source": src, **_stamp(ts, tz), "bpm": int(hr)})
+            out.heart_rate.append({"source": src, **stamp(ts, tz), "bpm": int(hr)})
         steps = r["STEPS"]
         if steps is not None and int(steps) >= 0:
             day = local_date(ts, tz)
@@ -284,7 +285,7 @@ def parse_zepp_device(conn: sqlite3.Connection, device: GbDevice, tz: ZoneInfo, 
             out.steps.append(
                 {
                     "source": src,
-                    **_stamp(ts, tz),
+                    **stamp(ts, tz),
                     "activity_type": "all",
                     "steps": daily_steps[day],
                     "distance_m": None,
@@ -298,55 +299,55 @@ def parse_zepp_device(conn: sqlite3.Connection, device: GbDevice, tz: ZoneInfo, 
     if out.steps:
         out.replace_tables.add("steps")
     # the band's own sleep sessions (with stages) win; the per-minute flags are only a fallback
-    sessions = _sleep_from_sessions([r["DATA"] for r in _rows(conn, "HUAMI_SLEEP_SESSION_SAMPLE", did) if r["DATA"]], tz, src)
+    sessions = sleep_from_sessions([r["DATA"] for r in _rows(conn, "HUAMI_SLEEP_SESSION_SAMPLE", did) if r["DATA"]], tz, src)
     out.sleep.extend(sessions if sessions else _sleep_from_minutes(sleep_minutes, tz, src))
 
     for r in _rows(conn, "HUAMI_STRESS_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["STRESS"] is not None and int(r["STRESS"]) >= 0:
-            out.stress.append({"source": src, **_stamp(ts, tz), "level": int(r["STRESS"])})
+            out.stress.append({"source": src, **stamp(ts, tz), "level": int(r["STRESS"])})
     for r in _rows(conn, "HUAMI_SPO2_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["SPO2"] and int(r["SPO2"]) > 0:
-            out.spo2.append({"source": src, **_stamp(ts, tz), "spo2_pct": int(r["SPO2"]), "confidence": None, "mode": str(r["TYPE_NUM"]) if r["TYPE_NUM"] is not None else None})
+            out.spo2.append({"source": src, **stamp(ts, tz), "spo2_pct": int(r["SPO2"]), "confidence": None, "mode": str(r["TYPE_NUM"]) if r["TYPE_NUM"] is not None else None})
     for r in _rows(conn, "HUAMI_HEART_RATE_RESTING_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["HEART_RATE"] not in HUAMI_HR_INVALID:
-            out.resting_hr.append({"source": src, **_stamp(ts, tz), "resting_hr": int(r["HEART_RATE"]), "current_day_resting_hr": None})
+            out.resting_hr.append({"source": src, **stamp(ts, tz), "resting_hr": int(r["HEART_RATE"]), "current_day_resting_hr": None})
     for r in _rows(conn, "HUAMI_SLEEP_RESPIRATORY_RATE_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["RATE"] and int(r["RATE"]) > 0:
-            out.respiration.append({"source": src, **_stamp(ts, tz), "breaths_per_min": float(r["RATE"])})
+            out.respiration.append({"source": src, **stamp(ts, tz), "breaths_per_min": float(r["RATE"])})
     for r in _rows(conn, "GENERIC_RESPIRATORY_RATE_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["RESPIRATORY_RATE"] and float(r["RESPIRATORY_RATE"]) > 0:
-            out.respiration.append({"source": src, **_stamp(ts, tz), "breaths_per_min": float(r["RESPIRATORY_RATE"])})
+            out.respiration.append({"source": src, **stamp(ts, tz), "breaths_per_min": float(r["RESPIRATORY_RATE"])})
     for r in _rows(conn, "GENERIC_HRV_VALUE_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["VALUE"] and int(r["VALUE"]) > 0:
-            out.hrv_values.append({"source": src, **_stamp(ts, tz), "rmssd_ms": float(r["VALUE"])})
+            out.hrv_values.append({"source": src, **stamp(ts, tz), "rmssd_ms": float(r["VALUE"])})
     for r in _rows(conn, "GENERIC_TEMPERATURE_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["TEMPERATURE"] is not None:
-            out.temperature.append({"source": src, **_stamp(ts, tz), "celsius": round(float(r["TEMPERATURE"]), 2), "kind": "skin"})
+            out.temperature.append({"source": src, **stamp(ts, tz), "celsius": round(float(r["TEMPERATURE"]), 2), "kind": "skin"})
     for r in _rows(conn, "GENERIC_STRESS_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["STRESS"] is not None and int(r["STRESS"]) >= 0:
-            out.stress.append({"source": src, **_stamp(ts, tz), "level": int(r["STRESS"])})
+            out.stress.append({"source": src, **stamp(ts, tz), "level": int(r["STRESS"])})
     for r in _rows(conn, "GENERIC_SPO2_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["SPO2"] and int(r["SPO2"]) > 0:
-            out.spo2.append({"source": src, **_stamp(ts, tz), "spo2_pct": int(r["SPO2"]), "confidence": None, "mode": None})
+            out.spo2.append({"source": src, **stamp(ts, tz), "spo2_pct": int(r["SPO2"]), "confidence": None, "mode": None})
     for r in _rows(conn, "GENERIC_BODY_ENERGY_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["ENERGY"] is not None:
-            out.body_battery.append({"source": src, **_stamp(ts, tz), "level": int(r["ENERGY"])})
+            out.body_battery.append({"source": src, **stamp(ts, tz), "level": int(r["ENERGY"])})
     for r in _rows(conn, "HUAMI_PAI_SAMPLE", did):
         ts = _ts_ms(r["TIMESTAMP"])
         if ts is not None and r["PAI_TOTAL"] is not None:
-            out.metrics.append({"source": src, **_stamp(ts, tz), "metric": "pai_total", "value": float(r["PAI_TOTAL"]), "sport": None})
+            out.metrics.append({"source": src, **stamp(ts, tz), "metric": "pai_total", "value": float(r["PAI_TOTAL"]), "sport": None})
             if r["PAI_TODAY"] is not None:
-                out.metrics.append({"source": src, **_stamp(ts, tz), "metric": "pai_today", "value": float(r["PAI_TODAY"]), "sport": None})
+                out.metrics.append({"source": src, **stamp(ts, tz), "metric": "pai_today", "value": float(r["PAI_TODAY"]), "sport": None})
 
     out.activities.extend(_workouts(conn, device, tz, src))
 

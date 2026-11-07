@@ -268,3 +268,16 @@ def conn(config: Config):
     connection = connect(config.db_path)
     yield connection
     connection.close()
+
+
+@pytest.fixture(autouse=True)
+def _block_real_ble(monkeypatch):
+    """No test may open Bluetooth: the default transport factory, the scanner and bleak's connect are stubs."""
+    import wristpull.zeppos.transport as transport
+
+    def _blocked(*_args, **_kwargs):
+        raise AssertionError("tests must not touch Bluetooth; inject FakeTransport (tests/fake_band.py)")
+
+    monkeypatch.setattr(transport, "open_transport", _blocked)
+    monkeypatch.setattr(transport, "scan", _blocked)
+    monkeypatch.setattr(transport.BleakTransport, "connect", _blocked)

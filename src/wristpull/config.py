@@ -41,6 +41,19 @@ serial = "{phone_serial}"
 # Gadgetbridge export directory on the phone.
 export_dir = "/sdcard/Gadgetbridge"
 
+[strap]
+# Bluetooth address of the Zepp OS band (Amazfit Helio Strap) pulled directly over BLE; empty: not used.
+# `wristpull strap scan` lists the bands in range, `wristpull strap pair` stores the auth key.
+address = "{strap_address}"
+# Bluetooth adapter (empty: the default one).
+adapter = "{strap_adapter}"
+# The band's 16-byte auth key lives in this file (never in the config): <data_dir>/strap/authkey by default.
+authkey_file = "{strap_authkey_file}"
+# How far back the first pull asks the band for data.
+since_days = {strap_since_days}
+# Leave the data on the band after fetching (false: the band may delete what it sent).
+keep_on_band = {strap_keep_on_band}
+
 [ui]
 # Language of the terminal UI (wristpull tui): "de", "en" or "" for the system locale.
 language = "{ui_language}"
@@ -134,6 +147,11 @@ class WorkoutConfig:
         return Defaults(self.warmup_min, self.cooldown_min, self.warmup_hr_max, self.cooldown_hr_max, self.default_target)
 
 
+def is_bluetooth_address(text: str) -> bool:
+    parts = text.strip().split(":")
+    return len(parts) == 6 and all(len(p) == 2 and all(c in "0123456789abcdefABCDEF" for c in p) for p in parts)
+
+
 def default_config_path(env: Mapping[str, str] | None = None) -> Path:
     """``WRISTPULL_CONFIG_FILE`` if set (the Docker ``cli`` service), else ``$XDG_CONFIG_HOME/wristpull/config.toml``."""
     env = os.environ if env is None else env
@@ -154,6 +172,11 @@ class Config:
     garmin_access: str = "auto"  # auto | gvfs | mtp, see GARMIN_ACCESS
     phone_serial: str | None = None
     phone_export_dir: str = "/sdcard/Gadgetbridge"
+    strap_address: str = ""
+    strap_adapter: str = ""
+    strap_authkey_file: str = ""  # empty: <data_dir>/strap/authkey
+    strap_since_days: int = 30
+    strap_keep_on_band: bool = True
     ui_language: str | None = None  # None: follow the system locale
     ui_theme: str = "textual-dark"
     ui_range_days: int = 28
@@ -172,6 +195,10 @@ class Config:
     def raw_dir(self) -> Path:
         return self.data_dir / "raw"
 
+    @property
+    def strap_authkey_path(self) -> Path:
+        return Path(self.strap_authkey_file).expanduser() if self.strap_authkey_file else self.data_dir / "strap" / "authkey"
+
     def render(self) -> str:
         folders = "[" + ", ".join(f'"{f}"' for f in self.garmin_folders) + "]"
         hints = "[" + ", ".join(f'"{str(h).replace(str(Path.home()), "~", 1)}"' for h in self.garmin_mount_hints) + "]"
@@ -182,6 +209,11 @@ class Config:
             mount_hints=hints,
             garmin_access=self.garmin_access,
             phone_serial=self.phone_serial or "",
+            strap_address=self.strap_address,
+            strap_adapter=self.strap_adapter,
+            strap_authkey_file=self.strap_authkey_file,
+            strap_since_days=self.strap_since_days,
+            strap_keep_on_band="true" if self.strap_keep_on_band else "false",
             ui_language=self.ui_language or "",
             ui_theme=self.ui_theme,
             ui_range_days=self.ui_range_days,
@@ -254,6 +286,14 @@ def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = Non
         cfg.phone_serial = str(phone["serial"])
     if phone.get("export_dir"):
         cfg.phone_export_dir = str(phone["export_dir"])
+    strap = data.get("strap", {})
+    cfg.strap_address = str(strap.get("address", "") or "").strip()
+    cfg.strap_adapter = str(strap.get("adapter", "") or "").strip()
+    cfg.strap_authkey_file = str(strap.get("authkey_file", "") or "").strip()
+    if strap.get("since_days") is not None:
+        cfg.strap_since_days = int(strap["since_days"])
+    if strap.get("keep_on_band") is not None:
+        cfg.strap_keep_on_band = bool(strap["keep_on_band"])
     ui = data.get("ui", {})
     if ui.get("language"):
         cfg.ui_language = str(ui["language"])
@@ -323,6 +363,10 @@ def validate_config(cfg: Config) -> list[str]:
         problems.append("range_days must be at least 1")
     if not cfg.phone_export_dir.startswith("/"):
         problems.append("phone export_dir must be an absolute path on the phone")
+    if cfg.strap_address and not is_bluetooth_address(cfg.strap_address):
+        problems.append("strap address must look like AA:BB:CC:DD:EE:FF")
+    if cfg.strap_since_days < 1:
+        problems.append("strap since_days must be at least 1")
     coach = cfg.coach
     if coach.backend not in COACH_BACKENDS:
         problems.append(f"coach backend must be one of {', '.join(COACH_BACKENDS)}")

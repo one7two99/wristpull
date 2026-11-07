@@ -10,6 +10,9 @@ from .config import Config
 from .db import scalar, table_count
 from .garmin_usb import candidate_roots, find_garmin_root, gio_garmin_mtp_urls, read_device_info
 from .mtp import MtpDeviceInfo, MtpTools, probe_mtp, resolve_access
+from .timeutil import iso_utc
+from .zeppos import SOURCE as ZEPP_SOURCE
+from .zeppos.store import all_sync
 
 MtpProbe = Callable[[], tuple[MtpDeviceInfo | None, str]]
 
@@ -77,6 +80,11 @@ def collect_status(
         else:
             rng = _range(conn, table, "ts_utc")
         tables[table] = {"count": count, "first": rng[0], "last": rng[1]}
+    strap = {
+        "address": config.strap_address or None,
+        "key_present": config.strap_authkey_path.exists() if config.strap_address else False,
+        "sync": {kind: iso_utc(when) for kind, when in all_sync(conn, ZEPP_SOURCE).items()},
+    }
     access = access or resolve_access(config)
     garmin_root: Path | None = None
     device: dict[str, str] = {}
@@ -111,6 +119,7 @@ def collect_status(
         "garmin_unmounted": unmounted,
         "garmin_access": access,
         "garmin_message": message,
+        "strap": strap,
     }
 
 
@@ -135,6 +144,14 @@ def render_status(status: dict[str, object]) -> str:
         lines.append(f"Garmin:     attached but not mounted ({', '.join(status['garmin_unmounted'])}); 'wristpull import garmin' will try to mount it")  # type: ignore[arg-type]
     else:
         lines.append("Garmin:     not connected (no GARMIN folder found under /run/media, /media or gvfs MTP mounts)")
+    strap = status.get("strap") or {}
+    if not strap.get("address"):
+        lines.append("Strap:      not configured (set [strap] address; `wristpull strap scan` lists bands in range)")
+    else:
+        key = "key stored" if strap.get("key_present") else "NO auth key (wristpull strap pair --authkey …)"
+        sync = strap.get("sync") or {}
+        last = max(sync.values()) if sync else None
+        lines.append(f"Strap:      {strap['address']} over Bluetooth, {key}, last pull {last or 'never'} (checked when pulling)")
     lines.append("")
     lines.append("raw files by source/kind:")
     raw_files = status["raw_files"]

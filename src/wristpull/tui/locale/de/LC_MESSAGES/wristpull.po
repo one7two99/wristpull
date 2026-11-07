@@ -1490,3 +1490,42 @@ msgid "{n} step"
 msgid_plural "{n} steps"
 msgstr[0] "{n} Schritt"
 msgstr[1] "{n} Schritte"
+
+msgid "Pull strap"
+msgstr "Band ziehen"
+
+msgid "strap"
+msgstr "Band"
+
+msgid "STRAP (Bluetooth)"
+msgstr "BAND (Bluetooth)"
+
+msgid "Band: {address}"
+msgstr "Band: {address}"
+
+msgid "not configured"
+msgstr "nicht konfiguriert"
+
+msgid "Dry run (count only)"
+msgstr "Probelauf (nur zählen)"
+
+msgid "b  Pull strap"
+msgstr "b  Band ziehen"
+
+msgid "No band configured: set [strap] address (wristpull strap scan)"
+msgstr "Kein Band konfiguriert: [strap] address setzen (wristpull strap scan)"
+
+msgid "Strap (Bluetooth): {address}"
+msgstr "Band (Bluetooth): {address}"
+
+msgid "Strap (Bluetooth): not configured"
+msgstr "Band (Bluetooth): nicht konfiguriert"
+
+msgid "Strap (Bluetooth)"
+msgstr "Band (Bluetooth)"
+
+msgid "nothing new"
+msgstr "nichts Neues"
+
+msgid "strap {device}: {fetched}; {new} new buffers, {skipped} already archived, {errors} errors"
+msgstr "Band {device}: {fetched}; {new} neue Puffer, {skipped} bereits archiviert, {errors} Fehler"

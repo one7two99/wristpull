@@ -1,10 +1,12 @@
 #!/bin/bash
 # wristpull-morning: walk through the morning routine step by step (watch, phone, coach).
 #
-#   wristpull-morning            all steps      wristpull-morning phone coach   only these
+#   wristpull-morning            all steps      wristpull-morning strap coach   only these
+#   steps: watch (USB import), strap (Bluetooth pull), phone (Gadgetbridge over ADB, optional), coach
 #
 # Order matters: the watch deletes its monitoring files once a sync client has fetched them, so the
-# USB import comes first, then Gadgetbridge syncs the watch and the strap, then the phone is pulled.
+# USB import comes first. The strap is pulled directly over Bluetooth; the phone step only matters
+# while Gadgetbridge is still in use (it is not part of the default run).
 # Runs every command in the Docker `cli` service; set WRISTPULL_CMD="uv run wristpull" for the native
 # installation. Run it from the checkout (contrib/bin/wristpull-morning) or copy it anywhere: it finds the
 # compose.yaml two directories above itself, else ~/dev/wristpull, unless WRISTPULL_COMPOSE says otherwise.
@@ -38,7 +40,7 @@ wait_for() {  # wait_for <vendor> <attached|gone> <waiting message> <done messag
 }
 unit_running() { systemctl --user is-active --quiet "$import_unit" 2>/dev/null; }
 
-steps=("$@"); [ ${#steps[@]} = 0 ] && steps=(watch phone coach)
+steps=("$@"); [ ${#steps[@]} = 0 ] && steps=(watch strap coach)
 has() { local s; for s in "${steps[@]}"; do [ "$s" = "$1" ] && return 0; done; return 1; }
 failed=()
 
@@ -54,6 +56,17 @@ if has watch; then
     fi
     say "    Unplug the watch now. It imports pushed workouts and resumes Bluetooth sync only when unplugged."
     wait_for "$watch_vendor" gone "    waiting for the watch to be unplugged" "    watch unplugged."
+fi
+
+if has strap; then
+    say "2/3  Strap: pulling the band over Bluetooth (it must be in range and not connected to the phone) …"
+    # Bluetooth needs the host's D-Bus, which Docker's AppArmor profile blocks: this step runs natively
+    # unless WRISTPULL_CMD already says otherwise (see README "Running everything in Docker").
+    if [ -n "${WRISTPULL_CMD:-}" ]; then
+        wristpull pull strap || failed+=("pull strap")
+    else
+        (cd "$(dirname "$compose")" && uv run wristpull pull strap) || failed+=("pull strap")
+    fi
 fi
 
 if has phone; then
@@ -75,7 +88,7 @@ fi
 
 say "Done."
 if [ ${#failed[@]} -gt 0 ]; then
-    echo "    failed: ${failed[*]}  (see the output above; every step can be run alone: wristpull-morning phone)"
+    echo "    failed: ${failed[*]}  (see the output above; every step can be run alone: wristpull-morning strap)"
     exit 1
 fi
 echo "    Have a good day. wristpull status / tui / the dashboard show the new data."

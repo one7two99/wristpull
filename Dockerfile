@@ -7,6 +7,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.24 /uv /usr/local/bin/uv
 
 # adb: the phone over USB or Wi-Fi (the adb server runs in the `cli` container, keys under $HOME/.android).
 # mtp-tools: the watch over MTP without gvfs (libmtp command-line tools behind src/wristpull/mtp.py).
+# bleak (extra `ble`) talks to the strap through the host's BlueZ over D-Bus (compose mounts the socket into `cli`).
 # nano (fallback) and micro: editors for `workout new --edit` and the TUI ($EDITOR comes from the host shell).
 RUN apt-get update -qq \
     && apt-get install -y -qq --no-install-recommends adb mtp-tools nano micro >/dev/null \
@@ -24,9 +25,9 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 # Dependencies first (cached layer), then the project itself.
 COPY pyproject.toml uv.lock README.md LICENSE ./
-RUN uv sync --frozen --no-dev --extra web --extra coach --extra tui --no-install-project
+RUN uv sync --frozen --no-dev --extra web --extra coach --extra tui --extra ble --no-install-project
 COPY src ./src
-RUN uv sync --frozen --no-dev --extra web --extra coach --extra tui --no-editable \
+RUN uv sync --frozen --no-dev --extra web --extra coach --extra tui --extra ble --no-editable \
     && rm -rf /app/src /root/.cache
 
 # The container runs as the host user (compose: user: "${UID}:${GID}") so files in the data

@@ -17,9 +17,10 @@ to the compose file provides UID/GID, the data directory and the config file. Se
 
 ```sh
 contrib/bin/wristpull-morning              # 1 watch: plug in → import (+ optional workout push) → unplug
-                                           # 2 phone: sync watch and strap in Gadgetbridge → plug in → pull phone
+                                           # 2 strap: pull the band over Bluetooth (in range, not on the phone)
                                            # 3 coach: optional daily check
-contrib/bin/wristpull-morning phone coach  # only some steps
+contrib/bin/wristpull-morning strap coach  # only some steps
+contrib/bin/wristpull-morning watch phone  # the Gadgetbridge way: sync in the app, plug the phone in, pull phone
 ```
 
 It waits for the devices with `lsusb` (`WRISTPULL_WATCH_VENDOR=091e`, `WRISTPULL_PHONE_VENDOR=3310`

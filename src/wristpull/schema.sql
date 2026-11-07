@@ -408,3 +408,13 @@ CREATE TABLE IF NOT EXISTS workout_pushes (
     pushed_at_utc    TEXT NOT NULL,
     verified_at_utc  TEXT
 );
+
+-- Where each Bluetooth fetch kind of a band left off (source zepp_ble): the next pull asks the band
+-- for everything after last_utc. Cleared by `wristpull strap pair`.
+CREATE TABLE IF NOT EXISTS strap_sync (
+    source          TEXT NOT NULL,
+    kind            TEXT NOT NULL,
+    last_utc        TEXT NOT NULL,
+    updated_at_utc  TEXT NOT NULL,
+    PRIMARY KEY (source, kind)
+);

@@ -69,6 +69,11 @@ class HomeScreen(WristpullScreen):
             devices.append("✕ Garmin: " + _("not connected"))
         serial = self.app.config.phone_serial
         devices.append("○ " + _("Phone (ADB): {serial}").format(serial=serial or _("first device")) + " · " + _("checked when pulling"))
+        address = self.app.config.strap_address
+        if address:
+            devices.append("○ " + _("Strap (Bluetooth): {address}").format(address=address) + " · " + _("checked when pulling"))
+        else:
+            devices.append("✕ " + _("Strap (Bluetooth): not configured"))
         self.query_one("#devices", Panel).set_lines(devices)
 
         store = [

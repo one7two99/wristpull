@@ -18,7 +18,7 @@ gespeicherten Messwerte. Es ist technisch möglich, die Protokollfakten stehen u
 ## 2. Befund: Wie Gadgetbridge mit dem Strap spricht
 
 Der Helio Strap ist in Gadgetbridge ein Zepp-OS-Gerät (`AmazfitHelioStrapCoordinator`, Name
-`Amazfit Helio Strap`, Firmware auf dem Band laut letztem Export `3.25.0.3`, MAC `F6:D9:7B:6A:EC:D3`,
+`Amazfit Helio Strap`, Firmware auf dem Band laut letztem Export `3.25.0.3`, MAC `AA:BB:CC:DD:EE:02`,
 nur BLE, kein Bluetooth Classic). Die Verbindung läuft in drei Schichten.
 
 ### 2.1 GATT
@@ -217,3 +217,46 @@ genug für einen Fetch. Dann bleibt Gadgetbridge der Partner und der Laptop zieh
 
 Spike eine Session, Phase 1 zwei bis drei, Phase 2 ein bis zwei. Phase 3 ist ein eigener Work-Order,
 der erst Sinn ergibt, wenn Phase 1 am Laptop stabil läuft.
+
+## 8. Ergebnis (Stand 2026-11-07, Abend)
+
+**Phase 0 bestanden.** Am Band verifiziert, nichts davon musste geraten werden:
+
+- B-163-Portierung (reines Python) und AES-128 (reines Python, keine Abhängigkeit) wurden vom Band
+  beim ersten Versuch akzeptiert; Authentifizierung, Service-Liste, Zeit und Geräteinfo in gut einer
+  Sekunde. Seriennummer 24400000000001, Hardware 0.132.24.2, Firmware 3.25.0.3.
+- Alle Datentypen in einer Sitzung geholt (30 KB in unter einer Sekunde). Jeder Wert, den
+  Gadgetbridge kannte, war in der BLE-Antwort identisch: 742/742 Stress, 1571/1571 Aktivitätsminuten,
+  468/468 SpO2, 2005/2005 HRV, 6/6 Schlaf-Sessions. Voraussetzung: Das Offset-Byte der Fetch-Antwort
+  gilt für den Startzeitpunkt (der erste Stresspuffer kam mit +2 h, obwohl der Rechner auf CET stand).
+- Das Band hielt noch alles seit dem 31.10., obwohl Gadgetbridge täglich abgeholt hatte: „behalten“
+  kostet nichts. Vorhaltedauer nach oben weiter unbekannt (bisher 7 Tage gesehen).
+- Nur ein Host: Verbunden mit Gadgetbridge sendet das Band keine Advertisements. Direkt nach einem
+  Disconnect verweigert BlueZ oft die nächste Verbindung ein paar Sekunden lang (Retry eingebaut).
+
+**Phase 1 gebaut** (Commit folgt): Paket `src/wristpull/zeppos/` wie in §4, Importer
+`importers/strap.py`, Befehle `wristpull pull strap`, `wristpull strap scan|pair|info`, Status-Zeile,
+TUI (Sync-Screen Taste `b`, Home-Zeile, Schlaf-Gruppe), Merge-Priorität `("zepp_ble",
+"gadgetbridge_zepp")`, Rohdatei-Container `WPZB` unter `raw/zepp_ble/`, `reparse` für die Kinds
+`zepp_*`, Tabelle `strap_sync` (Schema 6), Morgen-Skript mit Schritt `strap`, Docker-Image mit Extra
+`ble` und D-Bus-Mount, Doku in `docs/strap-ble-concept.md`, README und `CLAUDE.md`. Tests: Fake-Band
+hinter demselben Codec (inklusive ECDH/AES), synthetische Puffer, conftest blockt bleak.
+
+Erster echter Lauf: 9 Puffer in 12 s, 8 667 Pulswerte, 755 Stress, 472 SpO2, 2 005 HRV, 1 440 Atmung,
+6 Nächte mit 154 Phasen. `daily_summary` von `zepp_ble` ist auf allen sieben Tagen identisch mit
+`gadgetbridge_zepp` (Schritte, Puls, Stress, Schlafdauer), die Nächte ebenso. Zweiter Lauf holt nur
+Neues (Aktivität immer ab lokaler Mitternacht, identische Puffer werden per SHA-256 übersprungen).
+
+Abweichungen vom Entwurf: `cryptography` war nicht nötig (AES in reinem Python); PAI und Maximalpuls
+werden bereits archiviert, nur noch nicht geparst; Nächte kommen ausschließlich aus den Sleep-Sessions
+des Bands, die Minuten-Flags werden nicht als Fallback benutzt (das Band liefert beides, ein zweiter
+Weg hätte nur Dubletten erzeugt).
+
+Offen (Phase 2/3): Workouts (`0x05`/`0x06`), PAI- und Maximalpuls-Parser, Echtzeit-Puls; die Box.
+
+**Docker, offen:** Das Image hat `bleak`, `cli` bekommt den D-Bus-Socket, aber Dockers Standard-
+AppArmor-Profil verweigert die D-Bus-Aufrufe (`AccessDenied … AppArmor policy`). `pull strap` läuft
+deshalb vorerst nativ (`uv run wristpull pull strap`; das Morgen-Skript mit `WRISTPULL_CMD="uv run
+wristpull"`). Entscheidung nötig: `security_opt: [apparmor:unconfined]` nur für `cli` (schwächt die
+Isolation des Containers, den ohnehin nur der Nutzer selbst startet) oder ein eigenes AppArmor-Profil,
+das D-Bus erlaubt. Für die Box (Phase 3) gilt dasselbe, dort ist nativ ohne Docker ebenso denkbar.

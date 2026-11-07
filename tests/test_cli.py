@@ -231,3 +231,45 @@ def test_workout_remove_cli_over_mtp_reuses_the_connection(cfg_file: Path, garmi
     assert main(["--config", str(cfg_file), "workout", "remove", "--yes", "Old one"]) == 0
     out = capsys.readouterr().out
     assert "removed 1 workouts" in out and "0 of ~25 workouts left" in out and fake.deleted and not (garmin_tree / "Workouts" / "W1.FIT").exists()
+
+
+def test_strap_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
+    from fake_band import FAKE_ADDRESS, FAKE_KEY, FakeBandState, FakeTransport
+    from zepp_buffers import stress_minutes
+    from wristpull.config import load_config
+    from wristpull.zeppos import transport as transport_module
+
+    # info before anything is configured
+    assert main(["--config", str(cfg_file), "strap", "info"]) == 0
+    out = capsys.readouterr().out
+    assert "(not configured)" in out and "last pull: never" in out
+    # pair stores the key (0600) and the address, no probe
+    assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", "0x" + FAKE_KEY.hex(), "--address", FAKE_ADDRESS.lower(), "--no-probe"]) == 0
+    config = load_config(cfg_file)
+    assert config.strap_address == FAKE_ADDRESS and config.strap_authkey_path.read_text().strip() == "0x" + FAKE_KEY.hex()
+    assert oct(config.strap_authkey_path.stat().st_mode & 0o777) == "0o600"
+    assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", "nope", "--no-probe"]) == 1
+    assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", FAKE_KEY.hex(), "--address", "not-an-address", "--no-probe"]) == 1
+    # status mentions the band
+    assert main(["--config", str(cfg_file), "status"]) == 0
+    assert f"Strap:      {FAKE_ADDRESS} over Bluetooth, key stored, last pull never" in capsys.readouterr().out
+    # pull strap through a fake band (the default transport factory is replaced; conftest blocks the real one)
+    state = FakeBandState()
+    from datetime import UTC, datetime
+
+    state.minutes["stress"] = (datetime(2026, 11, 6, 23, 0, tzinfo=UTC), stress_minutes([20, None, 35]))
+    monkeypatch.setattr(transport_module, "open_transport", lambda address, adapter=None: FakeTransport(state))
+    assert main(["--config", str(cfg_file), "pull", "strap", "--dry-run"]) == 0
+    assert "dry run: strap" in capsys.readouterr().out
+    assert main(["--config", str(cfg_file), "pull", "strap"]) == 0
+    out = capsys.readouterr().out
+    assert "stress=3" in out and "1 new buffers" in out and "inserted: stress=2" in out
+    assert main(["--config", str(cfg_file), "strap", "info"]) == 0
+    assert "stress       up to 2026-11-06T23:02:00Z" in capsys.readouterr().out
+    # pair with a probe answers with the band's label
+    assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", FAKE_KEY.hex()]) == 0
+    assert "band answers: serial 24400000000001" in capsys.readouterr().out
+    # wrong key: the band refuses, the CLI reports it
+    assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", "11" * 16]) == 1
+    assert "rejected the auth key" in capsys.readouterr().err
+    assert main(["--config", str(cfg_file), "pull", "strap"]) == 1

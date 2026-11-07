@@ -148,3 +148,54 @@ def test_describe_result_variants():
     lines = describe_result(JobRecord(spec, result=pull))
     assert "database unchanged" in lines[0] and lines[1] == "  device: d1" and lines[2] == "  ! note"
     assert describe_result(JobRecord(spec, result=object()))[0] == "✓ done"
+
+
+def test_strap_pull_job_runs_against_a_fake_band(config: Config, tmp_path: Path):
+    from datetime import UTC, datetime
+
+    from fake_band import FAKE_ADDRESS, FAKE_KEY, FakeBandState, FakeTransport
+    from zepp_buffers import stress_minutes
+    from wristpull.tui.jobs import strap_pull_job
+
+    config.strap_address = FAKE_ADDRESS
+    config.strap_authkey_path.parent.mkdir(parents=True, exist_ok=True)
+    config.strap_authkey_path.write_text(FAKE_KEY.hex())
+    state = FakeBandState()
+    state.minutes["stress"] = (datetime(2026, 11, 6, 23, 0, tzinfo=UTC), stress_minutes([20, None, 35]))
+    deps = make_deps(tmp_path)
+    deps.transport_factory = lambda address: FakeTransport(state)
+    assert strap_pull_job(config, deps, dry_run=True, since_days=3).cli == "wristpull pull strap --since-days 3 --dry-run"
+    spec = strap_pull_job(config, deps)
+    lines: list[str] = []
+    from wristpull.db import connect
+
+    stats = spec.run(connect(config.db_path), lines.append)
+    assert stats.files_new == 1 and stats.rows == {"stress": 2} and any("stress: 3 samples" in line for line in lines)
+
+
+def test_sync_screen_pull_strap_key(config: Config, tmp_path: Path):
+    from datetime import UTC, datetime
+
+    from fake_band import FAKE_ADDRESS, FAKE_KEY, FakeBandState, FakeTransport
+    from zepp_buffers import stress_minutes
+
+    config.strap_address = FAKE_ADDRESS
+    config.strap_authkey_path.parent.mkdir(parents=True, exist_ok=True)
+    config.strap_authkey_path.write_text(FAKE_KEY.hex())
+    state = FakeBandState()
+    state.minutes["stress"] = (datetime(2026, 11, 6, 23, 0, tzinfo=UTC), stress_minutes([20, None, 35]))
+    deps = make_deps(tmp_path)
+    deps.transport_factory = lambda address: FakeTransport(state)
+
+    async def scenario():
+        app = make_app(config, deps)
+        async with app.run_test() as pilot:
+            await pilot.press("2")
+            await pilot.press("b")
+            await wait_jobs(app)
+            record = app.runner.last
+            assert record is not None and record.ok and record.spec.cli == "wristpull pull strap"
+            assert record.result.files_new == 1 and record.result.rows == {"stress": 2}
+            assert any("24400000000001" in line and "stress=3" in line for line in describe_result(record))
+
+    run(scenario())

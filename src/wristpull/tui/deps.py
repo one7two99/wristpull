@@ -61,4 +61,5 @@ class TuiDeps:
     editor: Callable[[Path], None] | None = None  # None: $EDITOR in a suspended terminal; tests inject a recorder
     access: str | None = None  # "gvfs" | "mtp"; None: [garmin] access resolved per call (mtp inside the container)
     mtp_factory: Callable[[], Any] | None = None  # None: wristpull.mtp.MtpTools; tests inject FakeMtp
+    transport_factory: Callable[[str], Any] | None = None  # None: bleak (zeppos.transport.open_transport); tests inject FakeTransport
     opened: list[Path] = field(default_factory=list)  # recorder used by tests and the files screen
