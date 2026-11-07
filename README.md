@@ -199,16 +199,19 @@ What it does:
 - Files already archived from the watch or the phone are byte-identical and skipped by the
   SHA-256 check; a second run imports nothing. Parse errors are archived with
   `parse_status = 'error'` and listed at the end (`reparse --source garmin_connect --errors`).
-- Expect about 15 minutes for a ten-year export (15,000 files); a progress line appears every 500
-  files, one commit per file so an interrupted run can simply be repeated.
+- Expect about 25 minutes for a ten-year export (measured: 15,470 files in 23 minutes on a
+  laptop, 303 of them duplicates inside the export, one truncated file); a progress line appears
+  every 500 files, one commit per file so an interrupted run can simply be repeated, and a second
+  run finishes in seconds.
 - The JSON files come along: the **daily summaries** (`DI-Connect-Aggregator/UDSFile_*.json`,
   kind `uds`) go into their own table `connect_daily` (steps, distance, calories, intensity
   minutes, HR min/max, resting HR, stress, body battery, SpO2, respiration per day) because they
   are aggregates, not samples; `daily_summary` takes them only for columns the samples left
   empty. The **nights** (`DI-Connect-Wellness/*_sleepData.json`, kind `sleep_json`) become
   `sleep` rows with stage totals, sleep score, quality/recovery score and awakenings; the export
-  has no stage timeline, so no `sleep_stages`. Placeholder records (the FIT epoch 1989-12-31,
-  empty days) are discarded and counted. Later date blocks win on overlapping days.
+  has no stage timeline, so no `sleep_stages`; a night the FIT files already delivered keeps the
+  FIT version. Placeholder records (the FIT epoch 1989-12-31, empty days) are discarded and
+  counted. Later date blocks win on overlapping days.
 - **Activity names and VO2max:** `summarizedActivities.json` carries the names you gave your
   activities in Connect; an archived activity of any source that starts within two minutes with a
   compatible sport gets that name (`activities.name`, shown before the profile name in TUI,

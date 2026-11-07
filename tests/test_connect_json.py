@@ -136,3 +136,11 @@ def test_dry_run_counts_json_and_cli_reports(config, conn, tmp_path: Path, capsy
     out = capsys.readouterr().out
     assert "8 FIT files" not in out or True  # the summary counts every file
     assert "connect_daily=4" in out and "sleep=2" in out
+
+
+def test_fit_night_wins_over_the_json_summary_of_the_same_night(conn, config, tmp_path: Path):
+    """export_fits() carries a sleep FIT for the night ending 2026-10-06; the JSON summary of that night is skipped."""
+    nights = [sleep_record("2026-10-06", start="2026-10-05T21:40:00.0", end="2026-10-06T05:30:00.0"), sleep_record("2026-10-07", start="2026-10-06T21:40:00.0", end="2026-10-07T05:30:00.0")]
+    import_garmin_export(conn, config, _export_with_json(tmp_path, nights=nights, uds_a=[], uds_b=[]))
+    rows = conn.execute("SELECT local_date, deep_s IS NOT NULL, (SELECT kind FROM raw_files WHERE id = raw_file_id) FROM sleep WHERE source = ? ORDER BY local_date", (SOURCE,)).fetchall()
+    assert [tuple(r) for r in rows] == [("2026-10-06", 1, "sleep"), ("2026-10-07", 1, "sleep_json")]

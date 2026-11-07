@@ -133,6 +133,9 @@ def store_json(conn: sqlite3.Connection, data: bytes, *, kind: str, raw_file_id:
         return ({"connect_daily": n} if n else {}), discarded
     if kind == "sleep_json":
         parsed, discarded = parse_sleep_json(data, source=source, tz_name=tz_name)
+        # a night the FIT files already delivered (with stages) wins over the export's summary of it
+        known = {r[0] for r in conn.execute("SELECT local_date FROM sleep WHERE source = ? AND raw_file_id != ?", (source, raw_file_id))}
+        parsed.sleep = [n for n in parsed.sleep if n.row["local_date"] not in known]
         return store_parsed(conn, parsed, raw_file_id), discarded
     if kind == "activities_json":
         named = enrich_activity_names(conn, parse_activity_summaries(data))

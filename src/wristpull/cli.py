@@ -242,7 +242,7 @@ def cmd_import_garmin_export(args: argparse.Namespace, config: Config) -> int:
         print(f"garmin-export: {exc}", file=sys.stderr)
         return 2
     mode = "dry run: " if args.dry_run else ""
-    print(f"{mode}{args.path}: {stats.found} FIT files, {stats.new} new, {stats.skipped} already archived, {stats.errors} errors")
+    print(f"{mode}{args.path}: {stats.found} files, {stats.new} new, {stats.skipped} already archived, {stats.errors} errors" + (f", {stats.discarded} placeholder records discarded" if stats.discarded else ""))
     if stats.rows:
         print("inserted: " + ", ".join(f"{k}={v}" for k, v in sorted(stats.rows.items())))
     for origin, err in stats.error_files[:20]:

@@ -109,6 +109,6 @@ def test_cli_import_garmin_export(config, tmp_path: Path, capsys):
     assert "dry run:" in capsys.readouterr().out
     assert main(["--config", str(cfg_file), "import", "garmin-export", str(portal)]) == 2  # the broken file counts as an error
     out, err = capsys.readouterr()
-    assert "6 FIT files, 6 new, 0 already archived, 1 errors" in out and "error UploadedFiles_0-_Part1.zip/broken.fit" in err
+    assert "6 files, 6 new, 0 already archived, 1 errors" in out and "error UploadedFiles_0-_Part1.zip/broken.fit" in err
     assert main(["--config", str(cfg_file), "import", "garmin-export", str(tmp_path / "nope.zip")]) == 2
     assert "garmin-export:" in capsys.readouterr().err
