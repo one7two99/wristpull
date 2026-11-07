@@ -154,5 +154,5 @@ class ActivitiesScreen(PeriodMixin, WristpullScreen):
             return
         path = self.app.config.raw_dir / self.current["archive_path"]
         self.app.deps.opened.append(path)
-        self.app.deps.open_path(path)
-        self.app.notify(_("Opened {path}").format(path=path.name))
+        message = self.app.deps.open_path(path)
+        self.app.notify(message or _("Opened {path}").format(path=path.name))

@@ -87,3 +87,27 @@ def test_coach_section_roundtrip_and_validation(tmp_path: Path):
     cfg.coach.backend, cfg.coach.model, cfg.coach.max_tokens, cfg.coach.effort, cfg.coach.language = "bogus", " ", 10, "ultra", "fr"
     problems = validate_config(cfg)
     assert len(problems) == 5 and any("backend" in p for p in problems)
+
+
+def test_data_dir_env_override_keeps_the_file_value(tmp_path: Path):
+    path = tmp_path / "cfg" / "config.toml"
+    write_default_config(path)
+    env = {"WRISTPULL_DATA_DIR": "/data"}
+    cfg = load_config(path, env=env)
+    assert cfg.data_dir == Path("/data")
+    assert cfg.file_data_dir == Config().data_dir
+    assert cfg.db_path == Path("/data/wristpull.sqlite")
+    # writing the config back keeps the host path, not the container mount
+    assert 'data_dir = "/data"' not in cfg.render()
+    assert load_config(path, env={}).file_data_dir is None
+    assert load_config(tmp_path / "nowhere.toml", env=env).data_dir == Path("/data")
+
+
+def test_config_file_env_names_the_default_path(tmp_path: Path):
+    from wristpull.config import default_config_path
+
+    target = tmp_path / "mounted.toml"
+    write_default_config(target)
+    assert default_config_path({"WRISTPULL_CONFIG_FILE": str(target)}) == target
+    assert default_config_path({"XDG_CONFIG_HOME": "/x"}) == Path("/x/wristpull/config.toml")
+    assert load_config(env={"WRISTPULL_CONFIG_FILE": str(target)}).path == target

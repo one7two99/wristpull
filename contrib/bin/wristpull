@@ -1,0 +1,13 @@
+#!/bin/sh
+# wristpull from the Docker image: runs `docker compose run --rm cli wristpull "$@"` so the commands
+# feel native. Set WRISTPULL_COMPOSE to the compose.yaml of your checkout (default: ~/dev/wristpull).
+# Install: cp contrib/bin/wristpull ~/.local/bin/ && chmod +x ~/.local/bin/wristpull
+set -eu
+compose="${WRISTPULL_COMPOSE:-$HOME/dev/wristpull/compose.yaml}"
+if [ ! -f "$compose" ]; then
+    echo "wristpull: compose file not found: $compose (set WRISTPULL_COMPOSE)" >&2
+    exit 2
+fi
+tty_flag=""
+[ -t 0 ] && [ -t 1 ] || tty_flag="-T"   # no pseudo-terminal when piped or run from a timer
+exec docker compose -f "$compose" run --rm $tty_flag cli wristpull "$@"

@@ -121,3 +121,30 @@ def test_pull_phone_stops_on_request(conn, config, phone: FakeAdb):
     # without a trigger the database is pulled first, the FIT loop honours the stop before the first file
     stats = pull_phone(conn, config, adb=phone, trigger=False, log=logs.append, stop=lambda: True)
     assert stats.db_pulled and stats.stopped and stats.fit_new == 0 and len(phone.pulled) == 1
+
+
+def test_pick_device_hints_at_a_hidden_usb_phone():
+    adb = FakeAdb(Path("/x"), devices=[])
+    with pytest.raises(NoDeviceError) as err:
+        pick_device(adb, None, usb_devices=lambda: ["18d1:4ee7"])
+    assert "kill-server" in str(err.value) and "18d1:4ee7" in str(err.value)
+    with pytest.raises(NoDeviceError) as err:
+        pick_device(adb, None, usb_devices=lambda: [])
+    assert "kill-server" not in str(err.value)
+    # adb already sees the phone (unauthorized): its own state is the message
+    adb = FakeAdb(Path("/x"), devices=[Device("LD1", "unauthorized")])
+    with pytest.raises(NoDeviceError) as err:
+        pick_device(adb, "LD1", usb_devices=lambda: ["18d1:4ee7"])
+    assert "unauthorized" in str(err.value) and "kill-server" not in str(err.value)
+
+
+def test_pull_phone_connects_wireless_serial_first(conn, config, phone: FakeAdb):
+    phone._devices = [Device("10.0.0.5:5555", "device")]
+    config.phone_serial = "10.0.0.5:5555"
+    logs: list[str] = []
+    stats = pull_phone(conn, config, adb=phone, trigger=False, log=logs.append, usb_devices=lambda: [])
+    assert phone.connected == ["10.0.0.5:5555"] and stats.device == "10.0.0.5:5555"
+    assert any("connected to" in line for line in logs)
+    phone._devices = []
+    with pytest.raises(NoDeviceError, match="failed to connect"):
+        pull_phone(conn, config, adb=phone, trigger=False, usb_devices=lambda: [])

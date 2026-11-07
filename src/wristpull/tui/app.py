@@ -117,8 +117,11 @@ class WristpullApp(App):
         import subprocess
 
         editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "nano"
-        with self.suspend():
-            subprocess.call([*shlex.split(editor), str(path)])
+        try:
+            with self.suspend():
+                subprocess.call([*shlex.split(editor), str(path)])
+        except FileNotFoundError:
+            self.notify(_("Editor not found: {editor} (set $EDITOR)").format(editor=editor), severity="error")
 
     # -- jobs ---------------------------------------------------------------------------
 

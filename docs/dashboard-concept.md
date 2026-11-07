@@ -157,11 +157,13 @@ Rejected:
 
 ## Docker
 
-- `Dockerfile`: `python:3.14-slim`, `uv sync --frozen --extra web --extra coach --no-dev`,
-  non-root user, `CMD` with one uvicorn worker on `0.0.0.0:8000` inside the Compose network.
-- `docker-compose.yml`: `wristpull-web` (data and config mounts, `env_file: .env`,
-  `extra_hosts: host-gateway`, healthcheck) and `caddy` (ports `8443:8443`, volume for its CA).
-- `Caddyfile`, `.env.example` (secret, password hash, API keys, UID/GID); `.env` is git-ignored.
+- `Dockerfile`: `python:3.14-slim`, `uv sync --frozen --extra web --extra coach --extra tui --no-dev`,
+  `adb`, `mtp-tools`, `nano`, non-root user, `CMD` with one uvicorn worker on `0.0.0.0:8000` inside the
+  Compose network. One image for both services.
+- `compose.yaml`: `web` (data and config mounts, `env_file: .env`, `extra_hosts: host-gateway`,
+  healthcheck, no USB), `caddy` (ports `8443:8443`, volume for its CA) and `cli` (profile `cli`, USB
+  pass-through, host network, started per command; see `docker-concept.md`).
+- `deploy/Caddyfile`, `.env.example` (secret, password hash, API keys, UID/GID); `.env` is git-ignored.
 
 ## Testing
 

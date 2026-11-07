@@ -1,20 +1,24 @@
-# wristpull web dashboard: the app plus Caddy for HTTPS in the home network.
-# 1. cp .env.example .env and fill it in (secret, password hash, UID/GID, site address)
-# 2. docker compose up -d --build
+# wristpull in Docker: the web dashboard (web + caddy, always on) and the `cli` service for everything else
+# (import from the watch, pull from the phone, TUI, export, report, coach, workouts) started on demand:
+#   docker compose run --rm cli wristpull tui          (or the wrapper contrib/bin/wristpull)
+# 1. cp .env.example .env and fill it in (UID/GID, paths; secret and password hash for the dashboard)
+# 2. docker compose up -d --build                      (dashboard)   docker compose build   (cli only)
 # 3. open https://<laptop-ip>:8443 (install Caddy's root certificate on the phone once, see README)
 name: wristpull
 
 services:
   web:
     build: .
-    image: wristpull-web:latest
+    image: wristpull:latest
     restart: unless-stopped
     # Exactly ONE worker (see Dockerfile CMD): do not scale this service or add workers.
+    # No USB access here: this container is reachable from the network.
     user: "${UID:?set UID in .env}:${GID:?set GID in .env}"
     env_file: .env
     environment:
-      WRISTPULL_WEB_SECRET: ${WRISTPULL_WEB_SECRET:?set WRISTPULL_WEB_SECRET in .env, see .env.example}
-      WRISTPULL_WEB_PASSWORD_HASH: ${WRISTPULL_WEB_PASSWORD_HASH:?set WRISTPULL_WEB_PASSWORD_HASH in .env, see .env.example}
+      # `wristpull serve` refuses to start without the password hash and warns without the secret.
+      WRISTPULL_WEB_SECRET: ${WRISTPULL_WEB_SECRET:-}
+      WRISTPULL_WEB_PASSWORD_HASH: ${WRISTPULL_WEB_PASSWORD_HASH:-}
       # Coach runs with Ollama: the host as seen from the container (see README before changing OLLAMA_HOST).
       WRISTPULL_OLLAMA_URL: ${WRISTPULL_OLLAMA_URL:-http://host.docker.internal:11434}
       # Coach API keys: taken from the shell that runs `docker compose up`, or from .env.
@@ -44,6 +48,53 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+
+  cli:
+    # Short-lived commands with USB access: docker compose run --rm cli wristpull <command>
+    # The cgroup rule grants access to EVERY USB device (c 189:*), acceptable for a command the user
+    # starts, never for `web`. Linux only: Docker Desktop on macOS/Windows does not pass USB through.
+    profiles: ["cli"]
+    build: .
+    image: wristpull:latest
+    user: "${UID:?set UID in .env}:${GID:?set GID in .env}"
+    # The group that may open the device nodes (contrib/udev sets GROUP="plugdev" for the watch;
+    # Android phones get plugdev from the usual android udev rules). `getent group plugdev`.
+    group_add:
+      - "${WRISTPULL_USB_GID:-46}"
+    stdin_open: true
+    tty: true
+    # Host network: Ollama stays on http://localhost:11434 as configured in config.toml ([coach] ollama_url).
+    network_mode: host
+    healthcheck:
+      disable: true
+    env_file: .env
+    environment:
+      WRISTPULL_IN_CONTAINER: "1"
+      # The data directory is mounted at /data whatever [storage] data_dir says; the host path is shown
+      # in messages ("open on the host: ...").
+      WRISTPULL_DATA_DIR: /data
+      WRISTPULL_HOST_DATA_DIR: ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}
+      WRISTPULL_CONFIG_FILE: /config/config.toml
+      HOME: /home/wristpull
+      TERM: ${TERM:-xterm-256color}
+      COLORTERM: ${COLORTERM:-}
+      LANG: ${LANG:-C.UTF-8}
+      EDITOR: ${EDITOR:-nano}
+      VISUAL: ${VISUAL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}:/data
+      # Read-write: the TUI settings screen saves the config file.
+      - ${WRISTPULL_CONFIG:?set WRISTPULL_CONFIG in .env}:/config/config.toml
+      # adb keys (adbkey, adbkey.pub): seed once from ~/.android so the phone needs no new authorisation.
+      - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}/adb:/home/wristpull/.android
+      # USB pass-through for the watch (MTP) and the phone (ADB); hot-plug works because the whole bus is mounted.
+      - /dev/bus/usb:/dev/bus/usb
+      - /etc/localtime:/etc/localtime:ro
+    device_cgroup_rules:
+      - "c 189:* rmw"
+    command: ["wristpull", "--help"]
 
 volumes:
   caddy_data:   # holds Caddy's local CA (root.crt): keep it, or phones must trust a new one

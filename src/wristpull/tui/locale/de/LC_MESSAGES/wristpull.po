@@ -262,6 +262,12 @@ msgstr "Nichts ausgewählt"
 msgid "Opened {path}"
 msgstr "{path} geöffnet"
 
+msgid "No desktop here; open on the host: {path}"
+msgstr "Kein Desktop hier; auf dem Host öffnen: {path}"
+
+msgid "Editor not found: {editor} (set $EDITOR)"
+msgstr "Editor nicht gefunden: {editor} ($EDITOR setzen)"
+
 msgid "Copied path"
 msgstr "Pfad kopiert"
 

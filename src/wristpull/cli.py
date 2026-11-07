@@ -620,7 +620,11 @@ def open_in_editor(path: Path) -> int:
     import subprocess
 
     editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "nano"
-    return subprocess.call([*shlex.split(editor), str(path)])
+    try:
+        return subprocess.call([*shlex.split(editor), str(path)])
+    except FileNotFoundError:
+        print(f"editor not found: {editor} (set $EDITOR); the file is at {path}", file=sys.stderr)
+        return 2
 
 
 def _load_tui():

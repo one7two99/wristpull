@@ -42,7 +42,7 @@ class SettingsScreen(WristpullScreen):
             with VerticalScroll(id="settingsform"):
                 yield Label(_("STORAGE"), classes="form-title")
                 yield Label("data_dir  " + _("(takes effect after a restart)"))
-                yield Input(value=str(config.data_dir), id="set-data-dir")
+                yield Input(value=str(config.file_data_dir or config.data_dir), id="set-data-dir")
                 yield Label("timezone")
                 yield Input(value=config.timezone, id="set-timezone")
                 yield Label(_("GARMIN (USB)"), classes="form-title")
@@ -131,9 +131,12 @@ class SettingsScreen(WristpullScreen):
         """A Config built from the form (not yet validated)."""
         language = self.query_one("#set-language", Select).value
         range_days = self._int("#set-range")
+        data_dir = Path(self.query_one("#set-data-dir", Input).value.strip()).expanduser()
+        overridden = self.app.config.file_data_dir is not None  # WRISTPULL_DATA_DIR: the form edits the file's value
         return replace(
             self.app.config,
-            data_dir=Path(self.query_one("#set-data-dir", Input).value.strip()).expanduser(),
+            data_dir=self.app.config.data_dir if overridden else data_dir,
+            file_data_dir=data_dir if overridden else None,
             timezone=self.query_one("#set-timezone", Input).value.strip(),
             garmin_folders=_list(self.query_one("#set-folders", Input).value),
             garmin_mount_hints=[Path(p).expanduser() for p in _list(self.query_one("#set-hints", Input).value)],
@@ -156,7 +159,7 @@ class SettingsScreen(WristpullScreen):
             return
         path = write_config(cfg, self.app.config.path or default_config_path())
         live = self.app.config
-        for field_name in ("data_dir", "timezone", "garmin_folders", "garmin_mount_hints", "phone_serial", "phone_export_dir", "ui_language", "ui_theme", "ui_range_days", "coach", "path"):
+        for field_name in ("data_dir", "file_data_dir", "timezone", "garmin_folders", "garmin_mount_hints", "phone_serial", "phone_export_dir", "ui_language", "ui_theme", "ui_range_days", "coach", "path"):
             setattr(live, field_name, getattr(cfg, field_name))
         self.app.theme = cfg.ui_theme
         self.app.notify(_("Saved to {path}").format(path=path))

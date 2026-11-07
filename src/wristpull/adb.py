@@ -7,10 +7,18 @@ intents. Tests substitute :class:`tests.fake_adb.FakeAdb`.
 
 from __future__ import annotations
 
+import re
 import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
+SYSFS_USB = Path("/sys/bus/usb/devices")
+_WIRELESS_SERIAL = re.compile(r"^[A-Za-z0-9.\-\[\]:]+:\d{1,5}$")
+HOST_ADB_HINT = (
+    "another adb server (on the host?) may hold the phone: run `adb kill-server` on the host, "
+    "or accept the USB debugging prompt on the phone"
+)
 
 _NO_DEVICE_MARKERS = (
     "no devices/emulators found",
@@ -53,6 +61,36 @@ def parse_devices(text: str) -> list[Device]:
     return devices
 
 
+def is_wireless_serial(serial: str | None) -> bool:
+    """``host:port`` serials name a phone reached over wireless debugging (``adb connect``)."""
+    return bool(serial) and _WIRELESS_SERIAL.match(serial) is not None and not serial.startswith("emulator-")
+
+
+def adb_usb_devices(sysfs: Path = SYSFS_USB) -> list[str]:
+    """``vendor:product`` of attached USB devices that expose an ADB interface (class ff, subclass 42, protocol 01).
+
+    Used to tell "no phone" from "a phone is attached but this adb server cannot see it"; reads sysfs only.
+    """
+    found: list[str] = []
+    if not sysfs.is_dir():
+        return found
+    for dev in sorted(sysfs.iterdir()):
+        vendor, product = dev / "idVendor", dev / "idProduct"
+        if not vendor.is_file() or not product.is_file():
+            continue
+        for iface in dev.parent.glob(f"{dev.name}:*"):
+            try:
+                klass = (iface / "bInterfaceClass").read_text().strip().lower()
+                sub = (iface / "bInterfaceSubClass").read_text().strip().lower()
+                proto = (iface / "bInterfaceProtocol").read_text().strip().lower()
+            except OSError:
+                continue
+            if (klass, sub, proto) == ("ff", "42", "01"):
+                found.append(f"{vendor.read_text().strip()}:{product.read_text().strip()}")
+                break
+    return found
+
+
 class Adb:
     def __init__(self, serial: str | None = None, binary: str = "adb") -> None:
         self.serial = serial
@@ -83,6 +121,13 @@ class Adb:
 
     def devices(self) -> list[Device]:
         return parse_devices(self.run("devices", timeout=15, check=False))
+
+    def connect(self, address: str, *, timeout: float = 30.0) -> str:
+        """``adb connect host:port`` (wireless debugging); adb exits 0 even when it fails, so the text decides."""
+        out = self.run("connect", address, timeout=timeout, check=False).strip()
+        if "connected to" not in out:
+            raise NoDeviceError(out or f"adb connect {address}: no answer")
+        return out
 
     def pull(self, remote: str, local: Path, *, timeout: float = 900.0) -> str:
         return self.run("pull", remote, str(local), timeout=timeout)

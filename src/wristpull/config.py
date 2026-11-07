@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .runtime import CONFIG_FILE_ENV, DATA_DIR_ENV
 from .timeutil import detect_local_zone
 
 DEFAULT_GARMIN_FOLDERS = ["Activity", "Monitor", "Sleep", "Metrics", "HRVStatus"]
@@ -128,8 +130,13 @@ class WorkoutConfig:
         return Defaults(self.warmup_min, self.cooldown_min, self.warmup_hr_max, self.cooldown_hr_max, self.default_target)
 
 
-def default_config_path() -> Path:
-    base = os.environ.get("XDG_CONFIG_HOME")
+def default_config_path(env: Mapping[str, str] | None = None) -> Path:
+    """``WRISTPULL_CONFIG_FILE`` if set (the Docker ``cli`` service), else ``$XDG_CONFIG_HOME/wristpull/config.toml``."""
+    env = os.environ if env is None else env
+    explicit = env.get(CONFIG_FILE_ENV, "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    base = env.get("XDG_CONFIG_HOME")
     root = Path(base) if base else Path.home() / ".config"
     return root / "wristpull" / "config.toml"
 
@@ -148,6 +155,9 @@ class Config:
     coach: CoachConfig = field(default_factory=CoachConfig)
     workout: WorkoutConfig = field(default_factory=WorkoutConfig)
     path: Path | None = None  # where this config was loaded from, if anywhere
+    # [storage] data_dir as written in the file while WRISTPULL_DATA_DIR overrides it (the container
+    # mounts the directory elsewhere); render() keeps the file's value so the host config stays valid.
+    file_data_dir: Path | None = None
 
     @property
     def db_path(self) -> Path:
@@ -161,7 +171,7 @@ class Config:
         folders = "[" + ", ".join(f'"{f}"' for f in self.garmin_folders) + "]"
         hints = "[" + ", ".join(f'"{str(h).replace(str(Path.home()), "~", 1)}"' for h in self.garmin_mount_hints) + "]"
         return EXAMPLE_CONFIG.format(
-            data_dir=str(self.data_dir).replace(str(Path.home()), "~", 1),
+            data_dir=str(self.file_data_dir or self.data_dir).replace(str(Path.home()), "~", 1),
             timezone=self.timezone,
             folders=folders,
             mount_hints=hints,
@@ -200,17 +210,29 @@ def _expand(value: str) -> Path:
     return Path(os.path.expanduser(value))
 
 
-def load_config(path: Path | None = None) -> Config:
-    """Load the config file; a missing file yields defaults."""
-    cfg_path = path or default_config_path()
+def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = None) -> Config:
+    """Load the config file; a missing file yields defaults.
+
+    ``WRISTPULL_DATA_DIR`` (set by the Docker ``cli`` service) overrides ``[storage] data_dir``;
+    the file's own value is kept in ``file_data_dir`` so that writing the config back does not
+    bake the container path into the host's file.
+    """
+    env = os.environ if env is None else env
+    cfg_path = path or default_config_path(env)
     cfg = Config(path=cfg_path if cfg_path.exists() else None)
-    if not cfg_path.exists():
-        return cfg
-    with cfg_path.open("rb") as fh:
-        data = tomllib.load(fh)
+    if cfg_path.exists():
+        with cfg_path.open("rb") as fh:
+            data = tomllib.load(fh)
+    else:
+        data = {}
     storage = data.get("storage", {})
     if "data_dir" in storage:
         cfg.data_dir = _expand(storage["data_dir"])
+    if env.get(DATA_DIR_ENV, "").strip():
+        cfg.file_data_dir = cfg.data_dir
+        cfg.data_dir = Path(env[DATA_DIR_ENV].strip()).expanduser()
+    if not cfg_path.exists():
+        return cfg
     time_section = data.get("time", {})
     if time_section.get("timezone"):
         cfg.timezone = time_section["timezone"]

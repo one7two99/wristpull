@@ -1,26 +1,40 @@
-# wristpull web dashboard. Build: docker compose build   Run: docker compose up -d   (see README "Web dashboard")
+# wristpull: one image for the web dashboard (service `web`) and every other command (service `cli`).
+# Build: docker compose build     Dashboard: docker compose up -d     Commands: docker compose run --rm cli wristpull ...
+# See README "Running everything in Docker" and docs/docker-concept.md.
 FROM python:3.14-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.24 /uv /usr/local/bin/uv
+
+# adb: the phone over USB or Wi-Fi (the adb server runs in the `cli` container, keys under $HOME/.android).
+# mtp-tools: the watch over MTP without gvfs (libmtp command-line tools behind src/wristpull/mtp.py).
+# nano (fallback) and micro: editors for `workout new --edit` and the TUI ($EDITOR comes from the host shell).
+RUN apt-get update -qq \
+    && apt-get install -y -qq --no-install-recommends adb mtp-tools nano micro >/dev/null \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH=/opt/venv/bin:$PATH \
-    HOME=/tmp \
-    PYTHONUNBUFFERED=1
+    HOME=/home/wristpull \
+    LANG=C.UTF-8 \
+    PYTHONUNBUFFERED=1 \
+    WRISTPULL_IN_CONTAINER=1
 
 WORKDIR /app
 # Dependencies first (cached layer), then the project itself.
 COPY pyproject.toml uv.lock README.md LICENSE ./
-RUN uv sync --frozen --no-dev --extra web --extra coach --no-install-project
+RUN uv sync --frozen --no-dev --extra web --extra coach --extra tui --no-install-project
 COPY src ./src
-RUN uv sync --frozen --no-dev --extra web --extra coach --no-editable \
+RUN uv sync --frozen --no-dev --extra web --extra coach --extra tui --no-editable \
     && rm -rf /app/src /root/.cache
 
 # The container runs as the host user (compose: user: "${UID}:${GID}") so files in the data
 # directory keep their owner; this fallback user is only used when no user is given.
-RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin wristpull
+# $HOME is world-writable because the runtime UID has no passwd entry; the `cli` service mounts
+# the adb keys at $HOME/.android.
+RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin wristpull \
+    && mkdir -p /home/wristpull && chmod 1777 /home/wristpull
 USER 10001
 
 EXPOSE 8000

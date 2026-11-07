@@ -38,6 +38,14 @@ class DeviceFile:
     mtime: datetime
 
 
+def current_user() -> str:
+    """The login name, or the numeric uid when there is no passwd entry (the container runs as the host uid)."""
+    try:
+        return getpass.getuser()
+    except (KeyError, OSError):
+        return str(os.getuid())
+
+
 def candidate_roots(
     *,
     user: str | None = None,
@@ -45,7 +53,7 @@ def candidate_roots(
     extra: list[Path] | None = None,
 ) -> list[Path]:
     """Directories that might contain a GARMIN folder (existing ones only)."""
-    user = user or getpass.getuser()
+    user = user or current_user()
     uid = os.getuid() if uid is None else uid
     patterns: list[tuple[Path, str]] = [
         (Path(f"/run/user/{uid}/gvfs"), "mtp*/*"),

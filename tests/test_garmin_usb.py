@@ -51,3 +51,16 @@ def test_eject_garmin_only_for_mtp_mounts(tmp_path):
     assert not ok and "busy" in msg
     ok, msg = eject_garmin(tmp_path, lambda argv: (0, "", ""))
     assert not ok and "nothing to eject" in msg
+
+
+def test_current_user_falls_back_to_the_uid(monkeypatch):
+    import getpass
+
+    from wristpull.garmin_usb import candidate_roots, current_user
+
+    def no_entry() -> str:
+        raise KeyError("getpwuid(): uid not found")
+
+    monkeypatch.setattr(getpass, "getuser", no_entry)
+    assert current_user().isdigit()
+    assert candidate_roots() == [] or all(p.exists() for p in candidate_roots())

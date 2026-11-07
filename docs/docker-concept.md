@@ -1,7 +1,8 @@
 # wristpull in Docker – concept
 
-Status: spike on the real watch done 2026-11-07 (phase 0, results below); phases A–C follow
-(waves at the end). The web dashboard concept (`dashboard-concept.md`) still applies to the
+Status: spike on the real watch done 2026-11-07 (phase 0, results below); phase A (`cli`
+service, ADB, container-aware TUI) implemented the same day; phases B and C follow (waves at
+the end). The web dashboard concept (`dashboard-concept.md`) still applies to the
 `web` service; this document adds the `cli` service that runs everything else.
 
 ## Why

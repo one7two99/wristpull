@@ -48,3 +48,8 @@
   Coach runs go through `web/jobs.py` (inject `JobRegistry(threaded=False)` and `WebDeps.coach_backend` in tests);
   workout files are written only via `workouts/store.write_text` (bare names, nothing outside the folder).
   Rebuild a running stack with `docker compose build web && docker compose up -d web` (Caddy keeps its CA).
+- Docker `cli` service (concept `docs/docker-concept.md`): one image (`wristpull:latest`) for `web` and `cli`; USB
+  pass-through (`c 189:*`), host network and the adb server only in `cli`, never in `web`, never `privileged`.
+  Inside the container `WRISTPULL_IN_CONTAINER=1`, `WRISTPULL_DATA_DIR=/data` (overrides `[storage] data_dir`,
+  `Config.file_data_dir` keeps the file's value), `WRISTPULL_CONFIG_FILE` names the mounted config; helpers in
+  `runtime.py`. adb keys live in `<data_dir>/adb`. Host-side files (udev, units, wrapper) go under `contrib/`.

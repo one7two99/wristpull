@@ -176,3 +176,14 @@ def test_workout_watch_remove_and_force(cfg_file: Path, tmp_path: Path, garmin_t
     assert "removed 2 workouts" in captured.out and "0 of ~25 workouts left" in captured.out and "missing: not found" in captured.err
     assert len(list((tmp_path / "Health" / "workouts" / "watch-backup").iterdir())) >= 1
     assert main([*base, "push", "--upcoming", "--path", str(garmin_tree)]) == 0  # removed -> upcoming again
+
+
+def test_open_in_editor_without_editor_explains(tmp_path: Path, capsys, monkeypatch):
+    from wristpull.cli import open_in_editor
+
+    monkeypatch.setenv("VISUAL", "")
+    monkeypatch.setenv("EDITOR", str(tmp_path / "no-such-editor"))
+    target = tmp_path / "w.md"
+    target.write_text("x")
+    assert open_in_editor(target) == 2
+    assert "editor not found" in capsys.readouterr().err

@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ..adb import Adb, AdbError, NoDeviceError
+from ..adb import HOST_ADB_HINT, Adb, AdbError, NoDeviceError, adb_usb_devices, is_wireless_serial
 from ..archive import RawArchive, sha256_bytes
 from ..config import Config
 from ..daily import rebuild_daily_summary
@@ -57,19 +57,30 @@ class PullStats:
             self.rows[key] = self.rows.get(key, 0) + value
 
 
-def pick_device(adb: Adb, serial: str | None) -> str:
+def pick_device(adb: Adb, serial: str | None, *, usb_devices: Callable[[], list[str]] | None = None) -> str:
+    """The serial to use. ``usb_devices`` (sysfs scan) turns "no device" into a hint when a phone is attached
+    but invisible to this adb server, e.g. because the host's adb server holds it while we run in the container."""
     devices = adb.devices()
     ready = [d for d in devices if d.state == "device"]
     if serial:
         if any(d.serial == serial for d in ready):
             return serial
         states = ", ".join(f"{d.serial} ({d.state})" for d in devices) or "none"
-        raise NoDeviceError(f"phone {serial} not connected; adb sees: {states}")
+        raise NoDeviceError(f"phone {serial} not connected; adb sees: {states}" + _usb_hint(devices, usb_devices))
     if len(ready) == 1:
         return ready[0].serial
     if not ready:
-        raise NoDeviceError("no authorized device connected")
+        raise NoDeviceError("no authorized device connected" + _usb_hint(devices, usb_devices))
     raise NoDeviceError("several devices connected, set [phone] serial in the config")
+
+
+def _usb_hint(devices: list, usb_devices: Callable[[], list[str]] | None) -> str:
+    if usb_devices is None or devices:
+        return ""  # adb sees something (offline/unauthorized): its own state is the better message
+    attached = usb_devices()
+    if not attached:
+        return ""
+    return f"; an ADB-capable USB device is attached ({', '.join(attached)}) but adb does not see it: {HOST_ADB_HINT}"
 
 
 def trigger_export(adb: Adb, db_path: str, *, wait: float, sync: bool, log: Log, sleep=time.sleep, clock=time.monotonic, stop: Callable[[], bool] | None = None) -> bool:
@@ -181,10 +192,13 @@ def pull_phone(
     log: Log = lambda _m: None,
     sleep=time.sleep,
     stop: Callable[[], bool] | None = None,
+    usb_devices: Callable[[], list[str]] | None = adb_usb_devices,
 ) -> PullStats:
     stats = PullStats()
     adb = adb or Adb(binary="adb")
-    serial = pick_device(adb, config.phone_serial)
+    if is_wireless_serial(config.phone_serial):
+        log(f"  {adb.connect(config.phone_serial)}")  # wireless debugging: adb connect first
+    serial = pick_device(adb, config.phone_serial, usb_devices=usb_devices)
     adb.serial = serial
     stats.device = serial
 

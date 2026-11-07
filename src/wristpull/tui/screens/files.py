@@ -112,8 +112,8 @@ class FilesScreen(WristpullScreen):
             self.app.notify(_("Nothing selected"), severity="warning")
             return
         self.app.deps.opened.append(self.selected)
-        self.app.deps.open_path(self.selected)
-        self.app.notify(_("Opened {path}").format(path=self.selected.name))
+        message = self.app.deps.open_path(self.selected)
+        self.app.notify(message or _("Opened {path}").format(path=self.selected.name))
 
     def action_copy_path(self) -> None:
         if self.selected is None:

@@ -32,6 +32,10 @@ uv sync --extra coach              # optional: Claude API backend for the traini
 uv sync --extra web                # optional: the web dashboard (Starlette); see "Web dashboard"
 ```
 
+The second, equivalent way is Docker: one image runs the web dashboard and every command,
+including the watch and the phone over USB, so the host needs neither Python nor uv (Linux only).
+See "Running everything in Docker".
+
 ## Usage
 
 Run every command as `uv run wristpull ...` from the repository, or install the script once with
@@ -535,7 +539,8 @@ interval template, drafts the week from the coach's plan, and edits a file as Ma
 check (the steps as the watch will show them, name clashes in the same week). It shows the same
 numbers as CLI and TUI because it calls the same library functions
 ([concept](docs/dashboard-concept.md)). Importing from the watch and the phone and pushing workouts
-to the watch stay on the laptop (`wristpull workout push --upcoming`).
+to the watch are not part of the dashboard: they run on the laptop, natively or through the `cli`
+service (see "Running everything in Docker").
 
 **Docker (recommended, reachable from the phone over HTTPS):**
 
@@ -590,6 +595,52 @@ when a proxy is the sole way in).
 container is recreated; Caddy and its certificate authority stay, and you stay logged in as long as
 `WRISTPULL_WEB_SECRET` is unchanged. While the container runs it writes to the data directory:
 coach runs, ratings, journal notes and edited workout files.
+
+## Running everything in Docker
+
+The same image also runs every other command through the `cli` service of `compose.yaml`
+([concept](docs/docker-concept.md)): the TUI, export, report, coach, workouts, `pull phone`
+over ADB and (from phase B on) `import garmin` over MTP. `web` stays as it is: reachable from the
+network, no USB. `cli` is started per command, has USB pass-through and the host network, and runs
+as your user so files in the data directory keep their owner.
+
+```sh
+cp .env.example .env                       # UID/GID, WRISTPULL_DATA, WRISTPULL_CONFIG (+ dashboard secrets)
+mkdir -p ~/Health/wristpull/adb && cp ~/.android/adbkey* ~/Health/wristpull/adb/   # once, if the phone already trusts this laptop
+docker compose build
+docker compose run --rm cli wristpull status
+docker compose run --rm cli wristpull tui
+docker compose run --rm cli wristpull pull phone
+cp contrib/bin/wristpull ~/.local/bin/     # optional wrapper: `wristpull tui` runs the line above
+```
+
+- **What is inside:** the extras `web`, `coach`, `tui`, plus `adb`, `mtp-tools` (libmtp) and
+  `nano` and `micro` (`EDITOR` from your shell picks one). `TERM`, `COLORTERM`, `LANG`, `EDITOR` and `VISUAL` come from your shell; the config file
+  is mounted read-write (the TUI settings screen saves it) and found through
+  `WRISTPULL_CONFIG_FILE`; the data directory is mounted at `/data` (`WRISTPULL_DATA_DIR`
+  overrides `[storage] data_dir`, the file keeps the host path). The TUI's `o` key cannot open a
+  desktop program from the container, so it shows the path on the host instead.
+- **Phone (ADB):** the adb server runs inside the container; the keys live in
+  `<data_dir>/adb/` (`adbkey`, `adbkey.pub`). Seed them from `~/.android/` as above, otherwise
+  the phone asks once for a new authorisation. If an adb server on the host holds the phone,
+  `pull phone` reports it ("an ADB-capable USB device is attached … run `adb kill-server` on the
+  host"). Wireless debugging (Android 11+) works with `[phone] serial = "192.168.1.20:37099"`
+  (`adb connect` runs first); Android drops it after a reboot or network change, so it is an
+  extra, not the default for the morning timer.
+- **USB access:** the service mounts `/dev/bus/usb` with the cgroup rule `c 189:* rmw`, which
+  grants access to every USB device (keyboard, sticks, phone); acceptable for a command you
+  start, which is why it is never given to `web`. It never uses `privileged`. The device nodes
+  must be readable by your user: the desktop's `uaccess` ACL covers an active session, the
+  contrib udev rule (phase C) sets `GROUP="plugdev"` for timers without one; `WRISTPULL_USB_GID`
+  in `.env` names that group (default 46).
+- **Coach:** `cli` runs with `network_mode: host`, so `[coach] ollama_url =
+  "http://localhost:11434"` works unchanged; API keys come from `.env` or your shell as for `web`.
+  Never set `OLLAMA_HOST=0.0.0.0` and never run `adb -a`.
+- **Limits:** Linux only (Docker Desktop on macOS and Windows does not pass USB through; the
+  phone can still be reached over wireless ADB). The watch over MTP is phase B of the Docker
+  concept; until then `import garmin` needs the native installation or `--path`.
+- **Updating:** `git pull && docker compose build` rebuilds the one image for both services;
+  `docker compose up -d web` restarts the dashboard.
 
 ## Automation
 

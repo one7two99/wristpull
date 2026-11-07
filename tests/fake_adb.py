@@ -21,12 +21,19 @@ class FakeAdb:
         self.pulled: list[tuple[str, str]] = []
         self.export_on_trigger = False  # when True, a broadcast of the export action touches the DB mtime
         self.fail_pull: set[str] = set()
+        self.connected: list[str] = []
 
     def _local(self, remote: str) -> Path:
         return self.root / remote.lstrip("/")
 
     def devices(self) -> list[Device]:
         return list(self._devices)
+
+    def connect(self, address: str, *, timeout: float = 30.0) -> str:
+        self.connected.append(address)
+        if not any(d.serial == address for d in self._devices):
+            raise NoDeviceError(f"failed to connect to {address}")
+        return f"connected to {address}"
 
     def run(self, *args: str, timeout: float = 60.0, check: bool = True) -> str:
         self.calls.append(" ".join(args))

@@ -143,3 +143,39 @@ def test_config_screen_renders_values(config: Config, tmp_path: Path):
             assert "[ui]" in text and 'language = "de"' in text
 
     run(scenario())
+
+
+def test_open_path_default_in_container_is_a_notice(monkeypatch, tmp_path: Path):
+    from wristpull.tui.deps import open_path_default
+
+    monkeypatch.setenv("WRISTPULL_IN_CONTAINER", "1")
+    monkeypatch.setenv("WRISTPULL_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("WRISTPULL_HOST_DATA_DIR", "/home/alice/Health/wristpull")
+    message = open_path_default(tmp_path / "exports" / "summary.md")
+    assert message and "/home/alice/Health/wristpull/exports/summary.md" in message
+    monkeypatch.delenv("WRISTPULL_IN_CONTAINER")
+    monkeypatch.setenv("PATH", str(tmp_path))  # no xdg-open anywhere
+    assert "/home/alice/Health/wristpull/x" in (open_path_default(tmp_path / "x") or "")
+
+
+def test_files_screen_shows_the_opener_message(config, conn, tmp_path: Path):
+    deps = make_deps(tmp_path)
+    deps.open_path = lambda path: f"look at {path.name} on the host"
+    (config.data_dir / "exports").mkdir(parents=True, exist_ok=True)
+    target = config.data_dir / "exports" / "summary.md"
+    target.write_text("# hello")
+    app = make_app(config, deps)
+    shown: list[str] = []
+    original = app.notify
+    app.notify = lambda message, *a, **kw: (shown.append(str(message)), original(message, *a, **kw))[1]
+
+    async def scenario():
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.press("6")
+            await pilot.pause()
+            app.screen.show_file(target)
+            await pilot.press("o")
+            await pilot.pause()
+            assert "look at summary.md on the host" in shown
+
+    run(scenario())

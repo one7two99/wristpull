@@ -163,8 +163,8 @@ class ExportScreen(WristpullScreen):
             self.app.notify(_("Nothing generated yet"), severity="warning")
             return
         self.app.deps.opened.append(self.last_dir)
-        self.app.deps.open_path(self.last_dir)
-        self.app.notify(_("Opened {path}").format(path=self.last_dir.name))
+        message = self.app.deps.open_path(self.last_dir)
+        self.app.notify(message or _("Opened {path}").format(path=self.last_dir.name))
 
     def action_copy_path(self) -> None:
         if self.last_dir is None:
