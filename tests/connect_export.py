@@ -115,3 +115,12 @@ def activities_json(items: list[dict]) -> list[dict]:
 
 def maxmet_record(date: str, vo2: float, *, stamp: str | None = None) -> dict:
     return {"userProfilePK": 1, "calendarDate": date, "deviceId": 1, "updateTimestamp": stamp or f"{date}T05:30:27.0", "vo2MaxValue": vo2, "maxMet": vo2 / 3.5, "maxMetCategory": "GENERIC", "calibratedData": 0}
+
+
+def biometrics_record(date: str, grams: float | None, *, sequence: int = 1, vo2: float | None = None) -> dict:
+    rec: dict = {"version": 1, "metaData": {"userProfilePK": 1, "calendarDate": f"{date}T00:00:00.0", "sequence": sequence}, "userSetNullForWeight": False}
+    if grams is not None:
+        rec["weight"] = {"weight": grams, "sourceType": "MANUAL"}
+    if vo2 is not None:
+        rec["vo2MaxRunning"] = {"vo2MaxValue": vo2}
+    return rec

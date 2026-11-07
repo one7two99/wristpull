@@ -14,6 +14,7 @@
     const series = def.series.map((s, i) => {
       const base = { name: s.name, data: s.data, itemStyle: { color: colors[i % colors.length] } };
       if (def.kind === "bar") return { ...base, type: "bar", barMaxWidth: 14 };
+      if (def.kind === "points") return { ...base, type: "line", connectNulls: true, showSymbol: true, symbolSize: 6, smooth: false, lineStyle: { width: 1, type: "dotted" } };
       return { ...base, type: "line", connectNulls: false, showSymbol: false, smooth: false, lineStyle: { width: 2, type: i === 0 ? "solid" : "dashed" } };
     });
     if (def.kind === "acwr" && def.band && series.length) {

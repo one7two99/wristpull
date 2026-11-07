@@ -35,7 +35,7 @@ class ReparseStats:
             self.rows[key] = self.rows.get(key, 0) + value
 
 
-JSON_KINDS = ("uds", "sleep_json", "activities_json", "maxmet")  # Garmin Connect export files parsed by garmin_connect.py
+JSON_KINDS = ("uds", "sleep_json", "activities_json", "maxmet", "biometrics")  # Garmin Connect export files parsed by garmin_connect.py
 
 
 def sources_of(parsed) -> list[str]:

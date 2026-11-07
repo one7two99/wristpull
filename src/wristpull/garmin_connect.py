@@ -230,3 +230,23 @@ def parse_maxmet(data: bytes, *, source: str, tz_name: str) -> list[dict[str, An
         rows.append({"source": source, "ts_utc": ts, "tz": tz_name, "local_date": date, "metric": "vo2_max", "value": round(value, 1), "sport": None})
     rows.sort(key=lambda r: r["ts_utc"])
     return rows
+
+
+def parse_biometrics(data: bytes, *, source: str, tz_name: str) -> list[dict[str, Any]]:
+    """``userBioMetrics.json`` -> ``metrics`` rows ``weight_kg`` (grams in the export), one per day (last entry wins).
+
+    The static profile file (``userBioMetricProfileData.json``, no dates) is not a history and is ignored.
+    """
+    by_day: dict[str, tuple[int, float]] = {}
+    for rec in _load_list(data):
+        meta = rec.get("metaData") or {}
+        date = meta.get("calendarDate") if isinstance(meta.get("calendarDate"), str) else None
+        weight = rec.get("weight") or {}
+        grams = _num(weight.get("weight")) if isinstance(weight, dict) else _num(weight)
+        if not date or date[:10] < MIN_DATE or grams is None or grams <= 0:
+            continue
+        day = date[:10]
+        seq = _int(meta.get("sequence")) or 0
+        if day not in by_day or seq >= by_day[day][0]:
+            by_day[day] = (seq, round(grams / 1000.0, 1))
+    return [{"source": source, "ts_utc": f"{day}T12:00:00Z", "tz": tz_name, "local_date": day, "metric": "weight_kg", "value": value, "sport": None} for day, (_seq, value) in sorted(by_day.items())]

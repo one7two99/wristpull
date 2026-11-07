@@ -39,7 +39,9 @@
   dispatches on these kinds (`reparse.JSON_KINDS`). `summarizedActivities.json` (kind `activities_json`) names
   archived activities of any source (`activities.name`, migration; start within 120 s + `sport_matches`, only NULL
   is filled; display prefers `name` over `profile_name`), `MetricsMaxMetData_*` (kind `maxmet`) adds `vo2_max`
-  metrics for days without a FIT value. Tests build synthetic exports with `tests/connect_export.py`.
+  metrics for days without a FIT value, `userBioMetrics.json` (kind `biometrics`) `weight_kg` metrics (grams → kg,
+  last per day). `merge.merged_metric_by_day` feeds the Trends charts for weight and VO2max. Tests build synthetic
+  exports with `tests/connect_export.py`.
 - Workouts (`src/wristpull/workouts/`): one Markdown file per workout under `<data_dir>/workouts/` (grammar in
   `model.py`), FIT encoding in `fit/workout.py` on top of `fit/writer.py`, push/verify in `push.py` via
   `importers.garmin.locate_garmin` (inject `roots`/`mounter`), SQL only in `store.py` (`workout_pushes`).

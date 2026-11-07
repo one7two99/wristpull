@@ -22,7 +22,7 @@ from ..archive import RawArchive, sha256_bytes
 from ..config import Config
 from ..daily import rebuild_daily_summary
 from ..db import insert_rows
-from ..garmin_connect import parse_activity_summaries, parse_maxmet, parse_sleep_json, parse_uds, sport_matches
+from ..garmin_connect import parse_activity_summaries, parse_biometrics, parse_maxmet, parse_sleep_json, parse_uds, sport_matches
 from ..timeutil import iso_utc, parse_iso_utc
 from .garmin import ImportStats, import_file, store_parsed
 
@@ -34,6 +34,7 @@ JSON_FILES = (
     ("DI-Connect-Wellness", "_sleepData.json", "sleep_json"),
     ("DI-Connect-Fitness", "summarizedActivities", "activities_json"),
     ("DI-Connect-Metrics", "MetricsMaxMetData_", "maxmet"),
+    ("DI-Connect-Wellness", "_userBioMetrics.json", "biometrics"),
 )
 MATCH_TOLERANCE_S = 120  # a Connect activity and an archived one belong together when they start within this window
 Log = Callable[[str], None]
@@ -143,6 +144,10 @@ def store_json(conn: sqlite3.Connection, data: bytes, *, kind: str, raw_file_id:
     if kind == "maxmet":
         n = store_vo2max_history(conn, parse_maxmet(data, source=source, tz_name=tz_name), raw_file_id=raw_file_id)
         return ({"metrics": n} if n else {}), 0
+    if kind == "biometrics":
+        rows = parse_biometrics(data, source=source, tz_name=tz_name)
+        n = insert_rows(conn, "metrics", ({**r, "raw_file_id": raw_file_id} for r in rows))
+        return ({"metrics": n} if n else {}), 0
     raise ValueError(f"unknown JSON kind {kind}")
 
 
@@ -180,7 +185,7 @@ def import_json_file(conn: sqlite3.Connection, archive: RawArchive, item: Export
     if archive.lookup(sha256_bytes(item.data)) is not None:
         return "skipped", {}, 0
     year = item.name[len("UDSFile_"):len("UDSFile_") + 4] if kind == "uds" else item.name[:4]
-    if kind in ("activities_json", "maxmet"):
+    if kind in ("activities_json", "maxmet", "biometrics"):
         year = next((part[:4] for part in item.name.split("_") if part[:4].isdigit() and len(part) >= 8), "all")
     stored = archive.store(item.data, source=source, kind=kind, original_name=item.name, origin_path=item.origin, year=year if year.isdigit() else None)
     try:
@@ -278,4 +283,4 @@ def _import_json(conn: sqlite3.Connection, config: Config, path: Path, archive: 
             err = conn.execute("SELECT parse_error FROM raw_files WHERE sha256 = ?", (sha256_bytes(item.data),)).fetchone()
             stats.error_files.append((item.origin, err[0] if err else "unknown"))
     if counts["found"]:
-        log(f"  JSON: {counts['found']} files (daily summaries, sleep, activity names, VO2max), {counts['new']} new, {counts['skipped']} already archived, {counts['errors']} errors" + (f", {stats.discarded} placeholder records discarded" if stats.discarded else ""))
+        log(f"  JSON: {counts['found']} files (daily summaries, sleep, activity names, VO2max, weight), {counts['new']} new, {counts['skipped']} already archived, {counts['errors']} errors" + (f", {stats.discarded} placeholder records discarded" if stats.discarded else ""))

@@ -17,7 +17,7 @@ from ..coach.metrics import acute_chronic, deltas, recovery_flags, value
 from ..coach.store import recent_notes, recent_runs
 from ..config import Config
 from ..detail import activity_detail, downsample, local_clock, sleep_night, sports
-from ..merge import STRAP_SOURCE, merged_activities, merged_sleep
+from ..merge import STRAP_SOURCE, merged_activities, merged_metric_by_day, merged_sleep
 from ..status import last_imports
 from ..timeutil import parse_iso_utc
 from ..tui.queries import day_rows
@@ -151,6 +151,10 @@ def trends_data(conn: sqlite3.Connection, today: date, weeks: int) -> dict[str, 
         {"id": "acwr", "title": "Acute:chronic load", "unit": "", "kind": "acwr", "labels": days,
          "series": [{"name": "ACWR", "data": acwr_series(rows, days)}], "band": [0.8, 1.3]},
     ]
+    for metric, chart_id, title, unit in (("weight_kg", "weight", "Weight", "kg"), ("vo2_max", "vo2max", "VO2max", "ml/kg/min")):
+        values = merged_metric_by_day(conn, start.isoformat(), today.isoformat(), metric)
+        if values:  # sparse history (a scale, the watch's estimate): points joined across the gaps
+            charts.append({"id": chart_id, "title": title, "unit": unit, "kind": "points", "labels": days, "series": [{"name": title, "data": [_r(values.get(d), 1) if d in values else None for d in days]}]})
     return {"weeks": weeks, "start": start.isoformat(), "end": today.isoformat(), "days_with_data": sum(1 for d in days if d in by_day), "charts": charts}
 
 

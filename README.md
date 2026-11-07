@@ -216,13 +216,16 @@ What it does:
   activities in Connect; an archived activity of any source that starts within two minutes with a
   compatible sport gets that name (`activities.name`, shown before the profile name in TUI,
   dashboard and export; never overwritten). `MetricsMaxMetData_*.json` fills the VO2max history
-  (`metrics`, `vo2_max`) for days no FIT file covers.
+  (`metrics`, `vo2_max`) for days no FIT file covers, `userBioMetrics.json` the **weight history**
+  (`metrics`, `weight_kg`, the export's grams as kilograms, last entry per day; the static profile
+  weight without a date is ignored). The dashboard's Trends page shows weight and VO2max as point
+  series whenever the window holds values.
 - Local dates are the export's `calendarDate`; the `tz` column carries your configured zone, past
   time zones are not reconstructed. Hydration, nutrition, gear, training plans and the other
   JSON files are not imported.
 - The merge keeps the watch and the phone first: the export only fills days and nights they do
   not have (`merge.GARMIN_PRIORITY`). `reparse --source garmin_connect --kind uds` (or
-  `sleep_json`, `activities_json`, `maxmet`) re-parses the JSON files after a parser change.
+  `sleep_json`, `activities_json`, `maxmet`, `biometrics`) re-parses the JSON files after a parser change.
 
 #### `wristpull export --for-claude --from DATE --to DATE`
 

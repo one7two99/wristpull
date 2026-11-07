@@ -122,3 +122,18 @@ def source_coverage(conn: sqlite3.Connection, start: str, end: str) -> dict[str,
         "SELECT source, COUNT(*) FROM daily_summary WHERE local_date BETWEEN ? AND ? GROUP BY source", (start, end)
     ).fetchall()
     return {r[0]: int(r[1]) for r in rows}
+
+
+def merged_metric_by_day(conn: sqlite3.Connection, start: str, end: str, metric: str) -> dict[str, float]:
+    """``{local_date: value}`` of one ``metrics`` metric (``vo2_max``, ``weight_kg``, …) across the Garmin
+    sources, the highest-priority source winning per day and the latest value of that day taken."""
+    rows = conn.execute(
+        "SELECT local_date, source, value FROM metrics WHERE metric = ? AND local_date BETWEEN ? AND ? ORDER BY local_date, ts_utc",
+        (metric, start, end),
+    ).fetchall()
+    best: dict[str, tuple[int, float]] = {}
+    for r in rows:
+        rank = GARMIN_PRIORITY.index(r["source"]) if r["source"] in GARMIN_PRIORITY else len(GARMIN_PRIORITY)
+        if r["local_date"] not in best or rank <= best[r["local_date"]][0]:
+            best[r["local_date"]] = (rank, float(r["value"]))
+    return {day: value for day, (_rank, value) in best.items()}

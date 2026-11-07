@@ -145,7 +145,8 @@ def test_today_and_trends_data(seeded: Config, conn):
     assert trends["weeks"] == 4 and trends["start"] == "2026-09-10" and len(trends["charts"][0]["labels"]) == 28
     rhr = trends["charts"][0]["series"][1]["data"]
     assert all(v is None for v in rhr)  # no strap data: gaps, not zeros
-    assert trends["charts"][-1]["kind"] == "acwr" and all(v is None for v in trends["charts"][-1]["series"][0]["data"])  # < 28 days history
+    acwr = next(c for c in trends["charts"] if c["id"] == "acwr")
+    assert acwr["kind"] == "acwr" and all(v is None for v in acwr["series"][0]["data"])  # < 28 days history
     assert pages.trends_data(conn, TODAY, 7)["weeks"] == 4  # unknown choice falls back
     assert pages.acwr_series([], ["2026-10-01"]) == [None]
     assert pages.coach_blocks("## Status\nGood.\nStill good.\n\n## Today\nRest") == [
