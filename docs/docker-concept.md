@@ -112,6 +112,25 @@ Every call opens the device again, so a command costs 2 s (detect) + 4 s (folder
 plus about 6 s per file transferred. Fine for the daily routine; a ctypes binding would cut the
 per-call overhead if it ever matters.
 
+## Phase C on this laptop (2026-11-07)
+
+With `91-wristpull-garmin-docker.rules` installed and the `-docker` user units copied to
+`~/.config/systemd/user/` (timers not enabled):
+
+- Plugging the watch in started `wristpull-import-docker.service` by itself. The first run failed
+  with "no MTP device found" because the fenix enumerates itself twice right after plugging in
+  (USB device number +2); the second start imported 46 files, 2 new, in 20 s. The unit now waits
+  8 s before starting.
+- The device node belongs to `root:plugdev` (mode still `0666` here because of the laptop's
+  `horizon_hid.rules`; on a clean host it is `0660`).
+- `udevadm test` shows the rule clearing `ID_MTP_DEVICE` and `ID_MEDIA_PLAYER` and adding
+  `SYSTEMD_USER_WANTS`; `gio mount -li` no longer lists the watch as a volume, so gvfs and KDE
+  cannot grab it. `udevadm info` of the running device may still print the old properties from
+  the udev database of the first enumeration; the behaviour is what counts.
+- Open: the phone was not visible on USB during the session (no `lsusb` entry), so `pull phone`
+  from the container and the host-adb-server conflict message are confirmed only with fakes.
+  A verbatim "watch unplugged" capture for the fixtures is still missing.
+
 ## Guiding principles
 
 - Raw files stay immutable and the watch read-only, exactly as on the gvfs path: the MTP layer
