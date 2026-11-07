@@ -3,7 +3,8 @@
 Thanks for looking. A few rules keep the project safe to publish and easy to change.
 
 - **No health data in the repository.** Tests use synthetic FIT files built with `wristpull.fit.writer` and a
-  synthetic Gadgetbridge database from `tests/gb_db.py`. Never commit `.fit`, `.sqlite`, `.db` or `.gpx`
+  synthetic Gadgetbridge database from `tests/gb_db.py`, a synthetic Garmin Connect export from
+  `tests/connect_export.py`, the watch over MTP through `tests/fake_mtp.py`. Never commit `.fit`, `.sqlite`, `.db` or `.gpx`
   files, screenshots with real values, serial numbers or MAC addresses. Use `<serial>`, `<id>`,
   `AA:BB:CC:DD:EE:01` and the like.
 - **Every function gets a test.** Run `uv run pyflakes src tests && uv run pytest -q` before a pull

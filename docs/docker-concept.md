@@ -2,8 +2,9 @@
 
 Status: spike on the real watch done 2026-11-07 (phase 0, results below); phase A (`cli`
 service, ADB, container-aware TUI), phase B (MTP device layer, confirmed on the watch) and
-phase C (udev rule and units for the container, host installation pending) implemented the same
-day; results below. The web dashboard concept (`dashboard-concept.md`) still applies to the
+phase C (udev rule and units for the container, installed and verified on the laptop) implemented
+the same day; results below. The user runs the routine by hand with `contrib/bin/wristpull-morning`;
+the timers stay templates. The web dashboard concept (`dashboard-concept.md`) still applies to the
 `web` service; this document adds the `cli` service that runs everything else.
 
 ## Why

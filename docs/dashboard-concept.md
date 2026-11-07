@@ -92,7 +92,9 @@ training load.
    user's 28-day baseline; recovery flags; the latest coach daily check (excerpt, rating
    buttons); "last sync: watch … / phone …".
 2. **Trends** – 4, 12 or 52 weeks: resting HR (watch and strap), HRV, sleep hours and score,
-   stress, weekly volume (hours, km), acute:chronic workload ratio with the 0.8–1.3 band.
+   stress, weekly volume (hours, km), acute:chronic workload ratio with the 0.8–1.3 band;
+   weight and VO2max as point series when the window holds values (`merge.merged_metric_by_day`,
+   fed by the Garmin Connect export and the watch's metrics files).
 3. **Activities** – list with sport filter; detail with HR curve, zone minutes, laps.
 4. **Sleep** – nights list; detail with a stage band, HRV, SpO2, watch vs strap.
 5. **Coach** – runs with sections, rating (−1/0/+1 with note), "run daily / weekly / ask" as a
