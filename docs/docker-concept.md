@@ -106,6 +106,7 @@ Conclusions:
 | `workout push --upcoming` | one file to `GARMIN/NewFiles`, `target` = `mtp://GARMIN/NewFiles/<file>`, unit id from `GarminDevice.xml` | 29 s |
 | `workout watch` | lists it as pending, origin wristpull | 17 s |
 | `workout remove --yes Ergometer` | backup in `workouts/watch-backup/`, file deleted, re-listing without a second fetch | 32 s |
+| push again, unplug, plug in, `workout verify` | the watch imported the file as `GARMIN/Workouts/Ergometer_workout.fit`; verify matches it by name and time_created and marks the push verified | 16 s |
 
 Every call opens the device again, so a command costs 2 s (detect) + 4 s (folders) + 6–7 s (files)
 plus about 6 s per file transferred. Fine for the daily routine; a ctypes binding would cut the
