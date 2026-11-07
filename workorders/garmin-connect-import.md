@@ -1,6 +1,6 @@
 # Work-Order: Import des Garmin-Connect-Datenexports (Punkt 25)
 
-Stand: 2026-11-07, Repository-Stand Commit `7a1fbc7` (contrib/bin/wristpull-morning).
+Stand: 2026-11-07 (Scope erweitert: Phase 3 verbindlich, Gewicht aufgenommen), Repository-Stand Commit `6ea57cc`.
 Repository: <https://github.com/one7two99/wristpull> (Branch `master`).
 Zweck: Umsetzung in einer eigenen Claude-Code-Session. Vor dem Start das Repo neu einlesen und prüfen,
 ob sich die genannten Stellen geändert haben. Der Docker-Umbau (MTP-Schicht, `cli`-Service) ist
@@ -19,8 +19,13 @@ Schlafdaten werden als eigene Quelle `garmin_connect` geführt.
 
 Nutzen:
 - **Backfill der kompletten Historie** von vor wristpull (bei Philipp: zurück bis 2015/2016).
-- **Cloud-only-Werte**, die nie per FIT auf der Uhr landen: Sleep Score, Aktivitätsnamen.
+- **Cloud-only-Werte**, die nie per FIT auf der Uhr landen: Sleep Score, Aktivitätsnamen,
+  VO2max-Historie, Gewichtshistorie.
 - Starker Umstiegsgrund für Connect-Nutzer; die Coach-Baselines stimmen vom ersten Tag an.
+
+Scope-Entscheidung Philipp (2026-11-07): Phasen 1–3 sind **alle verbindlich**; zusätzlich wird die
+**Gewichtshistorie** importiert. Draußen bleiben weiterhin Hydration, Nutrition, Gear,
+Trainingspläne, AbnormalHrEvents (Entscheidung 8).
 
 ## 2. Ausgangslage
 
@@ -32,7 +37,7 @@ Vom Portal-ZIP ist nur `DI_CONNECT/` relevant (der Rest sind leere Garmin-Sparte
 |---|---|---|
 | `DI-Connect-Uploaded-Files/` | `UploadedFiles_*.zip` (ggf. mehrere Parts), darin **15.470 FIT-Dateien** (77 MB entpackt). Stichprobe über 250 Dateien: ~63 % `monitoring_b`, Rest FIT-Typen 49, 44, 41, 58, 68 und `activity`. Es können weitere ZIPs **verschachtelt** darin liegen (eine Ebene). | Phase 1, Kernstück |
 | `DI-Connect-Aggregator/` | `UDSFile_<von>_<bis>.json` — Daily Summaries in ~100-Tage-Blöcken (bei Philipp 24 Dateien, 1.472 Tage, 2015–2026). Dazu `HydrationLogFile_*.json`. | Phase 2 |
-| `DI-Connect-Wellness/` | `<von>_<bis>_<userPK>_sleepData.json` (2015–heute, inkl. Schlafphasen-Summen und `sleepScores`), `*_AbnormalHrEvents.json`, `*_nutritionLogs.json`, Biometrie/HR-Zonen-JSONs | Phase 2 (nur sleepData) |
+| `DI-Connect-Wellness/` | `<von>_<bis>_<userPK>_sleepData.json` (2015–heute, inkl. Schlafphasen-Summen und `sleepScores`), `*_AbnormalHrEvents.json`, `*_nutritionLogs.json`, Biometrie/HR-Zonen-JSONs | Phase 2 (sleepData), Phase 3 (Biometrie → Gewicht) |
 | `DI-Connect-Fitness/` | `*_summarizedActivities.json` (262 Aktivitäts-Summaries 2016–2026 mit Cloud-Feldern: Name, Training Load, TE), Gear, Personal Records, Trainingspläne | Phase 3 |
 | `DI-Connect-Metrics/` | `MetricsMaxMetData_*` (VO2max-Historie), `TrainingHistory_*`, `RunRacePredictions_*`, Fitness Age | Phase 3 |
 
@@ -103,7 +108,15 @@ Session lokal bereit; es kommt selbstverständlich nie ins Repo.
    `UploadedFiles_*.zip`, Datei für Datei als Bytes an `import_file` — kein vollständiges Entpacken
    auf Platte, kein Staging nötig. Verschachtelte ZIPs eine Ebene tief verfolgen.
 8. **Out of scope:** Hydration, Nutrition (gehört thematisch zu Punkt 24/Waage bzw. eigener Punkt),
-   Biometrie/Gewicht, Gear, Trainingspläne, AbnormalHrEvents. Nicht importieren, nicht archivieren.
+   Gear, Trainingspläne, AbnormalHrEvents, HR-Zonen-Konfiguration. Nicht importieren, nicht
+   archivieren. **Gewicht ist seit der Scope-Erweiterung in scope** (Entscheidung 9).
+9. **Gewicht und VO2max gehen in die bestehende `metrics`-Tabelle** (generisches
+   `metric`/`value`-Schema, `UNIQUE(source, ts_utc, metric, sport)`): `metric='weight_kg'`
+   (Gramm des Exports → kg) bzw. `metric='vo2_max'`, Quelle `garmin_connect`. Kein neues Schema.
+   Die Gewichtshistorie liegt in den Biometrie-JSONs unter `DI-Connect-Wellness/` (Dateiname und
+   Feldnamen — vermutlich `*_userBioMetricProfileData.json` mit Gewicht in Gramm — **am echten
+   Export verifizieren, bevor der Parser geschrieben wird**). Nur Einträge mit echtem Zeitstempel
+   importieren; das statische Profilgewicht ohne Datum verwerfen.
 
 ## 4. Leitplanken
 
@@ -158,7 +171,7 @@ Alle Regeln aus `CLAUDE.md` gelten, insbesondere:
   2015 hat Schlafphasen-Summen und Score; `daily_summary` für einen aktuellen Tag ändert sich
   **nicht** (live-Quellen gewinnen).
 
-### Phase 3 — Enrichment (optional, eigener Commit-Block)
+### Phase 3 — Enrichment (verbindlich, eigener Commit-Block)
 
 - `summarizedActivities.json`: bestehende Aktivitäten (aller Quellen!) per Startzeit-Toleranz
   (± 2 min) und Sportart matchen und den **Cloud-Namen** übernehmen — neue nullable Spalte
@@ -166,8 +179,13 @@ Alle Regeln aus `CLAUDE.md` gelten, insbesondere:
   Anzeige in TUI-Aktivitätenliste, Dashboard und Export prüfen.
 - `MetricsMaxMetData_*` → `metrics`-Tabelle (`vo2_max`, Quelle `garmin_connect`), damit die
   VO2max-Historie vor wristpull sichtbar wird.
-- Wenn der Aufwand aus dem Ruder läuft: Phase 3 abbrechen und als Folgepunkt notieren — Phasen 1+2
-  sind der Wert dieses Auftrags.
+- **Gewichtshistorie** aus den Biometrie-JSONs → `metrics` mit `metric='weight_kg'`
+  (Entscheidung 9). JSON-Datei archivieren (eigener Kind, z. B. `biometrics`), `reparse`-Dispatch
+  mitziehen. Sichtbarkeit: Gewichtsverlauf mindestens im Dashboard (Trends) prüfen; wenn ein
+  eigener Chart mehr als einen Abend kostet, als Folgepunkt notieren — der Import selbst ist Teil
+  dieses Auftrags.
+- Läuft eine einzelne Teilaufgabe aus dem Ruder, die Teilaufgabe als Folgepunkt notieren und den
+  Rest von Phase 3 fertigstellen — Phase 3 als Ganzes ist nicht mehr optional.
 
 ## 6. Risiken
 
@@ -200,6 +218,8 @@ Alle Regeln aus `CLAUDE.md` gelten, insbesondere:
   (`docker compose run --rm cli …`) durch; zweiter Lauf importiert nichts.
 - Am echten Export bestätigt: Historie ab 2015/2016 in TUI und Dashboard sichtbar, Sleep Scores
   vorhanden, aktuelle Tage unverändert (Merge-Priorität), USB-Duplikate übersprungen.
+- Phase 3 am echten Export bestätigt: Aktivitäten tragen ihre Cloud-Namen, VO2max- und
+  Gewichtshistorie stehen in `metrics` und sind im Dashboard sichtbar.
 - `reparse` kann die JSON-Dateien erneut parsen.
 - Alle Tests grün (alte und neue, ohne echte Daten), pyflakes sauber.
 - Doku aktualisiert, pro Phase ein Commit.
