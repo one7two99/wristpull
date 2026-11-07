@@ -127,9 +127,14 @@ With `91-wristpull-garmin-docker.rules` installed and the `-docker` user units c
   `SYSTEMD_USER_WANTS`; `gio mount -li` no longer lists the watch as a volume, so gvfs and KDE
   cannot grab it. `udevadm info` of the running device may still print the old properties from
   the udev database of the first enumeration; the behaviour is what counts.
-- Open: the phone was not visible on USB during the session (no `lsusb` entry), so `pull phone`
-  from the container and the host-adb-server conflict message are confirmed only with fakes.
-  The workout pushed over MTP was confirmed on the watch under Rad Indoor › Training › Workouts.
+- The workout pushed over MTP was confirmed on the watch under Rad Indoor › Training › Workouts.
+- Phone (Mudita Kompakt, USB debugging): the container's adb server saw it as `device` at once
+  with the keys seeded from `~/.android`; `pull phone` imported a fresh Gadgetbridge export in
+  9 s. With an adb server already running on the host there is **no conflict**: `cli` shares the
+  host network, so the adb client inside the container talks to that server on `localhost:5037`
+  (same key, same user) and only starts its own when none runs. The sysfs hint ("ADB-capable
+  USB device attached but adb does not see it") stays for the cases a server cannot help with:
+  a phone that has not authorised the key, or a server under another user.
 
 ## Guiding principles
 

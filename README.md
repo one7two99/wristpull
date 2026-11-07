@@ -623,9 +623,10 @@ cp contrib/bin/wristpull ~/.local/bin/     # optional wrapper: `wristpull tui` r
   desktop program from the container, so it shows the path on the host instead.
 - **Phone (ADB):** the adb server runs inside the container; the keys live in
   `<data_dir>/adb/` (`adbkey`, `adbkey.pub`). Seed them from `~/.android/` as above, otherwise
-  the phone asks once for a new authorisation. If an adb server on the host holds the phone,
-  `pull phone` reports it ("an ADB-capable USB device is attached … run `adb kill-server` on the
-  host"). Wireless debugging (Android 11+) works with `[phone] serial = "192.168.1.20:37099"`
+  the phone asks once for a new authorisation. An adb server already running on the host is
+  simply used (`cli` shares the host network, port 5037); when adb sees no device although an
+  ADB-capable phone is attached, `pull phone` says so and points at the authorisation prompt and
+  `adb kill-server`. Wireless debugging (Android 11+) works with `[phone] serial = "192.168.1.20:37099"`
   (`adb connect` runs first); Android drops it after a reboot or network change, so it is an
   extra, not the default for the morning timer.
 - **USB access:** the service mounts `/dev/bus/usb` with the cgroup rule `c 189:* rmw`, which
