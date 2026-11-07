@@ -3,9 +3,8 @@
 wristpull reads the Amazfit Helio Strap directly over Bluetooth Low Energy, without Gadgetbridge
 and without a phone. The German planning document with the full reasoning is
 `workorders/Helio-Strap-BLE-Konzept.md`; this page keeps the protocol facts, the spike results and
-the design that was built on them. Status: phase 1 built 2026-11-07 (library, `pull strap`, TUI,
-status, archive, reparse); phase 2 (workouts, PAI, maximum heart rate) and phase 3 (the Raspberry
-Pi box) are open.
+the design that was built on them. Status: phases 1 and 2 built 2026-11-07 (library, `pull strap`, TUI,
+status, archive, reparse, workouts, PAI, maximum heart rate); phase 3 (the Raspberry Pi box) is open.
 
 ## Protocol (Zepp OS, as Gadgetbridge implements it)
 
@@ -29,7 +28,9 @@ Fetch kinds and record layouts (verified byte-identical against Gadgetbridge's t
 | resting_hr | 0x3a | 6 B: ts, tz, bpm | `resting_hr` |
 | respiration | 0x38 | 8 B: ts, tz, rate, ?, ? | `respiration` |
 | sleep | 0x48 | 594-B session reports (`gadgetbridge.decode_sleep_session`) | `sleep`, `sleep_stages` |
-| hr_max, pai | 0x3d, 0x0d | archived only, no parser yet | – |
+| hr_max | 0x3d | 6 B: ts, tz, bpm | `metrics` (`hr_max`) |
+| pai | 0x0d | 102 B: type (5 = current), ts, tz, 31 ?, pai low/moderate/high f32, minutes ×3 i16, pai today f32, pai total f32, 39 ? | `metrics` (`pai_total`, `pai_today`) |
+| workout | 0x05 + 0x06 | summary: version word 0x8000 + protobuf `WorkoutSummary` (huami.proto); details: BER-TLV track (timestamp, offsets, heart rate, speed, distance, altitude, GPS, laps, strength sets) | `activities`, `activity_records`, `activity_laps`, `vo2_max` metric |
 
 ## Spike results (2026-11-07, laptop with Intel 9460/9560, BlueZ 5.85, bleak)
 
@@ -50,6 +51,6 @@ Fetch kinds and record layouts (verified byte-identical against Gadgetbridge's t
 
 ## Open
 
-- Workouts (`0x05`/`0x06`), PAI and maximum heart rate parsers (phase 2); the buffers of the last two are archived already.
+- Workouts: the band hands out one per request (summary since X, details for that start, next request after the end; ten per pull). The Helio Strap's workouts are all automatically detected (type code 0xdf, unknown to Gadgetbridge too), without distance; verified 2026-11-07: twelve summaries byte-identical to Gadgetbridge's blobs, details tracks one point per second. Swimming intervals are parsed but not stored as rows yet.
 - Docker: Docker's default AppArmor profile denies the D-Bus calls (seen 2026-11-07 on Ubuntu 26.04), so `cli` runs under `contrib/apparmor/wristpull-cli` (docker-default plus `dbus (send, receive) bus=system`), installed once on the host.
 - The box: Raspberry Pi image, scan loop, auth key provisioning for other users (needs a Zepp account once per band), licence question (Gadgetbridge is AGPL).

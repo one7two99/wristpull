@@ -76,9 +76,12 @@
   protocol as Gadgetbridge speaks it; `ecdh.py` (B-163, pure Python), `aes.py` (pure Python, no dependency), `chunked.py`
   (codec), `protocol.py` (pure builders/parsers), `band.py` (async client over the `Transport` protocol), `transport.py`
   (bleak, extra `ble`, the only Bluetooth code), `fetch.py` (kinds, `WPZB` container, parsers reusing `gadgetbridge.py`),
-  `store.py` (SQL only: `strap_sync`, replaced nights). `importers/strap.py::pull_strap` asks each kind since
+  `store.py` (SQL only: `strap_sync`, replaced nights), `protobuf.py` (minimal wire decoder), `workout.py` (summary protobuf +
+  BER-TLV details → `activities`/records/laps; the strap's auto-detected workouts are sport `auto_detected`).
+  `importers/strap.py::pull_strap` asks each kind since
   `strap_sync` (activity from the local midnight of the last synced day: steps are cumulative per day), archives every
-  answer as `raw/zepp_ble/<year>/zepp_<kind>/…` and keeps the data on the band. Merge `STRAP_PRIORITY = ("zepp_ble",
+  answer as `raw/zepp_ble/<year>/zepp_<kind>/…` and keeps the data on the band; workouts come one per request (summary
+  0x05, then details 0x06 for that start, `WORKOUT_ROUNDS` per pull) and are archived together (`pack_workout`). Merge `STRAP_PRIORITY = ("zepp_ble",
   "gadgetbridge_zepp")`. The auth key lives in `<data_dir>/strap/authkey` (0600), never in config or repo. Tests inject
   `FakeTransport` (`tests/fake_band.py`, plays the band behind the real codec) and synthetic buffers
   (`tests/zepp_buffers.py`); an autouse fixture blocks bleak. Never put real fetch buffers into the repository.

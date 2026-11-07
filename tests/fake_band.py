@@ -17,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 from wristpull.zeppos import aes, ecdh, protocol
 from wristpull.zeppos.band import NoBandError
 from wristpull.zeppos.chunked import Decoder, Encoder, ack
-from wristpull.zeppos.fetch import BY_CODE, Kind
+from wristpull.zeppos.fetch import BY_CODE, WORKOUT_DETAILS, Kind
 from wristpull.zeppos.protocol import (
     CH_ACTIVITY_CONTROL,
     CH_ACTIVITY_DATA,
@@ -47,6 +47,9 @@ class FakeBandState:
     # minute kinds: (utc of the first sample, bytes); record kinds: [(utc, record bytes)]
     minutes: dict[str, tuple[datetime, bytes]] = field(default_factory=dict)
     records: dict[str, list[tuple[datetime, bytes]]] = field(default_factory=dict)
+    # workouts: (start utc, summary bytes, details bytes); 0x05 hands out the first one at/after `since`,
+    # 0x06 the details of the one that starts at `since`
+    workouts: list[tuple[datetime, bytes, bytes]] = field(default_factory=list)
     # recorders
     fetch_requests: list[tuple[str, datetime]] = field(default_factory=list)
     acks: list[tuple[str, bool]] = field(default_factory=list)
@@ -61,6 +64,16 @@ class FakeBandState:
 
     def data_since(self, kind: Kind, since: datetime) -> tuple[datetime, bytes, int] | None:
         """(start utc, bytes, count) the band would send for ``kind`` from ``since`` on."""
+        if kind.code == 0x05:
+            for start, summary, _details in sorted(self.workouts):
+                if start >= since:
+                    return start, summary, len(summary)
+            return None
+        if kind.code == 0x06:
+            for start, _summary, details in self.workouts:
+                if start.replace(second=0, microsecond=0) == since.replace(second=0, microsecond=0):
+                    return (start, details, len(details)) if details else None
+            return None
         if kind.minutes:
             entry = self.minutes.get(kind.name)
             if entry is None:
@@ -188,7 +201,8 @@ class FakeTransport:
     def _fetch(self, payload: bytes) -> list[bytes]:
         cmd = payload[0]
         if cmd == protocol.CMD_FETCH_SINCE:
-            kind = BY_CODE[payload[1]]
+            kind = BY_CODE.get(payload[1]) or (WORKOUT_DETAILS if payload[1] == WORKOUT_DETAILS.code else None)
+            assert kind is not None, f"unknown fetch code {payload[1]:#x}"
             year, month, day, hour, minute, second, tz = struct.unpack_from("<HBBBBBb", payload, 2)
             since = (datetime(year, month, day, hour, minute, second) - timedelta(seconds=tz * QUARTER_HOUR)).replace(tzinfo=UTC)
             self.state.fetch_requests.append((kind.name, since))
@@ -211,7 +225,7 @@ class FakeTransport:
             keep = payload[1] == protocol.ACK_KEEP
             kind = self._pending[0].name if self._pending else "?"
             self.state.acks.append((kind, keep))
-            if not keep and self._pending is not None:
+            if not keep and self._pending is not None and self._pending[0].code not in (0x05, 0x06):
                 self.state.minutes.pop(self._pending[0].name, None)
                 self.state.records.pop(self._pending[0].name, None)
             self._pending = None

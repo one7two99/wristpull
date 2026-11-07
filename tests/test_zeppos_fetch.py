@@ -7,8 +7,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from zepp_buffers import activity_minutes, build_sleep_session_blob, hrv_record, respiration_record, resting_hr_record, spo2_record, stress_minutes
-from wristpull.zeppos.fetch import BY_NAME, KINDS, RAW_KINDS, Buffer, buffer_end, pack_buffer, parse_buffer, unpack_buffer
+from zepp_buffers import activity_minutes, build_sleep_session_blob, hr_max_record, hrv_record, pai_record, respiration_record, resting_hr_record, spo2_record, stress_minutes, workout_details, workout_summary
+from wristpull.zeppos.fetch import BY_NAME, KINDS, RAW_KINDS, WORKOUT_DETAILS, Buffer, buffer_end, pack_buffer, pack_workout, parse_buffer, split_workout, unpack_buffer
 
 TZ = ZoneInfo("Europe/Berlin")
 START = datetime(2026, 11, 6, 22, 0, tzinfo=UTC)  # 23:00 CET
@@ -17,7 +17,7 @@ START = datetime(2026, 11, 6, 22, 0, tzinfo=UTC)  # 23:00 CET
 def test_kind_table():
     assert [k.name for k in KINDS][:7] == ["activity", "stress", "spo2", "hrv", "resting_hr", "respiration", "sleep"]
     assert BY_NAME["stress"].code == 0x13 and BY_NAME["sleep"].record == 594
-    assert "zepp_activity" in RAW_KINDS and not BY_NAME["pai"].parsed
+    assert "zepp_activity" in RAW_KINDS and BY_NAME["pai"].record == 102 and BY_NAME["workout"].code == 0x05
 
 
 def test_container_roundtrip_and_names():
@@ -77,5 +77,38 @@ def test_sleep_parser_uses_the_bands_sessions():
     night = rows.sleep[0].row
     assert night["start_utc"] == "2026-11-06T22:00:00Z" and night["deep_s"] == 1800 and night["score"] == 70 and night["source"] == "zepp_ble"
     assert len(rows.sleep[0].stages) == 4
-    opaque = parse_buffer(Buffer(BY_NAME["pai"], START, 4, b"\x05" + b"\0" * 40), TZ, "zepp_ble")
+    opaque = parse_buffer(Buffer(WORKOUT_DETAILS, START, 4, b"\x05" + b"\0" * 40), TZ, "zepp_ble")
     assert opaque.counts() == {}
+
+
+def test_pai_and_hr_max_parsers():
+    t1, t2 = START, START + timedelta(hours=1)
+    pai = parse_buffer(Buffer(BY_NAME["pai"], t1, 4, pai_record(t1, today=3.5, total=41.25) + pai_record(t2, today=0, total=0, kind=0)), TZ, "zepp_ble")
+    assert [(m["metric"], m["value"], m["ts_utc"]) for m in pai.metrics] == [("pai_total", 41.25, "2026-11-06T22:00:00Z"), ("pai_today", 3.5, "2026-11-06T22:00:00Z")]
+    buf = Buffer(BY_NAME["pai"], t1, 4, pai_record(t1, today=1, total=2) + pai_record(t2, today=1, total=2))
+    assert buffer_end(buf) == t2 and buf.samples == 2
+    hr = parse_buffer(Buffer(BY_NAME["hr_max"], t1, 4, hr_max_record(t1, 148) + hr_max_record(t2, 255)), TZ, "zepp_ble")
+    assert [(m["metric"], m["value"]) for m in hr.metrics] == [("hr_max", 148.0)]
+
+
+def test_workout_buffer_roundtrip_and_rows():
+    start = datetime(2026, 11, 6, 17, 30, tzinfo=UTC)
+    summary = workout_summary(start=start, type_code=0x01, total_s=1800, distance_m=5000.0)
+    details = workout_details(int(start.timestamp() * 1000), seconds=30)
+    data = pack_workout(summary, details)
+    assert split_workout(data) == (summary, details)
+    buf = Buffer(BY_NAME["workout"], start, 4, data)
+    assert buffer_end(buf) == start + timedelta(seconds=1800) and buf.samples == 1
+    rows = parse_buffer(buf, TZ, "zepp_ble")
+    assert len(rows.activities) == 1
+    act = rows.activities[0]
+    assert act.row["sport"] == "running" and act.row["start_utc"] == "2026-11-06T17:30:00Z" and act.row["end_utc"] == "2026-11-06T18:00:00Z"
+    assert act.row["distance_m"] == 5000.0 and act.row["avg_hr"] == 142 and act.row["max_hr"] == 171 and act.row["calories"] == 320
+    assert act.row["hr_zone_times_s"] == "[0, 60, 600, 900, 240, 0]" and act.row["aerobic_te"] == pytest.approx(2.4, abs=0.01)
+    assert len(act.records) == 30 and act.records[0]["ts_utc"] == "2026-11-06T17:30:00Z" and act.records[0]["hr"] == 140 and act.records[1]["hr"] == 141
+    assert act.records[29]["distance_m"] == pytest.approx(30 * 1000 / 360, abs=0.02) and act.records[0]["speed_mps"] == pytest.approx(1000 / 360)
+    assert [(m["metric"], m["value"]) for m in rows.metrics] == [("vo2_max", 48.0)]
+    with pytest.raises(ValueError):
+        split_workout(b"\x09\0\0\0ab")
+    with pytest.raises(ValueError):
+        parse_buffer(Buffer(BY_NAME["workout"], start, 4, pack_workout(b"\x01\x00" + summary[2:], b"")), TZ, "zepp_ble")

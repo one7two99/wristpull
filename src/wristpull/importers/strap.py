@@ -22,13 +22,14 @@ from ..daily import rebuild_daily_summary
 from ..timeutil import iso_utc, zone
 from ..zeppos import SOURCE
 from ..zeppos.band import Band, BandError, Transport
-from ..zeppos.fetch import KINDS, Buffer, Kind, buffer_end, pack_buffer, parse_buffer
+from ..zeppos.fetch import KINDS, WORKOUT_DETAILS, Buffer, Kind, buffer_end, pack_buffer, pack_workout, parse_buffer
 from ..zeppos.protocol import ProtocolError, parse_auth_key
 from ..zeppos.store import delete_overlapping_sleep, last_sync, set_last_sync
 from .garmin import store_parsed
 
 Log = Callable[[str], None]
 TransportFactory = Callable[[str], Transport]
+WORKOUT_ROUNDS = 10  # workouts per pull: one summary + one details fetch each (Gadgetbridge's limit)
 
 
 @dataclass
@@ -63,6 +64,8 @@ def since_for(kind: Kind, last: datetime | None, now: datetime, *, since_days: i
     cumulative per local day and the parser needs the whole day in one buffer."""
     if last is None:
         start = now - timedelta(days=since_days)
+    elif kind.name == "workout":
+        start = last  # stored as the moment after the last workout already
     else:
         start = last + timedelta(minutes=1)
     if kind.name == "activity":
@@ -120,6 +123,9 @@ async def _pull(conn: sqlite3.Connection, config: Config, band: Band, stats: Str
                     stats.fetched[kind.name] = start.count
                     log(f"  {kind.name}: {start.count} since {iso_utc(since)}" + (f" (band starts at {iso_utc(start.start_utc)})" if start.count else ""))
                     continue
+                if kind.name == "workout":
+                    await _pull_workouts(conn, config, band, stats, kind, since, tz=tz, keep=keep, now=now, log=log, stop=stop)
+                    continue
                 result = await band.fetch(kind, since.astimezone(tz), keep=keep)
             except ProtocolError as exc:
                 stats.errors += 1
@@ -147,6 +153,46 @@ async def _pull(conn: sqlite3.Connection, config: Config, band: Band, stats: Str
             log(f"  {kind.name}: {buffer.samples} {unit} from {iso_utc(buffer.start_utc)} ({state}" + (", " + ", ".join(f"{k}={v}" for k, v in counts.items()) if counts else "") + ")")
     finally:
         await band.close()
+
+
+async def _pull_workouts(conn: sqlite3.Connection, config: Config, band: Band, stats: StrapStats, kind: Kind, since: datetime, *, tz, keep: bool, now: datetime, log: Log, stop: Callable[[], bool] | None) -> None:
+    """The band hands out one workout per request: its summary (0x05) since ``since``, then the details
+    (0x06) for that start time; the next request continues after the workout's end."""
+    fetched = 0
+    for _round in range(WORKOUT_ROUNDS):
+        if stop is not None and stop():
+            stats.stopped = True
+            return
+        result = await band.fetch(kind, since.astimezone(tz), keep=keep)
+        if result is None:
+            break
+        start = result.start.start_utc
+        details = await band.fetch(WORKOUT_DETAILS, start.astimezone(tz), keep=keep)
+        buffer = Buffer(kind, start, result.start.tz_quarters, pack_workout(result.data, details.data if details else b""))
+        try:
+            end = buffer_end(buffer)
+        except ValueError as exc:
+            stats.errors += 1
+            stats.messages.append(f"workout at {iso_utc(start)}: {exc}")
+            log(f"  ! workout at {iso_utc(start)}: {exc}")
+            return
+        fetched += 1
+        state, counts = import_buffer(conn, config, buffer, origin=f"ble://{stats.address}/workout", fetched_at=now, log=log)
+        if state == "new":
+            stats.files_new += 1
+            stats.add_rows(counts)
+        elif state == "skipped":
+            stats.files_skipped += 1
+        else:
+            stats.errors += 1
+        log(f"  workout from {iso_utc(start)} to {iso_utc(end)} ({state}" + (", " + ", ".join(f"{k}={v}" for k, v in counts.items()) if counts else "") + ")")
+        # the next request must start after this workout; a workout that ends in its start minute would come back forever
+        since = max(end, start + timedelta(minutes=1))
+        set_last_sync(conn, SOURCE, kind.name, since)
+        conn.commit()
+    stats.fetched[kind.name] = fetched
+    if fetched == 0:
+        log(f"  workout: nothing new since {iso_utc(since)}")
 
 
 def pull_strap(

@@ -258,3 +258,12 @@ Offen (Phase 2/3): Workouts (`0x05`/`0x06`), PAI- und Maximalpuls-Parser, Echtze
 verweigert D-Bus-Aufrufe, deshalb läuft `cli` unter dem eigenen Profil `contrib/apparmor/wristpull-cli`
 (docker-default plus `dbus (send, receive) bus=system`), das einmal auf dem Host geladen wird. Philipp
 hat entschieden, dass alles über den Container laufen soll, nichts nativ (2026-11-07).
+
+**Phase 2 gebaut (2026-11-07, Abend):** Workouts, PAI und Maximalpuls werden geparst. Workouts holt das
+Band einzeln: Zusammenfassung (Protobuf, eigener Mini-Decoder ohne Abhängigkeit) ab Zeitpunkt X, dann die
+Details (BER-TLV, ein Punkt pro Sekunde) zu diesem Start, nächste Anfrage nach dem Ende, zehn pro Lauf.
+Beides landet in einem Container-Puffer `zepp_workout`. Prüfung am Band: alle zwölf Zusammenfassungen,
+die Gadgetbridge kannte, byteidentisch; achtzehn Workouts importiert (alle automatisch erkannt, Typcode
+0xdf, den auch Gadgetbridge nicht kennt, daher Sportart `auto_detected`), 29 000 Datensätze. PAI als
+Metriken `pai_total`/`pai_today`, Maximalpuls als `hr_max`, die VO2max-Schätzung des Bands als `vo2_max`.
+Offen bleibt nur Phase 3 (die Box); Schwimm-Intervalle werden erkannt, aber noch nicht als Zeilen abgelegt.

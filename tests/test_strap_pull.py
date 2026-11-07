@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from fake_band import FAKE_ADDRESS, FAKE_KEY, FakeBandState, FakeTransport
-from zepp_buffers import activity_minutes, build_sleep_session_blob, hrv_record, respiration_record, resting_hr_record, spo2_record, stress_minutes
+from zepp_buffers import activity_minutes, build_sleep_session_blob, hr_max_record, hrv_record, pai_record, respiration_record, resting_hr_record, spo2_record, stress_minutes, workout_details, workout_summary
 from wristpull.config import Config
 from wristpull.db import connect, table_count
 from wristpull.importers.reparse import reparse_raw_file, select_raw_files
@@ -44,7 +44,14 @@ def band() -> FakeBandState:
     state.records["respiration"] = [(FIRST + timedelta(hours=3), respiration_record(FIRST + timedelta(hours=3), 15))]
     midnight = datetime(2026, 11, 5, 23, 0, tzinfo=UTC)
     stages = [(1380, 1409, "light"), (1410, 1439, "deep"), (1440, 1449, "light"), (1450, 1479, "rem")]
-    state.records["pai"] = [(FIRST + timedelta(hours=1), b"\x05" + b"\0" * 39)]  # archived only
+    state.records["pai"] = [(FIRST + timedelta(hours=1), pai_record(FIRST + timedelta(hours=1), today=2.5, total=40.0))]
+    state.records["hr_max"] = [(FIRST + timedelta(hours=10), hr_max_record(FIRST + timedelta(hours=10), 151))]
+    w1 = FIRST + timedelta(hours=9)
+    w2 = FIRST + timedelta(hours=30)
+    state.workouts = [
+        (w1, workout_summary(start=w1, type_code=0x01, total_s=1800), workout_details(int(w1.timestamp() * 1000), seconds=20)),
+        (w2, workout_summary(start=w2, type_code=0xDF, auto=True, total_s=900, distance_m=None, pace=None, steps=None, training=None), b""),
+    ]
     state.records["sleep"] = [(FIRST + timedelta(hours=7), build_sleep_session_blob(reported=FIRST + timedelta(hours=7), midnight=midnight, stages=stages, score=71, avg_hr=50))]
     return state
 
@@ -68,7 +75,13 @@ def run_pull(cfg: Config, state: FakeBandState, **kwargs):
 def test_first_pull_imports_every_kind(cfg: Config, band: FakeBandState):
     conn, stats, logs, transport = run_pull(cfg, band)
     assert band.authenticated and stats.device and "3.25.0.3" in stats.device and stats.address == FAKE_ADDRESS
-    assert stats.errors == 0 and stats.files_new == 8 and stats.fetched["activity"] == 43 * 60 and stats.fetched["pai"] == 40
+    assert stats.errors == 0 and stats.files_new == 11 and stats.fetched["activity"] == 43 * 60 and stats.fetched["pai"] == 1 and stats.fetched["workout"] == 2
+    assert stats.rows["activities"] == 2 and stats.rows["activity_records"] == 20 and stats.rows["metrics"] == 4  # pai_total, pai_today, hr_max, vo2_max
+    sports = [tuple(r) for r in conn.execute("SELECT sport, sub_sport, elapsed_s FROM activities WHERE source = ? ORDER BY start_utc", (SOURCE,))]
+    assert sports == [("running", None, 1800.0), ("auto_detected", "auto_detected", 900.0)]
+    asked = [since for name, since in band.fetch_requests if name in ("workout", "workout_details")]
+    # summary since 10 days back, details for that start, then the next summary after the workout's end, and so on
+    assert asked == [NOW - timedelta(days=10), FIRST + timedelta(hours=9), FIRST + timedelta(hours=9, minutes=30), FIRST + timedelta(hours=30), FIRST + timedelta(hours=30, minutes=15)]
     assert stats.rows["heart_rate"] == 43 * 60 and stats.rows["stress"] == 1 and stats.rows["spo2"] == 1 and stats.rows["sleep"] == 1 and stats.rows["sleep_stages"] == 4
     # the band's offset (CET) was applied: the first minute is local midnight
     row = conn.execute("SELECT ts_utc, local_date, steps FROM steps WHERE source = ? ORDER BY ts_utc LIMIT 1", (SOURCE,)).fetchone()
@@ -76,12 +89,13 @@ def test_first_pull_imports_every_kind(cfg: Config, band: FakeBandState):
     last_day = conn.execute("SELECT MAX(steps) FROM steps WHERE source = ? AND local_date = '2026-11-07'", (SOURCE,)).fetchone()[0]
     assert last_day == 19 * 60 * 4
     kinds = {r[0] for r in conn.execute("SELECT kind FROM raw_files WHERE source = ?", (SOURCE,))}
-    assert kinds == {"zepp_activity", "zepp_stress", "zepp_spo2", "zepp_hrv", "zepp_resting_hr", "zepp_respiration", "zepp_sleep", "zepp_pai"}
+    assert kinds == {"zepp_activity", "zepp_stress", "zepp_spo2", "zepp_hrv", "zepp_resting_hr", "zepp_respiration", "zepp_sleep", "zepp_pai", "zepp_hr_max", "zepp_workout"}
     assert (cfg.raw_dir / SOURCE / "2026" / "zepp_stress").exists()
     synced = all_sync(conn, SOURCE)
     assert synced["activity"] == FIRST + timedelta(minutes=43 * 60 - 1) and synced["stress"] == synced["activity"]
     assert synced["spo2"] == FIRST + timedelta(hours=2) and synced["sleep"] == FIRST + timedelta(hours=7)
-    assert synced["pai"] == NOW  # opaque: the next pull continues from the fetch time
+    assert synced["pai"] == FIRST + timedelta(hours=1) and synced["hr_max"] == FIRST + timedelta(hours=10)
+    assert synced["workout"] == FIRST + timedelta(hours=30, minutes=15)  # the moment after the last workout
     assert conn.execute("SELECT COUNT(*) FROM daily_summary WHERE source = ?", (SOURCE,)).fetchone()[0] == 2
     assert band.acks and all(keep for _, keep in band.acks)  # data stays on the band
     assert band.time_set and band.time_set[0][0] == 5
@@ -101,7 +115,7 @@ def test_second_pull_continues_where_it_left_off(cfg: Config, band: FakeBandStat
     assert asked["activity"] == datetime(2026, 11, 6, 23, 0, tzinfo=UTC)  # local midnight 2026-11-07
     assert asked["stress"] == FIRST + timedelta(minutes=43 * 60)
     assert asked["spo2"] == FIRST + timedelta(hours=2, minutes=1)
-    assert second.files_new == 2 and second.fetched["activity"] == 20 * 60 and second.fetched["spo2"] == 0 and second.fetched["pai"] == 0
+    assert second.files_new == 2 and second.fetched["activity"] == 20 * 60 and second.fetched["spo2"] == 0 and second.fetched["pai"] == 0 and second.fetched["workout"] == 0
     # the day's counter continues instead of restarting at the new buffer's first minute
     last_day = conn.execute("SELECT MAX(steps) FROM steps WHERE source = ? AND local_date = '2026-11-07'", (SOURCE,)).fetchone()[0]
     assert last_day == 19 * 60 * 4 + 60 * 10
@@ -143,7 +157,7 @@ def test_wrong_key_missing_key_and_absent_band(cfg: Config, band: FakeBandState)
 
 def test_dry_run_only_counts(cfg: Config, band: FakeBandState):
     conn, stats, logs, _ = run_pull(cfg, band, dry_run=True)
-    assert stats.files_new == 0 and stats.rows == {} and stats.fetched["activity"] == 43 * 60 and stats.fetched["spo2"] == 1
+    assert stats.files_new == 0 and stats.rows == {} and stats.fetched["activity"] == 43 * 60 and stats.fetched["spo2"] == 1 and stats.fetched["workout"] > 0
     assert table_count(conn, "raw_files") == 0 and last_sync(conn, SOURCE, "activity") is None
     assert band.acks and all(keep for _, keep in band.acks)
     assert any("activity: 2580 since" in line for line in logs)
@@ -152,13 +166,13 @@ def test_dry_run_only_counts(cfg: Config, band: FakeBandState):
 def test_keep_false_lets_the_band_delete(cfg: Config, band: FakeBandState):
     cfg.strap_keep_on_band = False
     conn, stats, _, _ = run_pull(cfg, band)
-    assert stats.files_new == 8 and band.acks[0] == ("activity", False) and "activity" not in band.minutes
+    assert stats.files_new == 11 and band.acks[0] == ("activity", False) and "activity" not in band.minutes
 
 
 def test_fallback_to_the_control_characteristic(cfg: Config, band: FakeBandState):
     band.fetch_endpoint = False
     conn, stats, _, transport = run_pull(cfg, band)
-    assert stats.files_new == 8 and any(uuid.startswith("00000004-") for uuid, _ in transport.writes)
+    assert stats.files_new == 11 and any(uuid.startswith("00000004-") for uuid, _ in transport.writes)
 
 
 def test_stop_between_kinds(cfg: Config, band: FakeBandState):
@@ -197,4 +211,4 @@ def test_reparse_and_duplicate_buffer(cfg: Config, band: FakeBandState):
     bad = Buffer(BY_NAME["spo2"], FIRST, 4, b"\x09" + spo2_record(FIRST, 90))
     state, counts = import_buffer(conn, cfg, bad, origin="ble://x/spo2", fetched_at=NOW)
     assert state == "error" and conn.execute("SELECT parse_status FROM raw_files WHERE original_name LIKE 'spo2_%' ORDER BY id DESC LIMIT 1").fetchone()[0] == "error"
-    assert clear_sync(conn, SOURCE) == 8 and all_sync(conn, SOURCE) == {}
+    assert clear_sync(conn, SOURCE) == 10 and all_sync(conn, SOURCE) == {}

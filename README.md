@@ -174,8 +174,14 @@ range and not connected to the phone (a band holds one connection; disconnect it
 remove it there).
 
 Per fetch kind (activity minutes, stress, SpO2, HRV, resting heart rate, respiration, the band's
-sleep sessions; PAI and maximum heart rate are archived for a later parser) the band is asked for
-everything since the last sample wristpull stored (`strap_sync`, first run: `[strap] since_days`).
+sleep sessions, PAI, the day's maximum heart rate, and workouts) the band is asked for everything
+since the last sample wristpull stored (`strap_sync`, first run: `[strap] since_days`). Workouts come
+one per request: the summary (a protobuf message, up to ten per pull), then its details track
+(one point per second with heart rate, pace, distance, GPS where the band has it); they become
+`activities` with `activity_records` and `activity_laps`, the band's VO2max estimate a `vo2_max`
+metric. The Helio Strap reports automatically recognised workouts as sport `auto_detected`
+(`sub_sport` says so); PAI is stored as the metrics `pai_total` and `pai_today`, the maximum heart
+rate as `hr_max`.
 Each answer is archived as an immutable buffer file under `raw/zepp_ble/`, parsed into the sample
 tables as source `zepp_ble` and the daily summaries are rebuilt. The data stays on the band
 (`keep_on_band`); a second run only brings what is new. Activity is always asked from the local
