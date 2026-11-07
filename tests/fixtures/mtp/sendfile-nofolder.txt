@@ -1,0 +1,84 @@
+Your system does not appear to have UTF-8 enabled ($LANG="(null)")
+If you want to have support for diacritics and Unicode characters,
+please switch your locale to an UTF-8 locale, e.g. "en_US.UTF-8".
+libmtp version: 1.1.22
+
+Device 0 (VID=091e and PID=4cdb) is a Garmin Fenix 6X Pro/Sapphire.
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+Your system does not appear to have UTF-8 enabled ($LANG="(null)")
+If you want to have support for diacritics and Unicode characters,
+please switch your locale to an UTF-8 locale, e.g. "en_US.UTF-8".
+Sending /out/wristpull-spike-test.fit to /GARMIN/DoesNotExist
+Parent folder could not be found, skipping

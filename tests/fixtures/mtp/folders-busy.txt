@@ -1,0 +1,4 @@
+Attempting to connect device(s)
+Device 0 (VID=091e and PID=4cdb) is a Garmin Fenix 6X Pro/Sapphire.
+mtp-folders: Successfully connected
+OK.

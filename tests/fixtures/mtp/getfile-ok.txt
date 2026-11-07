@@ -1,0 +1,85 @@
+Your system does not appear to have UTF-8 enabled ($LANG="(null)")
+If you want to have support for diacritics and Unicode characters,
+please switch your locale to an UTF-8 locale, e.g. "en_US.UTF-8".
+libmtp version: 1.1.22
+
+Device 0 (VID=091e and PID=4cdb) is a Garmin Fenix 6X Pro/Sapphire.
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+Getting file/track 16777464 to local file /out/2026-04-03-22-39-15.fit
+Progress: 16 of 38420 (0%)
+Progress: 28 of 38420 (0%)
+Progress: 16412 of 38420 (42%)
+Progress: 32796 of 38420 (85%)
+Progress: 38420 of 38420 (100%)

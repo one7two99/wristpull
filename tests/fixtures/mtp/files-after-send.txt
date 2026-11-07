@@ -1,0 +1,108 @@
+libmtp version: 1.1.22
+
+Device 0 (VID=091e and PID=4cdb) is a Garmin Fenix 6X Pro/Sapphire.
+mtp-files: Successfully connected
+Listing File Information on Device with name: fenix 6X Pro [SN:0000deadbeef]
+File ID: 16777226
+   Filename: cpyright.txt
+   File size 23751 (0x0000000000005CC7) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777236
+   Filename: gmapprom.img
+   File size 3007709184 (0x00000000B3460000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777239
+   Filename: gmaptz.img
+   File size 699392 (0x00000000000AAC00) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777241
+   Filename: D9486050A.img
+   File size 2897805312 (0x00000000ACB90000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777525
+   Filename: wristpull-test.txt
+   File size 21 (0x0000000000000015) bytes
+   Parent ID: 16777279
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777751
+   Filename: wristpull-spike-test.fit
+   File size 286 (0x000000000000011E) bytes
+   Parent ID: 16777279
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777286
+   Filename: GarminDevice.xml
+   File size 48640 (0x000000000000BE00) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777287
+   Filename: device.fit
+   File size 2451 (0x0000000000000993) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777293
+   Filename: gmapsup3.img
+   File size 79671296 (0x0000000004BFB000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777294
+   Filename: gmapdema.img
+   File size 73992192 (0x0000000004690800) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777298
+   Filename: gmapbmap.img
+   File size 48775168 (0x0000000002E84000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777299
+   Filename: D6185160A.img
+   File size 2850816000 (0x00000000A9EC0000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777302
+   Filename: gmapdem.img
+   File size 1287323648 (0x000000004CBB0000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777305
+   Filename: gmapsup2.img
+   File size 131866624 (0x0000000007DC2000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777310
+   Filename: gmapski.img
+   File size 42737664 (0x00000000028C2000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777311
+   Filename: gmapsup1.img
+   File size 222441472 (0x000000000D423000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+File ID: 16777312
+   Filename: gmapdem1.img
+   File size 384876544 (0x0000000016F0C000) bytes
+   Parent ID: 16777216
+   Storage ID: 0x00020001
+   Filetype: Undefined filetype
+OK.

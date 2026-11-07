@@ -1,0 +1,152 @@
+Attempting to connect device(s)
+Device 0 (VID=091e and PID=4cdb) is a Garmin Fenix 6X Pro/Sapphire.
+mtp-folders: Successfully connected
+Friendly name: fenix 6X Pro
+Storage: Primary
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+MTP extended association type 0x00000001 encountered
+16777216	GARMIN
+16777228	  Apps
+16777320	    TEMP
+16777321	    LOGS
+16777322	    DATA
+16777582	      AUXFILE
+16777323	    SETTINGS
+16777324	    MAIL
+16777238	  SQL
+16777332	    temp
+16777240	  TLG
+16777334	    DAT
+16777335	    PER
+16777242	  CustomMaps
+16777243	  MAPTHEMES
+16777244	  EDM
+16777245	  Settings
+16777246	  Sports
+16777247	  HMD
+16777248	  Text
+16777250	  Activity
+16777251	  Workouts
+16777500	    Schedule
+16777501	    .Intervals
+16777502	    Guided
+16777252	  Courses
+16777253	  Schedule
+16777254	  Location
+16777255	  Totals
+16777256	  Goals
+16777257	  Records
+16777258	  Segments
+16777259	  Seg_List
+16777260	  MltSport
+16777261	  Monitor
+16777262	  Device
+16777263	  SCORCRDS
+16777264	  Clubs
+16777265	  Adjstmts
+16777266	  Metrics
+16777267	  ChngLog
+16777268	  Sleep
+16777269	  SUMMARY
+16777270	  PaceBands
+16777271	  RunningTrack
+16777272	  Benchmark
+16777273	  HRVStatus
+16777274	  HSA
+16777275	  WIFI
+16777277	  FbtBackup
+16777278	  FbtPtdBackup
+16777279	  NewFiles
+16777280	  TempFIT
+16777281	  PointCache
+16777282	  RemoteSW
+16777283	  Debug
+16777555	    Uploads
+16777609	      ULF
+16777610	      Error
+16777556	    MetricsBackup
+16777285	  Backup
+16777561	    Backups
+16777562	    Restore
+16777288	  WALLET
+16777563	    913175
+16777564	    412010
+16777289	  http
+16777565	    dl_manager
+16777290	  EXPRESS
+16777291	  EVNTLOGS
+16777219	Music
+16777220	Audiobooks
+16777221	Podcasts
+OK.

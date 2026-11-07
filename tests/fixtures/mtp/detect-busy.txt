@@ -1,0 +1,8 @@
+libmtp version: 1.1.22
+
+Listing raw device(s)
+Device 0 (VID=091e and PID=4cdb) is a Garmin Fenix 6X Pro/Sapphire.
+   Found 1 device(s):
+   Garmin: Fenix 6X Pro/Sapphire (091e:4cdb) @ bus 1, dev 37
+Attempting to connect device(s)
+OK.

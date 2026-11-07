@@ -1,0 +1,2 @@
+libusb_claim_interface() reports device is busy, likely in use by GVFS or KDE MTP device handling alreadyLIBMTP PANIC: Unable to initialize device
+Unable to open raw device 0
