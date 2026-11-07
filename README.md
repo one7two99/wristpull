@@ -209,12 +209,17 @@ What it does:
   `sleep` rows with stage totals, sleep score, quality/recovery score and awakenings; the export
   has no stage timeline, so no `sleep_stages`. Placeholder records (the FIT epoch 1989-12-31,
   empty days) are discarded and counted. Later date blocks win on overlapping days.
+- **Activity names and VO2max:** `summarizedActivities.json` carries the names you gave your
+  activities in Connect; an archived activity of any source that starts within two minutes with a
+  compatible sport gets that name (`activities.name`, shown before the profile name in TUI,
+  dashboard and export; never overwritten). `MetricsMaxMetData_*.json` fills the VO2max history
+  (`metrics`, `vo2_max`) for days no FIT file covers.
 - Local dates are the export's `calendarDate`; the `tz` column carries your configured zone, past
   time zones are not reconstructed. Hydration, nutrition, gear, training plans and the other
   JSON files are not imported.
 - The merge keeps the watch and the phone first: the export only fills days and nights they do
   not have (`merge.GARMIN_PRIORITY`). `reparse --source garmin_connect --kind uds` (or
-  `sleep_json`) re-parses the JSON files after a parser change.
+  `sleep_json`, `activities_json`, `maxmet`) re-parses the JSON files after a parser change.
 
 #### `wristpull export --for-claude --from DATE --to DATE`
 

@@ -167,7 +167,7 @@ def _period(today: date, weeks: int) -> tuple[date, int]:
 
 
 def activity_title(row: dict[str, Any]) -> str:
-    name = (row.get("profile_name") or "").strip()
+    name = (row.get("name") or row.get("profile_name") or "").strip()
     sport = (row.get("sport") or "activity").replace("_", " ")
     return name if name and name.lower() != sport.lower() else sport.capitalize()
 

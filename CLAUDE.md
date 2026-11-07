@@ -36,8 +36,10 @@
   optional, placeholders before 2013 discarded and counted): UDS daily summaries → table `connect_daily`
   (kind `uds`, `INSERT OR REPLACE` per day, later blocks win), nights → `sleep` rows without stages (kind
   `sleep_json`); `daily.rebuild_daily_summary` overlays `connect_daily` on NULL columns only. `reparse`
-  dispatches on these kinds (`reparse.JSON_KINDS`). Tests build synthetic exports with
-  `tests/connect_export.py`. Phase 3 (activity names, VO2max) per `workorders/garmin-connect-import.md`.
+  dispatches on these kinds (`reparse.JSON_KINDS`). `summarizedActivities.json` (kind `activities_json`) names
+  archived activities of any source (`activities.name`, migration; start within 120 s + `sport_matches`, only NULL
+  is filled; display prefers `name` over `profile_name`), `MetricsMaxMetData_*` (kind `maxmet`) adds `vo2_max`
+  metrics for days without a FIT value. Tests build synthetic exports with `tests/connect_export.py`.
 - Workouts (`src/wristpull/workouts/`): one Markdown file per workout under `<data_dir>/workouts/` (grammar in
   `model.py`), FIT encoding in `fit/workout.py` on top of `fit/writer.py`, push/verify in `push.py` via
   `importers.garmin.locate_garmin` (inject `roots`/`mounter`), SQL only in `store.py` (`workout_pushes`).

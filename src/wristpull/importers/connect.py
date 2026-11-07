@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 import sqlite3
 import zipfile
+from datetime import timedelta
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,13 +22,20 @@ from ..archive import RawArchive, sha256_bytes
 from ..config import Config
 from ..daily import rebuild_daily_summary
 from ..db import insert_rows
-from ..garmin_connect import parse_sleep_json, parse_uds
+from ..garmin_connect import parse_activity_summaries, parse_maxmet, parse_sleep_json, parse_uds, sport_matches
+from ..timeutil import iso_utc, parse_iso_utc
 from .garmin import ImportStats, import_file, store_parsed
 
 SOURCE = "garmin_connect"
 UPLOADS_DIR = "DI-Connect-Uploaded-Files"
 # JSON files of the export and their raw_files.kind: daily summaries and nights (phase 2)
-JSON_FILES = (("DI-Connect-Aggregator", "UDSFile_", "uds"), ("DI-Connect-Wellness", "_sleepData.json", "sleep_json"))
+JSON_FILES = (
+    ("DI-Connect-Aggregator", "UDSFile_", "uds"),
+    ("DI-Connect-Wellness", "_sleepData.json", "sleep_json"),
+    ("DI-Connect-Fitness", "summarizedActivities", "activities_json"),
+    ("DI-Connect-Metrics", "MetricsMaxMetData_", "maxmet"),
+)
+MATCH_TOLERANCE_S = 120  # a Connect activity and an archived one belong together when they start within this window
 Log = Callable[[str], None]
 
 
@@ -126,7 +134,42 @@ def store_json(conn: sqlite3.Connection, data: bytes, *, kind: str, raw_file_id:
     if kind == "sleep_json":
         parsed, discarded = parse_sleep_json(data, source=source, tz_name=tz_name)
         return store_parsed(conn, parsed, raw_file_id), discarded
+    if kind == "activities_json":
+        named = enrich_activity_names(conn, parse_activity_summaries(data))
+        return ({"activity_names": named} if named else {}), 0
+    if kind == "maxmet":
+        n = store_vo2max_history(conn, parse_maxmet(data, source=source, tz_name=tz_name), raw_file_id=raw_file_id)
+        return ({"metrics": n} if n else {}), 0
     raise ValueError(f"unknown JSON kind {kind}")
+
+
+def enrich_activity_names(conn: sqlite3.Connection, summaries: list[dict]) -> int:
+    """Give archived activities (any source) the name Connect knows: same start within
+    ``MATCH_TOLERANCE_S`` and a compatible sport; only where ``name`` is still NULL. Returns the rows named."""
+    named = 0
+    for item in summaries:
+        start = parse_iso_utc(item["start_utc"])
+        lo, hi = iso_utc(start - timedelta(seconds=MATCH_TOLERANCE_S)), iso_utc(start + timedelta(seconds=MATCH_TOLERANCE_S))
+        rows = conn.execute("SELECT id, start_utc, sport, name FROM activities WHERE start_utc BETWEEN ? AND ?", (lo, hi)).fetchall()
+        candidates = [r for r in rows if sport_matches(item["activity_type"], r["sport"])]
+        if not candidates:
+            continue
+        for r in candidates:
+            if r["name"] is None:
+                conn.execute("UPDATE activities SET name = ? WHERE id = ?", (item["name"], r["id"]))
+                named += 1
+    return named
+
+
+def store_vo2max_history(conn: sqlite3.Connection, rows: list[dict], *, raw_file_id: int) -> int:
+    """VO2max values from the export's metrics files; a day that already has one from a FIT file keeps it."""
+    n = 0
+    for row in rows:
+        exists = conn.execute("SELECT 1 FROM metrics WHERE source = ? AND local_date = ? AND metric = 'vo2_max'", (row["source"], row["local_date"])).fetchone()
+        if exists:
+            continue
+        n += insert_rows(conn, "metrics", [{**row, "raw_file_id": raw_file_id}])
+    return n
 
 
 def import_json_file(conn: sqlite3.Connection, archive: RawArchive, item: ExportFile, *, kind: str, tz_name: str, source: str = SOURCE) -> tuple[str, dict[str, int], int]:
@@ -134,6 +177,8 @@ def import_json_file(conn: sqlite3.Connection, archive: RawArchive, item: Export
     if archive.lookup(sha256_bytes(item.data)) is not None:
         return "skipped", {}, 0
     year = item.name[len("UDSFile_"):len("UDSFile_") + 4] if kind == "uds" else item.name[:4]
+    if kind in ("activities_json", "maxmet"):
+        year = next((part[:4] for part in item.name.split("_") if part[:4].isdigit() and len(part) >= 8), "all")
     stored = archive.store(item.data, source=source, kind=kind, original_name=item.name, origin_path=item.origin, year=year if year.isdigit() else None)
     try:
         counts, discarded = store_json(conn, item.data, kind=kind, raw_file_id=stored.raw_file_id, source=source, tz_name=tz_name)
@@ -230,4 +275,4 @@ def _import_json(conn: sqlite3.Connection, config: Config, path: Path, archive: 
             err = conn.execute("SELECT parse_error FROM raw_files WHERE sha256 = ?", (sha256_bytes(item.data),)).fetchone()
             stats.error_files.append((item.origin, err[0] if err else "unknown"))
     if counts["found"]:
-        log(f"  JSON: {counts['found']} files (daily summaries, sleep), {counts['new']} new, {counts['skipped']} already archived, {counts['errors']} errors" + (f", {stats.discarded} placeholder records discarded" if stats.discarded else ""))
+        log(f"  JSON: {counts['found']} files (daily summaries, sleep, activity names, VO2max), {counts['new']} new, {counts['skipped']} already archived, {counts['errors']} errors" + (f", {stats.discarded} placeholder records discarded" if stats.discarded else ""))

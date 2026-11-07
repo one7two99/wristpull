@@ -102,3 +102,16 @@ def sleep_record(date: str, *, start: str, end: str, scores: bool = True, stages
     if scores:
         rec["sleepScores"] = {"overallScore": 81, "qualityScore": 77, "durationScore": 90, "recoveryScore": 70, "deepScore": 60}
     return rec
+
+
+def activity_summary(name: str, start_ms: int, activity_type: str = "running", load: float = 42.0) -> dict:
+    return {"activityId": start_ms // 1000, "name": name, "activityType": activity_type, "beginTimestamp": start_ms, "startTimeGmt": float(start_ms), "startTimeLocal": float(start_ms + 7200000), "duration": 1800000.0, "avgHr": 140.0, "activityTrainingLoad": load, "deviceId": 1}
+
+
+def activities_json(items: list[dict]) -> list[dict]:
+    """The file layout: one block with ``summarizedActivitiesExport``."""
+    return [{"summarizedActivitiesExport": items}]
+
+
+def maxmet_record(date: str, vo2: float, *, stamp: str | None = None) -> dict:
+    return {"userProfilePK": 1, "calendarDate": date, "deviceId": 1, "updateTimestamp": stamp or f"{date}T05:30:27.0", "vo2MaxValue": vo2, "maxMet": vo2 / 3.5, "maxMetCategory": "GENERIC", "calibratedData": 0}

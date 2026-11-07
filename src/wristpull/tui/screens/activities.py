@@ -27,8 +27,8 @@ def pace_per_km(distance_m: float | None, seconds: float | None) -> str:
 def detail_lines(detail: dict[str, Any], tz) -> list[str]:
     start, end = detail["start_utc"], detail.get("end_utc")
     head = f"{detail.get('sport') or '–'}"
-    if detail.get("profile_name"):
-        head += f" · {detail['profile_name']}"
+    if detail.get("name") or detail.get("profile_name"):
+        head += f" · {detail.get('name') or detail['profile_name']}"
     lines = [head, f"{fmt_date(detail['local_date'], year=True)}  {local_clock(start, tz)}" + (f"–{local_clock(end, tz)}" if end else "") + f"   {detail['source']}", ""]
     duration = detail.get("timer_s") or detail.get("elapsed_s")
     lines.append(f"{_('Duration'):<14}{fmt_clock(duration):>12}   {_('Distance'):<10}{fmt_km(detail.get('distance_m')):>10}")
@@ -112,7 +112,7 @@ class ActivitiesScreen(PeriodMixin, WristpullScreen):
                 fmt_date(r["local_date"]),
                 local_clock(r["start_utc"], tz),
                 r.get("sport") or "–",
-                (r.get("profile_name") or "")[:18],
+                (r.get("name") or r.get("profile_name") or "")[:18],
                 fmt_clock(r.get("timer_s") or r.get("elapsed_s")),
                 fmt_km(r.get("distance_m")),
                 fmt_int(r.get("avg_hr")),

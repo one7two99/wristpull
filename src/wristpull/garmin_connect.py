@@ -164,3 +164,69 @@ def parse_sleep_json(data: bytes, *, source: str, tz_name: str) -> tuple[ParsedR
         out.sleep.append(ParsedSleep(row={k: v for k, v in row.items() if v is not None or k in ("source", "start_utc", "end_utc", "tz", "local_date")}))
     out.sleep.sort(key=lambda n: n.row["start_utc"])
     return out, discarded
+
+
+# --- activity summaries and VO2max history (phase 3) ------------------------------------------
+
+# Connect's activityType -> FIT sports a matching activity may carry (None: do not check the sport)
+ACTIVITY_SPORTS: dict[str, tuple[str, ...] | None] = {
+    "running": ("running",), "trail_running": ("running",), "treadmill_running": ("running",), "track_running": ("running",),
+    "walking": ("walking", "hiking"), "casual_walking": ("walking", "hiking"), "speed_walking": ("walking", "hiking"),
+    "hiking": ("hiking", "walking"), "mountaineering": ("hiking", "walking", "mountaineering"),
+    "cycling": ("cycling",), "indoor_cycling": ("cycling",), "virtual_ride": ("cycling",), "mountain_biking": ("cycling",), "road_biking": ("cycling",), "gravel_cycling": ("cycling",),
+    "strength_training": ("training", "fitness_equipment"), "indoor_cardio": ("training", "fitness_equipment"), "fitness_equipment": ("training", "fitness_equipment"),
+    "elliptical": ("training", "fitness_equipment"), "stair_climbing": ("training", "fitness_equipment"), "indoor_rowing": ("rowing", "training", "fitness_equipment"),
+    "yoga": ("training", "fitness_equipment"), "pilates": ("training", "fitness_equipment"), "hiit": ("training", "fitness_equipment"), "breathwork": ("training", "fitness_equipment"),
+    "lap_swimming": ("swimming",), "open_water_swimming": ("swimming",), "rowing": ("rowing",), "other": None, "stop_watch": None,
+}
+
+
+def _ms_to_iso(value: Any) -> str | None:
+    v = _num(value)
+    if v is None or v <= 0:
+        return None
+    return iso_utc(datetime.fromtimestamp(v / 1000.0, UTC))
+
+
+def parse_activity_summaries(data: bytes) -> list[dict[str, Any]]:
+    """``summarizedActivities.json`` -> ``{start_utc, activity_type, name, training_load}`` per activity, by start."""
+    obj = json.loads(data)
+    records: list[dict[str, Any]] = []
+    for block in (obj if isinstance(obj, list) else [obj]):
+        if isinstance(block, dict) and isinstance(block.get("summarizedActivitiesExport"), list):
+            records.extend(r for r in block["summarizedActivitiesExport"] if isinstance(r, dict))
+        elif isinstance(block, dict) and "activityId" in block:
+            records.append(block)
+    out: list[dict[str, Any]] = []
+    for rec in records:
+        start = _ms_to_iso(rec.get("startTimeGmt")) or _ms_to_iso(rec.get("beginTimestamp"))
+        name = rec.get("name") if isinstance(rec.get("name"), str) else None
+        if not start or not name or not name.strip():
+            continue
+        out.append({"start_utc": start, "activity_type": rec.get("activityType") if isinstance(rec.get("activityType"), str) else None, "name": name.strip(), "training_load": _num(rec.get("activityTrainingLoad"))})
+    out.sort(key=lambda r: r["start_utc"])
+    return out
+
+
+def sport_matches(activity_type: str | None, sport: str | None) -> bool:
+    """Whether a Connect activity type and a FIT sport can describe the same activity (unknowns match)."""
+    if not activity_type or not sport:
+        return True
+    allowed = ACTIVITY_SPORTS.get(activity_type, ())
+    if allowed is None:
+        return True
+    return sport in allowed if allowed else sport == activity_type
+
+
+def parse_maxmet(data: bytes, *, source: str, tz_name: str) -> list[dict[str, Any]]:
+    """``MetricsMaxMetData_*.json`` -> ``metrics`` rows (``vo2_max`` per day, timestamp from the record)."""
+    rows: list[dict[str, Any]] = []
+    for rec in _load_list(data):
+        date = rec.get("calendarDate") if isinstance(rec.get("calendarDate"), str) else None
+        value = _num(rec.get("vo2MaxValue"))
+        if not date or date < MIN_DATE or value is None or value <= 0:
+            continue
+        ts = gmt_to_iso(rec.get("updateTimestamp")) or f"{date}T12:00:00Z"
+        rows.append({"source": source, "ts_utc": ts, "tz": tz_name, "local_date": date, "metric": "vo2_max", "value": round(value, 1), "sport": None})
+    rows.sort(key=lambda r: r["ts_utc"])
+    return rows

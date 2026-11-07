@@ -93,7 +93,7 @@ def activities_frame(conn: sqlite3.Connection, start: str, end: str, tz: ZoneInf
                 "start_local": start_local.strftime("%Y-%m-%d %H:%M"),
                 "device": a["device"],
                 "sport": a.get("sport"),
-                "name": a.get("profile_name"),
+                "name": a.get("name") or a.get("profile_name"),
                 "duration_min": round(duration / 60, 1) if duration else None,
                 "distance_km": round(a["distance_m"] / 1000, 2) if a.get("distance_m") else None,
                 "avg_hr": a.get("avg_hr"),
