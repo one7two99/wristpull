@@ -35,7 +35,7 @@ TILES: tuple[tuple[str, str, str, str, str | None], ...] = (
 )
 TREND_WEEKS = (4, 12, 52)
 # raw_files.source -> label msgid shown as "last sync"
-SOURCE_LABELS = {"garmin_usb": "Watch (USB)", "gadgetbridge_garmin": "Watch (phone)", "gadgetbridge": "Strap (phone)"}
+SOURCE_LABELS = {"garmin_usb": "Watch (USB)", "gadgetbridge_garmin": "Watch (phone)", "garmin_connect": "Connect export", "gadgetbridge": "Strap (phone)"}
 COACH_EXCERPT_CHARS = 700
 
 

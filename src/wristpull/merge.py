@@ -12,7 +12,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
 
-GARMIN_PRIORITY = ("garmin_usb", "gadgetbridge_garmin")
+GARMIN_PRIORITY = ("garmin_usb", "gadgetbridge_garmin", "garmin_connect")  # the account export only fills gaps
 STRAP_SOURCE = "gadgetbridge_zepp"
 DEVICES = {"garmin": GARMIN_PRIORITY, "strap": (STRAP_SOURCE,)}
 

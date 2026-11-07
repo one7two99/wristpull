@@ -1,6 +1,6 @@
 -- wristpull schema. All timestamps are ISO-8601 UTC strings ("2026-10-31T06:12:33Z");
 -- tz holds the IANA zone used to derive local_date.
--- source is one of: garmin_usb | gadgetbridge_garmin | gadgetbridge_zepp
+-- source is one of: garmin_usb | gadgetbridge_garmin | garmin_connect (account export) | gadgetbridge_zepp
 
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,

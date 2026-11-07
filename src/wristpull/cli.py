@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import zipfile
 from pathlib import Path
 
 from . import __version__
@@ -28,6 +29,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_garmin = import_sub.add_parser("garmin", help="import FIT files from a USB-connected Garmin watch")
     p_garmin.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
     p_garmin.add_argument("--dry-run", action="store_true", help="list new files without copying or parsing")
+    p_export = import_sub.add_parser("garmin-export", help="import the Garmin Connect account export (portal zip or extracted directory)")
+    p_export.add_argument("path", type=Path, help="the downloaded export zip, the UploadedFiles_*.zip, or the extracted directory")
+    p_export.add_argument("--dry-run", action="store_true", help="count new files without archiving or parsing")
     p_gb = import_sub.add_parser("gadgetbridge", help="import an already copied Gadgetbridge export (database and/or files dir)")
     p_gb.add_argument("--db", type=Path, help="exported Gadgetbridge.db")
     p_gb.add_argument("--files", type=Path, help="local copy of Android/data/nodomain.freeyourgadget.gadgetbridge/files")
@@ -224,6 +228,27 @@ def cmd_pull(args: argparse.Namespace, config: Config) -> int:
         print("inserted: " + _fmt(stats.rows))
     for message in stats.messages:
         print(f"  note: {message}", file=sys.stderr)
+    return 0 if not stats.errors else 2
+
+
+def cmd_import_garmin_export(args: argparse.Namespace, config: Config) -> int:
+    from .importers.connect import import_garmin_export
+
+    conn = _open(config)
+    log = (lambda _m: None) if args.quiet else print
+    try:
+        stats = import_garmin_export(conn, config, args.path, dry_run=args.dry_run, log=log)
+    except (FileNotFoundError, zipfile.BadZipFile) as exc:
+        print(f"garmin-export: {exc}", file=sys.stderr)
+        return 2
+    mode = "dry run: " if args.dry_run else ""
+    print(f"{mode}{args.path}: {stats.found} FIT files, {stats.new} new, {stats.skipped} already archived, {stats.errors} errors")
+    if stats.rows:
+        print("inserted: " + ", ".join(f"{k}={v}" for k, v in sorted(stats.rows.items())))
+    for origin, err in stats.error_files[:20]:
+        print(f"  error {origin}: {err}", file=sys.stderr)
+    if len(stats.error_files) > 20:
+        print(f"  … {len(stats.error_files) - 20} more errors (wristpull reparse --source garmin_connect --errors lists them)", file=sys.stderr)
     return 0 if not stats.errors else 2
 
 
@@ -674,6 +699,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "import":
         if args.device == "gadgetbridge":
             return cmd_import_gadgetbridge(args, config)
+        if args.device == "garmin-export":
+            return cmd_import_garmin_export(args, config)
         return cmd_import_garmin(args, config)
     if args.command == "pull":
         return cmd_pull(args, config)

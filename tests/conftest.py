@@ -91,10 +91,11 @@ def build_monitor_fit(day: datetime | None = None) -> bytes:
     return w.finish()
 
 
-def build_sleep_fit(start: datetime | None = None) -> bytes:
+def build_sleep_fit(start: datetime | None = None, *, file_type: int = 32) -> bytes:
+    """``file_type`` 32 as the fenix writes it into the Sleep folder; the Connect export carries 49."""
     start = start or datetime(2026, 10, 5, 21, 30, tzinfo=UTC)  # 23:30 local, wake 2026-10-06
     w = FitWriter()
-    file_id(w, 32, start)
+    file_id(w, file_type, start)
     # the watch's sleep window (event 74 start/stop) opens 20 minutes before the first stage record
     w.message(21, [(253, "uint32", ts(start - timedelta(minutes=20))), (0, "enum", 74), (1, "enum", 0)])
     stages = [(0, 1), (10, 2), (40, 3), (90, 2), (120, 4), (150, 2), (300, 3), (340, 2), (420, 1), (425, 2), (470, 1)]

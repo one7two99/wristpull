@@ -1271,6 +1271,9 @@ msgstr "Uhr (USB)"
 msgid "Watch (phone)"
 msgstr "Uhr (über Handy)"
 
+msgid "Connect export"
+msgstr "Connect-Export"
+
 msgid "Strap (phone)"
 msgstr "Gurt (über Handy)"
 

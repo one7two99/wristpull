@@ -18,7 +18,7 @@ from .base import PeriodMixin, WristpullScreen
 
 SOURCE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("all", ()),
-    ("garmin", ("garmin_usb", "gadgetbridge_garmin")),
+    ("garmin", ("garmin_usb", "gadgetbridge_garmin", "garmin_connect")),
     ("strap", ("gadgetbridge_zepp",)),
 )
 BAR_WIDTH = 48

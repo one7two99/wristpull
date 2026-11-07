@@ -29,6 +29,12 @@
   flags are computed in Python before prompting; SQL only in `store.py`/`context.py`; every test uses `FakeBackend`
   or fake transports, never the network. Goal profile and dry-run prompts live under `<data_dir>/coach/`.
   Concept and waves: `docs/coach-concept.md`.
+- Garmin Connect account export (`src/wristpull/importers/connect.py`, source `garmin_connect`, lowest merge priority):
+  the portal zip is read in place (inner `UploadedFiles_*.zip` from memory), every FIT goes through
+  `importers.garmin.import_file(kind=None, …)` which derives the kind from the FIT type (`FIT_TYPE_KINDS`); the
+  `<e-mail>_` prefix of the file names is stripped. Tests build synthetic exports with `tests/connect_export.py`.
+  Phase 2 (UDS daily values, sleep JSON → `connect_daily` + overlay) and 3 (activity names, VO2max) per
+  `workorders/garmin-connect-import.md`.
 - Workouts (`src/wristpull/workouts/`): one Markdown file per workout under `<data_dir>/workouts/` (grammar in
   `model.py`), FIT encoding in `fit/workout.py` on top of `fit/writer.py`, push/verify in `push.py` via
   `importers.garmin.locate_garmin` (inject `roots`/`mounter`), SQL only in `store.py` (`workout_pushes`).

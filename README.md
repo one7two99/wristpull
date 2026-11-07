@@ -47,6 +47,7 @@ form.
 | `import garmin` | copy and parse new FIT files from the USB-connected watch |
 | `pull phone` | trigger a Gadgetbridge export, pull database and FIT files over ADB, import them |
 | `import gadgetbridge` | import an already copied Gadgetbridge export |
+| `import garmin-export` | import the Garmin Connect account export (your whole history as FIT files) |
 | `status` | what is stored, which device is connected |
 | `inspect FILE` | message types and fields of a FIT file |
 | `config` | show or create the configuration file |
@@ -173,6 +174,36 @@ Imports an export that was copied by other means (e.g. `adb pull` by hand, or a 
 ```sh
 wristpull import gadgetbridge --db ~/tmp/Gadgetbridge.db --files ~/tmp/files
 ```
+
+#### `wristpull import garmin-export`
+
+Imports the account export you can request at Garmin Connect (Account → Data Management →
+Export your data; Garmin mails a link to a zip, sometimes split into `…_1.zip`, `…_2.zip`). Pass
+the zip as downloaded, the inner `UploadedFiles_*.zip`, or an extracted directory:
+
+```sh
+uv run wristpull import garmin-export ~/Downloads/Garmin-Export/<id>_1.zip --dry-run
+uv run wristpull import garmin-export ~/Downloads/Garmin-Export/<id>_1.zip
+# in Docker: put the zip under <data_dir>/imports/ (mounted at /data) or mount the folder
+docker compose run --rm -v ~/Downloads/Garmin-Export:/export:ro cli wristpull import garmin-export /export/<id>_1.zip
+```
+
+What it does (phase 1 of the work order – daily values and sleep from the JSON files follow in
+phase 2):
+
+- Reads `DI_CONNECT/DI-Connect-Uploaded-Files/UploadedFiles_*.zip` in place, file by file, nothing
+  is extracted to disk. Every FIT file the account ever uploaded goes through the normal parser
+  under the source **`garmin_connect`**: monitoring, sleep, HRV status, metrics, activities.
+- The `raw_files.kind` comes from the FIT file type (`monitoring_b` → monitor, 49 → sleep,
+  68 → hrv, 44 → metrics, `activity`; anything else → other), the file name loses the e-mail
+  prefix Connect puts in front (`<account>_7102332115.fit` → `7102332115.fit`).
+- Files already archived from the watch or the phone are byte-identical and skipped by the
+  SHA-256 check; a second run imports nothing. Parse errors are archived with
+  `parse_status = 'error'` and listed at the end (`reparse --source garmin_connect --errors`).
+- Expect about 15 minutes for a ten-year export (15,000 files); a progress line appears every 500
+  files, one commit per file so an interrupted run can simply be repeated.
+- The merge keeps the watch and the phone first: the export only fills days and nights they do
+  not have (`merge.GARMIN_PRIORITY`).
 
 #### `wristpull export --for-claude --from DATE --to DATE`
 
@@ -712,6 +743,7 @@ can be re-run at any time. Coach answers are not files but rows in `coach_runs`
 |---|---|---|---|
 | `garmin_usb` | fenix | FIT files from the watch over USB | complete, including activities with per-second records |
 | `gadgetbridge_garmin` | fenix | the same FIT files, fetched by Gadgetbridge over Bluetooth and pulled from the phone | same parser; the watch splits them into smaller files |
+| `garmin_connect` | every Garmin device the account ever had | the FIT files of the Garmin Connect account export (`import garmin-export`) | same parser; fills the history from before wristpull, lowest priority in the merge |
 | `gadgetbridge_zepp` | Helio Strap | tables of the exported Gadgetbridge database | per-minute samples, no raw files exist |
 
 Two things seen on the first real night (2026-11-01) shape how the sources complement each other:
@@ -738,11 +770,12 @@ Two things seen on the first real night (2026-11-01) shape how the sources compl
   bedtime to wake-up, what Garmin Connect shows as the sleep period). Minutes inside the window
   without a stage record are stored as `unmeasurable` stages so the gap stays visible.
 
-`garmin_usb` and `gadgetbridge_garmin` describe the same watch, so their readings overlap. They
-are kept apart in the sample tables and in `daily_summary` (one row per source and day). The
-export and report layer merges them (`merge.py`): daily metrics are coalesced column by column,
-USB first, Gadgetbridge fills gaps; activities and nights are de-duplicated by start minute. The
-Helio Strap is a separate device and stays a separate source throughout (`strap_*` columns).
+`garmin_usb`, `gadgetbridge_garmin` and `garmin_connect` describe the same watch, so their
+readings overlap. They are kept apart in the sample tables and in `daily_summary` (one row per
+source and day). The export and report layer merges them (`merge.py`): daily metrics are
+coalesced column by column, USB first, Gadgetbridge fills gaps, the Connect export comes last;
+activities and nights are de-duplicated by start minute. The Helio Strap is a separate device and
+stays a separate source throughout (`strap_*` columns).
 
 ### Tables
 

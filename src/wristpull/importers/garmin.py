@@ -28,6 +28,14 @@ from ..timeutil import zone
 SOURCE = "garmin_usb"
 MTP_ROOT_LABEL = "mtp://GARMIN"
 Log = Callable[[str], None]
+# raw_files.kind from the decoded FIT file type, for files that come without a GARMIN/<folder> context
+# (the Garmin Connect export). Numeric types verified on a real export with `wristpull inspect`:
+# 49 carries sleep_level messages, 68 hrv_value, 44 the metrics messages of the Metrics folder.
+FIT_TYPE_KINDS = {"monitoring_b": "monitor", "activity": "activity", "49": "sleep", "68": "hrv", "44": "metrics"}
+
+
+def kind_for_fit_type(file_type: str | None) -> str:
+    return FIT_TYPE_KINDS.get(file_type or "", "other")
 
 
 @dataclass
@@ -100,14 +108,18 @@ def import_file(
     archive: RawArchive,
     data: bytes,
     *,
-    kind: str,
+    kind: str | None,
     original_name: str,
     origin_path: str | None,
     device_mtime,
     tz_name: str,
     source: str = SOURCE,
 ) -> tuple[str, dict[str, int]]:
-    """Archive + parse one FIT file. Returns ('new'|'skipped'|'error', inserted counts)."""
+    """Archive + parse one FIT file. Returns ('new'|'skipped'|'error', inserted counts).
+
+    ``kind`` is the watch folder's kind; ``None`` derives it from the decoded FIT type
+    (:func:`kind_for_fit_type`), which is what the Connect export needs.
+    """
     digest = sha256_bytes(data)
     if archive.lookup(digest) is not None:
         return "skipped", {}
@@ -118,6 +130,8 @@ def import_file(
         fit = decode_fit(data)
     except Exception as exc:  # noqa: BLE001 - any decode failure must not stop the import
         error = f"{type(exc).__name__}: {exc}"
+    if kind is None:
+        kind = kind_for_fit_type(fit.file_type if fit is not None else None)
 
     year = fit.time_created.strftime("%Y") if fit is not None and fit.time_created else None
     stored = archive.store(
