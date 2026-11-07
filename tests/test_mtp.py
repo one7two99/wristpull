@@ -60,8 +60,9 @@ def test_parse_detect():
 
 def test_no_device_and_busy_markers():
     assert not no_device(fx("detect.txt")) and not busy(fx("detect.txt"))
-    assert no_device("libmtp version: 1.1.22\n\nListing raw device(s)\n   No raw devices found.\n")
-    assert no_device("mtp-folders: no devices found\n") and no_device(fx("getfile-nodevnode.txt"))
+    for name in ("detect-unplugged.txt", "folders-unplugged.txt", "files-unplugged.txt", "getfile-unplugged.txt", "getfile-nodevnode.txt"):
+        assert no_device(fx(name)) and not busy(fx(name)), name
+    assert parse_folders(fx("folders-unplugged.txt")) == {} and parse_files(fx("files-unplugged.txt"), {}) == []
     assert busy(fx("detect-busy.err")) and busy(fx("folders-busy.err")) and busy(fx("detect-nodevnode.err"))
 
 

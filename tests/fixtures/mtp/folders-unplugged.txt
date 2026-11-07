@@ -1,0 +1,2 @@
+Attempting to connect device(s)
+mtp-folders: no devices found

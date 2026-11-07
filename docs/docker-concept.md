@@ -67,7 +67,7 @@ UID 1000 with `-v /dev/bus/usb:/dev/bus/usb --device-cgroup-rule='c 189:* rmw'`,
 | `GarminDevice.xml` | fetched by id (48 KB); `<Id>` is the unit id used in `workout_pushes.watch_serial` |
 | Host holds the device (`gio mount` on the host) | all tools print `libusb_claim_interface() reports device is busy, likely in use by GVFS or KDE MTP device handling already` + `Unable to open raw device 0` on **stderr**, while `mtp-folders` still says `Successfully connected` / `OK.` with rc 0 |
 | No access to the device node | `libusb_open() failed!` + `LIBMTP PANIC: Unable to initialize device` on stderr, rc 0, empty tree |
-| Watch unplugged | `No raw devices found.` / `no devices found` on stdout, rc 0 (from the libmtp sources; capture pending) |
+| Watch unplugged | `No raw devices found.` / `no devices found` / `No Devices have been found` / `No devices.` on stdout, rc 0, 1–2 s |
 | UID 1001 (no `uaccess` ACL) | worked on this laptop only because a third-party rule (`horizon_hid.rules`) sets `MODE="0666"` for all USB devices – not portable |
 
 Conclusions:
@@ -129,7 +129,7 @@ With `91-wristpull-garmin-docker.rules` installed and the `-docker` user units c
   the udev database of the first enumeration; the behaviour is what counts.
 - Open: the phone was not visible on USB during the session (no `lsusb` entry), so `pull phone`
   from the container and the host-adb-server conflict message are confirmed only with fakes.
-  A verbatim "watch unplugged" capture for the fixtures is still missing.
+  The workout pushed over MTP was confirmed on the watch under Rad Indoor › Training › Workouts.
 
 ## Guiding principles
 
