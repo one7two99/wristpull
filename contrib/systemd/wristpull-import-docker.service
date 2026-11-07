@@ -1,0 +1,12 @@
+[Unit]
+Description=wristpull (Docker): import FIT files from the USB-connected Garmin watch over MTP
+
+[Service]
+Type=oneshot
+# the device node and udev properties need a moment after the rule fires
+ExecStartPre=/bin/sleep 3
+# -T: no pseudo-terminal (the unit has none). Adjust the compose file path to your checkout.
+ExecStart=/usr/bin/docker compose -f %h/dev/wristpull/compose.yaml run --rm -T cli wristpull -q import garmin
+# Optional, while the watch is on the cable anyway: push the planned workouts (exit 2 = some invalid).
+#ExecStart=/usr/bin/docker compose -f %h/dev/wristpull/compose.yaml run --rm -T cli wristpull -q workout push --upcoming
+#SuccessExitStatus=2

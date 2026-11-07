@@ -1,0 +1,10 @@
+# Garmin watch (vendor 091e) for the Docker `cli` service (docs/docker-concept.md, phase C).
+# - GROUP/MODE: the container runs as your user with group plugdev (WRISTPULL_USB_GID in .env), so the
+#   device node must be readable without the desktop's uaccess ACL (timers run without a session).
+# - Clearing ID_MTP_DEVICE/ID_MEDIA_PLAYER hides the watch from the desktop's MTP handling (gvfs volume
+#   monitor, KDE Solid/kiod6), which would otherwise hold the device and block the container
+#   ("libusb_claim_interface() reports device is busy"). Numbered above 70-uaccess.rules on purpose.
+#   Side effect: the native gvfs path on this machine needs `[garmin] access = "gvfs"` plus a manual
+#   `gio mount mtp://...`; install either this rule or 90-wristpull-garmin.rules, not both.
+# - SYSTEMD_USER_WANTS starts the user's import unit (contrib/systemd/wristpull-import-docker.service).
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="091e", GROUP="plugdev", MODE="0660", ENV{ID_MTP_DEVICE}="", ENV{ID_MEDIA_PLAYER}="", TAG+="systemd", ENV{SYSTEMD_USER_WANTS}="wristpull-import-docker.service"

@@ -1,0 +1,8 @@
+[Unit]
+Description=wristpull (Docker): daily coach check
+After=wristpull-pull-docker.service
+
+[Service]
+Type=oneshot
+# Cloud backends read their API key from .env next to the compose file (OPENROUTER_API_KEY, ANTHROPIC_API_KEY).
+ExecStart=/usr/bin/docker compose -f %h/dev/wristpull/compose.yaml run --rm -T cli wristpull -q coach daily

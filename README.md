@@ -657,8 +657,12 @@ cp contrib/bin/wristpull ~/.local/bin/     # optional wrapper: `wristpull tui` r
 ## Automation
 
 `contrib/systemd/` has user units and timers for the morning routine (`pull phone` at 06:45, `coach
-daily` at 07:00) and a oneshot import service; `contrib/udev/` has the rule that starts that import
-when the watch is plugged in. Both READMEs explain installation. Keep the order the watch dictates:
+daily` at 07:00) and a oneshot import service, each in a native variant (`uv run` in the checkout) and
+a Docker variant (`docker compose run --rm -T cli …`, suffix `-docker`); `contrib/udev/` has the rule
+that starts that import when the watch is plugged in (`90-…` for the native mount, `91-…-docker` for
+the container: it also makes the device readable for `plugdev` and hides the watch from the desktop's
+MTP handling). Both READMEs explain installation; `loginctl enable-linger` lets everything run without
+a logged-in session. Keep the order the watch dictates:
 USB import before any phone app syncs, because Garmin deletes monitoring files once they were fetched.
 While the watch is on the cable anyway, `wristpull workout push --upcoming` copies the planned
 workouts over; the import service template shows where that step belongs.

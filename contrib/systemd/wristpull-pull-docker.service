@@ -1,0 +1,7 @@
+[Unit]
+Description=wristpull (Docker): pull Gadgetbridge data from the phone over ADB
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker compose -f %h/dev/wristpull/compose.yaml run --rm -T cli wristpull -q pull phone

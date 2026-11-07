@@ -1,8 +1,9 @@
 # wristpull in Docker – concept
 
 Status: spike on the real watch done 2026-11-07 (phase 0, results below); phase A (`cli`
-service, ADB, container-aware TUI) and phase B (MTP device layer) implemented the same day;
-phase C follows (waves at the end). The web dashboard concept (`dashboard-concept.md`) still applies to the
+service, ADB, container-aware TUI), phase B (MTP device layer, confirmed on the watch) and
+phase C (udev rule and units for the container, host installation pending) implemented the same
+day; results below. The web dashboard concept (`dashboard-concept.md`) still applies to the
 `web` service; this document adds the `cli` service that runs everything else.
 
 ## Why
@@ -92,6 +93,23 @@ Conclusions:
   `ID_MEDIA_PLAYER` for `091e` *after* `70-uaccess.rules` so the desktop no longer offers the
   watch; with that rule the native gvfs path on the same machine needs `[garmin] access = "gvfs"`
   plus a manual `gio mount` (verified in phase C).
+
+## Phase B on the real watch (2026-11-07, `docker compose run --rm cli wristpull …`)
+
+| Command | Result | Time |
+|---|---|---|
+| `status` / `mount` | `connected over MTP (fenix 6X Pro, no mount needed)`; mount reports the device only | 2 s |
+| `import garmin --dry-run` | 44 FIT files listed, 36 skipped by name+size, 8 would be fetched, nothing downloaded | 10 s |
+| `import garmin` | 8 files fetched and parsed, SHA-256 of `MB795515.FIT` identical to the spike's `mtp-getfile` copy; staging directory empty afterwards | 45 s |
+| `import garmin` again | 44 already archived, 0 new | 10 s |
+| `workout watch` (empty) | `0 active + 0 pending … (mtp://GARMIN on fenix 6X Pro)` | 11 s |
+| `workout push --upcoming` | one file to `GARMIN/NewFiles`, `target` = `mtp://GARMIN/NewFiles/<file>`, unit id from `GarminDevice.xml` | 29 s |
+| `workout watch` | lists it as pending, origin wristpull | 17 s |
+| `workout remove --yes Ergometer` | backup in `workouts/watch-backup/`, file deleted, re-listing without a second fetch | 32 s |
+
+Every call opens the device again, so a command costs 2 s (detect) + 4 s (folders) + 6–7 s (files)
+plus about 6 s per file transferred. Fine for the daily routine; a ctypes binding would cut the
+per-call overhead if it ever matters.
 
 ## Guiding principles
 
