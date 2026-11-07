@@ -1,0 +1,78 @@
+#!/bin/bash
+# wristpull-morning: walk through the morning routine step by step (watch, phone, coach).
+#
+#   wristpull-morning            all steps      wristpull-morning phone coach   only these
+#
+# Order matters: the watch deletes its monitoring files once a sync client has fetched them, so the
+# USB import comes first, then Gadgetbridge syncs the watch and the strap, then the phone is pulled.
+# Runs every command in the Docker `cli` service; set WRISTPULL_CMD="uv run wristpull" for the native
+# installation. Install: cp contrib/bin/wristpull-morning ~/.local/bin/ && chmod +x ~/.local/bin/wristpull-morning
+set -u
+compose="${WRISTPULL_COMPOSE:-$HOME/dev/wristpull/compose.yaml}"
+watch_vendor="${WRISTPULL_WATCH_VENDOR:-091e}"   # Garmin
+phone_vendor="${WRISTPULL_PHONE_VENDOR:-3310}"   # Mudita; see `lsusb` for your phone
+import_unit="wristpull-import-docker.service"    # the udev-started import, if installed (we wait for it)
+
+wristpull() {
+    if [ -n "${WRISTPULL_CMD:-}" ]; then
+        $WRISTPULL_CMD "$@"
+    else
+        docker compose -f "$compose" run --rm cli wristpull "$@" 2>&1 | grep -v '^ Container'
+        return "${PIPESTATUS[0]}"
+    fi
+}
+say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
+ask()  { printf '%s [y/N] ' "$*"; read -r answer; [ "${answer,,}" = y ] || [ "${answer,,}" = j ]; }
+attached() { lsusb -d "$1:" >/dev/null 2>&1; }
+wait_for() {  # wait_for <vendor> <attached|gone> <waiting message> <done message>
+    local vendor=$1 state=$2 message=$3 done=$4 shown=0
+    while :; do
+        if attached "$vendor"; then [ "$state" = attached ] && break; else [ "$state" = gone ] && break; fi
+        [ $shown = 0 ] && { printf '%s' "$message"; shown=1; }
+        printf '.'; sleep 2
+    done
+    [ $shown = 1 ] && printf ' '; echo "$done"
+}
+unit_running() { systemctl --user is-active --quiet "$import_unit" 2>/dev/null; }
+
+steps=("$@"); [ ${#steps[@]} = 0 ] && steps=(watch phone coach)
+has() { local s; for s in "${steps[@]}"; do [ "$s" = "$1" ] && return 0; done; return 1; }
+failed=()
+
+if has watch; then
+    say "1/3  Watch: plug the Garmin watch in over USB."
+    wait_for "$watch_vendor" attached "    waiting for the watch" "    watch found."
+    if unit_running; then printf '    the plug-in import service is running, waiting for it '; while unit_running; do printf '.'; sleep 2; done; echo; fi
+    sleep 3  # the fenix enumerates itself twice right after plugging in
+    say "    importing FIT files from the watch …"
+    wristpull import garmin || failed+=("import garmin")
+    if ask "    push the planned workouts to the watch (workout push --upcoming)?"; then
+        wristpull workout push --upcoming || failed+=("workout push")
+    fi
+    say "    Unplug the watch now. It imports pushed workouts and resumes Bluetooth sync only when unplugged."
+    wait_for "$watch_vendor" gone "    waiting for the watch to be unplugged" "    watch unplugged."
+fi
+
+if has phone; then
+    say "2/3  Phone: in Gadgetbridge, sync the watch AND the strap (pull down on each device card)."
+    printf '    Press Enter when both syncs are done '; read -r _
+    say "    Now connect the phone over USB with USB debugging enabled."
+    wait_for "$phone_vendor" attached "    waiting for the phone" "    phone found."
+    sleep 2
+    say "    pulling the Gadgetbridge export and FIT files from the phone …"
+    wristpull pull phone || failed+=("pull phone")
+fi
+
+if has coach; then
+    say "3/3  Coach"
+    if ask "    run the daily coach check now (coach daily)?"; then
+        wristpull coach daily || failed+=("coach daily")
+    fi
+fi
+
+say "Done."
+if [ ${#failed[@]} -gt 0 ]; then
+    echo "    failed: ${failed[*]}  (see the output above; every step can be run alone: wristpull-morning phone)"
+    exit 1
+fi
+echo "    Have a good day. wristpull status / tui / the dashboard show the new data."

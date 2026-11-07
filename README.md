@@ -657,6 +657,12 @@ cp contrib/bin/wristpull ~/.local/bin/     # optional wrapper: `wristpull tui` r
 
 ## Automation
 
+Devices that are only sometimes on the cable do not fit timers. `contrib/bin/wristpull-morning` walks
+through the routine instead: plug the watch in (import, optional workout push), unplug it, sync watch
+and strap in Gadgetbridge, plug the phone in (`pull phone`), optionally run the daily coach – each step
+waits for the device and can be run on its own (`wristpull-morning phone`).
+
+
 `contrib/systemd/` has user units and timers for the morning routine (`pull phone` at 06:45, `coach
 daily` at 07:00) and a oneshot import service, each in a native variant (`uv run` in the checkout) and
 a Docker variant (`docker compose run --rm -T cli …`, suffix `-docker`); `contrib/udev/` has the rule
