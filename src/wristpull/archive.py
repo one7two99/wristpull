@@ -46,6 +46,15 @@ class RawArchive:
     def lookup(self, sha256: str) -> sqlite3.Row | None:
         return self.conn.execute("SELECT * FROM raw_files WHERE sha256 = ?", (sha256,)).fetchone()
 
+    def known_name_sizes(self, source: str) -> set[tuple[str, str, int]]:
+        """``(kind, original_name, size_bytes)`` of every archived file of ``source``: a cheap prefilter before a download.
+
+        Only a heuristic (same name and size, different content, would slip through); the SHA-256 check in
+        :meth:`lookup` stays the authority once the bytes are here.
+        """
+        rows = self.conn.execute("SELECT kind, original_name, size_bytes FROM raw_files WHERE source = ?", (source,)).fetchall()
+        return {(str(r[0]), str(r[1]), int(r[2])) for r in rows}
+
     def lookup_path(self, path: Path | str) -> sqlite3.Row | None:
         """Find the raw_files row for an archived file given its absolute or raw-relative path."""
         candidate = Path(path)

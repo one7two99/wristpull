@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -230,5 +230,41 @@ def test_watch_view_without_device(config: Config, tmp_path: Path):
             await pilot.pause()
             assert calls == [[]] and app.runner.last.spec.key == "workout_watch"
             assert any("watch mounted" in line for line in app.runner.lines)
+
+    run(scenario())
+
+
+def test_watch_view_and_mount_over_mtp(config: Config, tmp_path: Path, garmin_tree: Path):
+    """With access=mtp the workouts screen lists the watch through FakeMtp and the mount job only probes."""
+    from fake_mtp import FakeMtp
+
+    (garmin_tree / "Workouts").mkdir()
+    (garmin_tree / "NewFiles").mkdir()
+    save(config, Workout(name="Easy run", day=TODAY + timedelta(days=1), steps=[Step("active", duration_s=600)]))
+    fake = FakeMtp(garmin_tree.parent)
+    deps = make_deps(tmp_path)
+    deps.access = "mtp"
+    deps.mtp_factory = lambda: fake
+    app = make_app(config, deps)
+
+    async def scenario():
+        async with app.run_test(size=(140, 44)) as pilot:
+            await pilot.press("0")
+            await pilot.pause()
+            assert isinstance(app.screen, WorkoutsScreen)
+            assert "MTP access" in str(app.screen.query_one("#workouts-status", Panel).content)
+            await pilot.press("p")  # push the upcoming workouts over MTP
+            await wait_jobs(app)
+            await pilot.pause()
+            assert fake.sent and fake.sent[0][0] == "/GARMIN/NewFiles"
+            await pilot.press("w")
+            await wait_jobs(app)
+            await pilot.pause()
+            status = str(app.screen.query_one("#workouts-status", Panel).content)
+            assert "1 waiting for unplugging" in status and "fenix 6 Pro" in status
+            await pilot.press("m")
+            await wait_jobs(app)
+            await pilot.pause()
+            assert any("MTP access" in line for line in app.runner.lines)
 
     run(scenario())

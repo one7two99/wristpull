@@ -412,6 +412,7 @@ timezone = "Europe/Berlin"               # IANA zone for local_date
 [garmin]
 folders = ["Activity", "Monitor", "Sleep", "Metrics", "HRVStatus"]
 mount_hints = []                         # extra directories that contain GARMIN/
+access = "auto"                          # auto | gvfs | mtp: how the watch is reached (see "Running everything in Docker")
 
 [phone]
 serial = "<adb serial>"                   # ADB serial of the phone running Gadgetbridge
@@ -636,9 +637,20 @@ cp contrib/bin/wristpull ~/.local/bin/     # optional wrapper: `wristpull tui` r
 - **Coach:** `cli` runs with `network_mode: host`, so `[coach] ollama_url =
   "http://localhost:11434"` works unchanged; API keys come from `.env` or your shell as for `web`.
   Never set `OLLAMA_HOST=0.0.0.0` and never run `adb -a`.
+- **Watch (MTP):** there is no gvfs in the container, so the watch is read with libmtp's
+  command-line tools (`mtp-files`, `mtp-getfile`, …) behind `src/wristpull/mtp.py`.
+  `[garmin] access = "auto"` picks them inside the container and the mount outside; `"mtp"`
+  forces them on the host as well (then `apt install mtp-tools`, and nothing else may hold the
+  device: no gvfs mount, no Dolphin). Every call opens the device again (about six seconds on a
+  fenix 6X Pro), so `import garmin` lists once, skips files already archived by name and size,
+  downloads the rest into `<data_dir>/staging/` and archives them from there with the usual
+  SHA-256 check; `workout push`, `verify`, `watch` and `remove` work the same way (`target` in the
+  push history reads `mtp://GARMIN/NewFiles/<file>`). The tools report no modification time, so
+  `device_mtime_utc` stays empty for these files. `wristpull mount` only reports the device;
+  `status` says "connected over MTP". Measured values and the full spike are in
+  [docs/docker-concept.md](docs/docker-concept.md).
 - **Limits:** Linux only (Docker Desktop on macOS and Windows does not pass USB through; the
-  phone can still be reached over wireless ADB). The watch over MTP is phase B of the Docker
-  concept; until then `import garmin` needs the native installation or `--path`.
+  phone can still be reached over wireless ADB).
 - **Updating:** `git pull && docker compose build` rebuilds the one image for both services;
   `docker compose up -d web` restarts the dashboard.
 

@@ -109,6 +109,12 @@ msgstr "{n} Rohdateien mit Parse-Fehlern"
 msgid "Garmin attached but not mounted; the import will try to mount it"
 msgstr "Garmin angeschlossen, aber nicht gemountet; der Import versucht das Mounten"
 
+msgid "Garmin over MTP: {message}"
+msgstr "Garmin über MTP: {message}"
+
+msgid "MTP access: no mount is needed, the tools open the watch for every command"
+msgstr "MTP-Zugriff: kein Mount nötig, die Tools öffnen die Uhr bei jedem Befehl"
+
 msgid "palette"
 msgstr "Palette"
 
@@ -351,6 +357,9 @@ msgstr "Aktualisiert"
 
 msgid "USB, mounted at {path}"
 msgstr "USB, gemountet unter {path}"
+
+msgid "USB (MTP), no mount needed"
+msgstr "USB (MTP), kein Mount nötig"
 
 msgid "attached, not mounted"
 msgstr "angeschlossen, nicht gemountet"
@@ -988,6 +997,9 @@ msgstr "Uhr verbunden"
 
 msgid "No watch mounted (push mounts it when possible)"
 msgstr "Keine Uhr eingebunden (der Push versucht es selbst)"
+
+msgid "MTP access (push opens the watch)"
+msgstr "MTP-Zugriff (der Push öffnet die Uhr)"
 
 msgid "{drafts} drafts, {pushed} pushed, {verified} verified, {invalid} invalid"
 msgstr "{drafts} Entwürfe, {pushed} übertragen, {verified} bestätigt, {invalid} ungültig"

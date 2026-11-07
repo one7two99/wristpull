@@ -12,6 +12,7 @@ from .runtime import CONFIG_FILE_ENV, DATA_DIR_ENV
 from .timeutil import detect_local_zone
 
 DEFAULT_GARMIN_FOLDERS = ["Activity", "Monitor", "Sleep", "Metrics", "HRVStatus"]
+GARMIN_ACCESS = ("auto", "gvfs", "mtp")
 
 EXAMPLE_CONFIG = """\
 # wristpull configuration
@@ -30,6 +31,9 @@ timezone = "{timezone}"
 folders = {folders}
 # Additional directories to search for a mounted watch (a directory that contains GARMIN/).
 mount_hints = {mount_hints}
+# How the watch is reached: "auto" (MTP tools inside the Docker container, a gvfs/USB mount otherwise),
+# "gvfs" (a mounted GARMIN folder) or "mtp" (libmtp command-line tools, no mount).
+access = "{garmin_access}"
 
 [phone]
 # ADB serial of the phone running Gadgetbridge.
@@ -147,6 +151,7 @@ class Config:
     timezone: str = field(default_factory=detect_local_zone)
     garmin_folders: list[str] = field(default_factory=lambda: list(DEFAULT_GARMIN_FOLDERS))
     garmin_mount_hints: list[Path] = field(default_factory=list)
+    garmin_access: str = "auto"  # auto | gvfs | mtp, see GARMIN_ACCESS
     phone_serial: str | None = None
     phone_export_dir: str = "/sdcard/Gadgetbridge"
     ui_language: str | None = None  # None: follow the system locale
@@ -175,6 +180,7 @@ class Config:
             timezone=self.timezone,
             folders=folders,
             mount_hints=hints,
+            garmin_access=self.garmin_access,
             phone_serial=self.phone_serial or "",
             ui_language=self.ui_language or "",
             ui_theme=self.ui_theme,
@@ -241,6 +247,8 @@ def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = Non
         cfg.garmin_folders = [str(f) for f in garmin["folders"]]
     if "mount_hints" in garmin:
         cfg.garmin_mount_hints = [_expand(str(p)) for p in garmin["mount_hints"]]
+    if garmin.get("access"):
+        cfg.garmin_access = str(garmin["access"]).strip().lower()
     phone = data.get("phone", {})
     if phone.get("serial"):
         cfg.phone_serial = str(phone["serial"])
@@ -307,6 +315,8 @@ def validate_config(cfg: Config) -> list[str]:
         problems.append("data_dir must not be empty")
     if not cfg.garmin_folders:
         problems.append("at least one Garmin folder is needed")
+    if cfg.garmin_access not in GARMIN_ACCESS:
+        problems.append(f"garmin access must be one of {', '.join(GARMIN_ACCESS)}")
     if cfg.ui_language and cfg.ui_language not in UI_LANGUAGES:
         problems.append(f"ui language must be one of {', '.join(UI_LANGUAGES)} or empty")
     if cfg.ui_range_days < 1:

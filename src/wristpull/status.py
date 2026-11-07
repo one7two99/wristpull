@@ -9,6 +9,9 @@ from pathlib import Path
 from .config import Config
 from .db import scalar, table_count
 from .garmin_usb import candidate_roots, find_garmin_root, gio_garmin_mtp_urls, read_device_info
+from .mtp import MtpDeviceInfo, MtpTools, probe_mtp, resolve_access
+
+MtpProbe = Callable[[], tuple[MtpDeviceInfo | None, str]]
 
 SAMPLE_TABLES = (
     "activities",
@@ -47,11 +50,15 @@ def collect_status(
     *,
     roots: Callable[[], list[Path]] | None = None,
     mtp_urls: Callable[[], list[str]] = gio_garmin_mtp_urls,
+    access: str | None = None,
+    mtp_probe: MtpProbe | None = None,
 ) -> dict[str, object]:
     """Counts per table and raw file plus the device state.
 
     ``roots`` lists the directories to search for a mounted watch (default: the system
     mount points) and ``mtp_urls`` the attached-but-unmounted MTP devices; tests inject both.
+    With ``access == "mtp"`` (default: ``[garmin] access`` resolved) the watch is probed through
+    ``mtp_probe`` (default: the MTP tools) instead; ``garmin_access`` and ``garmin_message`` say so.
     """
     raw_by = conn.execute(
         "SELECT source, kind, COUNT(*), SUM(parse_status = 'error') FROM raw_files GROUP BY source, kind ORDER BY source, kind"
@@ -70,8 +77,25 @@ def collect_status(
         else:
             rng = _range(conn, table, "ts_utc")
         tables[table] = {"count": count, "first": rng[0], "last": rng[1]}
-    search = roots or (lambda: candidate_roots(extra=config.garmin_mount_hints))
-    garmin_root = find_garmin_root(search())
+    access = access or resolve_access(config)
+    garmin_root: Path | None = None
+    device: dict[str, str] = {}
+    unmounted: list[str] = []
+    message: str | None = None
+    root_label: str | None = None
+    if access == "mtp":
+        info, message = (mtp_probe or (lambda: probe_mtp(MtpTools())))()
+        if info is not None:
+            root_label = "mtp://GARMIN"
+            device = {k: v for k, v in (("model", info.model), ("usb_serial", info.serial), ("version", info.version)) if v}
+    else:
+        search = roots or (lambda: candidate_roots(extra=config.garmin_mount_hints))
+        garmin_root = find_garmin_root(search())
+        if garmin_root is not None:
+            root_label = str(garmin_root)
+            device = read_device_info(garmin_root)
+        else:
+            unmounted = mtp_urls()
     return {
         "config_path": str(config.path) if config.path else None,
         "db_path": str(config.db_path),
@@ -81,10 +105,12 @@ def collect_status(
         "raw_files": [{"source": r[0], "kind": r[1], "count": r[2], "errors": r[3] or 0} for r in raw_by],
         "last_import": scalar(conn, "SELECT MAX(imported_at_utc) FROM raw_files"),
         "tables": tables,
-        "garmin_connected": garmin_root is not None,
-        "garmin_root": str(garmin_root) if garmin_root else None,
-        "garmin_device": read_device_info(garmin_root) if garmin_root else {},
-        "garmin_unmounted": mtp_urls() if garmin_root is None else [],
+        "garmin_connected": root_label is not None,
+        "garmin_root": root_label,
+        "garmin_device": device,
+        "garmin_unmounted": unmounted,
+        "garmin_access": access,
+        "garmin_message": message,
     }
 
 
@@ -96,10 +122,15 @@ def render_status(status: dict[str, object]) -> str:
     lines.append(f"timezone:   {status['timezone']}")
     lines.append(f"last import: {status['last_import'] or 'never'}")
     lines.append("")
-    if status["garmin_connected"]:
+    if status["garmin_connected"] and status.get("garmin_access") == "mtp":
+        dev = status["garmin_device"] or {}
+        lines.append(f"Garmin:     connected over MTP ({dev.get('model', 'Garmin device')}, no mount needed)")
+    elif status["garmin_connected"]:
         dev = status["garmin_device"] or {}
         label = dev.get("model", "Garmin device")
         lines.append(f"Garmin:     connected ({label}) at {status['garmin_root']}")
+    elif status.get("garmin_access") == "mtp":
+        lines.append(f"Garmin:     not connected ({status.get('garmin_message') or 'no MTP device'})")
     elif status.get("garmin_unmounted"):
         lines.append(f"Garmin:     attached but not mounted ({', '.join(status['garmin_unmounted'])}); 'wristpull import garmin' will try to mount it")  # type: ignore[arg-type]
     else:

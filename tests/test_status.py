@@ -26,3 +26,18 @@ def test_last_imports_per_source(conn, config, garmin_tree: Path):
     import_garmin(conn, config, path=garmin_tree)
     stamps = last_imports(conn)
     assert list(stamps) == ["garmin_usb"] and stamps["garmin_usb"].endswith("Z")
+
+
+def test_status_over_mtp(conn, config, garmin_tree: Path):
+    from fake_mtp import FakeMtp
+    from wristpull.mtp import probe_mtp
+
+    status = collect_status(conn, config, roots=lambda: [], mtp_urls=lambda: [], access="mtp", mtp_probe=lambda: probe_mtp(FakeMtp(garmin_tree.parent)))
+    assert status["garmin_connected"] and status["garmin_root"] == "mtp://GARMIN" and status["garmin_access"] == "mtp"
+    assert status["garmin_device"] == {"model": "fenix 6 Pro", "usb_serial": "0000deadbeef", "version": "2802"} and status["garmin_unmounted"] == []
+    assert "connected over MTP (fenix 6 Pro, no mount needed)" in render_status(status)
+    status = collect_status(conn, config, access="mtp", mtp_probe=lambda: probe_mtp(FakeMtp(garmin_tree.parent, present=False)))
+    assert not status["garmin_connected"] and "no MTP device" in status["garmin_message"]
+    assert "not connected (no MTP device" in render_status(status)
+    status = collect_status(conn, config, access="mtp", mtp_probe=lambda: probe_mtp(FakeMtp(garmin_tree.parent, busy=True)))
+    assert "holds the watch" in render_status(status)

@@ -14,6 +14,7 @@ from ..archive import RawArchive
 from ..config import Config
 from ..fit.decode import decode_fit, summarize
 from ..merge import merged_activities
+from ..mtp import probe_mtp
 from ..status import collect_status
 from .deps import TuiDeps
 from .format import fmt_delta, fmt_duration, fmt_float, fmt_int, sparkline
@@ -126,6 +127,8 @@ def build_notes(status: dict[str, Any]) -> list[str]:
         notes.append("[i] " + _("{n} raw files with parse errors").format(n=errors))
     if status.get("garmin_unmounted"):
         notes.append("[i] " + _("Garmin attached but not mounted; the import will try to mount it"))
+    if status.get("garmin_access") == "mtp" and not status.get("garmin_connected") and status.get("garmin_message"):
+        notes.append("[i] " + _("Garmin over MTP: {message}").format(message=status["garmin_message"]))
     return notes
 
 
@@ -134,7 +137,8 @@ def load_overview(conn: sqlite3.Connection, config: Config, today: date, *, days
     rows = day_rows(conn, start, today)
     previous = day_rows(conn, start - timedelta(days=days), start - timedelta(days=1))
     deps = deps or TuiDeps()
-    status = collect_status(conn, config, roots=deps.roots, mtp_urls=deps.mtp_urls)
+    probe = (lambda: probe_mtp(deps.mtp_factory())) if deps.mtp_factory else None
+    status = collect_status(conn, config, roots=deps.roots, mtp_urls=deps.mtp_urls, access=deps.access, mtp_probe=probe)
     return Overview(
         status=status,
         start=start,

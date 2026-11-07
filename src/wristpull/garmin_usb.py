@@ -30,12 +30,13 @@ FOLDER_KINDS = {
 
 @dataclass(frozen=True)
 class DeviceFile:
-    path: Path
+    path: Path  # where the bytes can be read (the mount, or a staging copy)
     kind: str
     folder: str
     name: str
     size: int
-    mtime: datetime
+    mtime: datetime | None  # None when the transport does not report one (MTP tools)
+    origin: str | None = None  # recorded as raw_files.origin_path; None: str(path)
 
 
 def current_user() -> str:
@@ -130,13 +131,21 @@ def list_fit_files(garmin_root: Path, folders: list[str]) -> list[DeviceFile]:
 
 def read_device_info(garmin_root: Path) -> dict[str, str]:
     """Model and unit id from GARMIN/GarminDevice.xml, if present."""
-    info: dict[str, str] = {}
     xml_path = next((p for p in garmin_root.iterdir() if p.name.lower() == "garmindevice.xml"), None) if garmin_root.is_dir() else None
     if xml_path is None:
-        return info
+        return {}
     try:
-        root = ET.fromstring(xml_path.read_bytes())
-    except (ET.ParseError, OSError):
+        return parse_device_info(xml_path.read_bytes())
+    except OSError:
+        return {}
+
+
+def parse_device_info(xml: bytes) -> dict[str, str]:
+    """``model``, ``unit_id`` and ``part_number`` from the bytes of GarminDevice.xml (empty when unparsable)."""
+    info: dict[str, str] = {}
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError:
         return info
     for el in root.iter():
         tag = el.tag.split("}")[-1]
@@ -155,10 +164,10 @@ GARMIN_USB_VENDOR = "091e"
 Runner = Callable[[list[str]], tuple[int, str, str]]
 
 
-def run_command(argv: list[str]) -> tuple[int, str, str]:
-    """Run a command and return (returncode, stdout, stderr); a missing binary counts as failure."""
+def run_command(argv: list[str], *, timeout: float = 60) -> tuple[int, str, str]:
+    """Run a command and return (returncode, stdout, stderr); a missing binary counts as failure (127)."""
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, timeout=60, check=False)
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 127, "", str(exc)
     return proc.returncode, proc.stdout, proc.stderr

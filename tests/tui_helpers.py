@@ -7,6 +7,7 @@ from datetime import date
 from pathlib import Path
 
 from fake_adb import FakeAdb
+from fake_mtp import FakeMtp
 from wristpull.config import Config
 from wristpull.tui.deps import TuiDeps
 
@@ -29,6 +30,8 @@ def make_deps(tmp_path: Path, garmin_tree: Path | None = None, *, phone_root: Pa
         today=lambda: TODAY,
         open_path=opened.append,
         refresh_interval=0,
+        access="gvfs",
+        mtp_factory=lambda: FakeMtp(tmp_path / "no-mtp-device", present=False),
     )
 
 

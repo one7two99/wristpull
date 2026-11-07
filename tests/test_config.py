@@ -111,3 +111,16 @@ def test_config_file_env_names_the_default_path(tmp_path: Path):
     assert default_config_path({"WRISTPULL_CONFIG_FILE": str(target)}) == target
     assert default_config_path({"XDG_CONFIG_HOME": "/x"}) == Path("/x/wristpull/config.toml")
     assert load_config(env={"WRISTPULL_CONFIG_FILE": str(target)}).path == target
+
+
+def test_garmin_access_key_roundtrip_and_validation(tmp_path: Path):
+    from wristpull.config import validate_config, write_config
+
+    assert Config().garmin_access == "auto"
+    path = tmp_path / "config.toml"
+    cfg = Config(data_dir=tmp_path / "data", garmin_access="mtp")
+    write_config(cfg, path)
+    assert load_config(path, env={}).garmin_access == "mtp"
+    path.write_text(path.read_text().replace('access = "mtp"', 'access = "GVFS"'))
+    assert load_config(path, env={}).garmin_access == "gvfs"
+    assert validate_config(Config(garmin_access="fuse")) == ["garmin access must be one of auto, gvfs, mtp"]

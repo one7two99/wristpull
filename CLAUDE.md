@@ -53,3 +53,9 @@
   Inside the container `WRISTPULL_IN_CONTAINER=1`, `WRISTPULL_DATA_DIR=/data` (overrides `[storage] data_dir`,
   `Config.file_data_dir` keeps the file's value), `WRISTPULL_CONFIG_FILE` names the mounted config; helpers in
   `runtime.py`. adb keys live in `<data_dir>/adb`. Host-side files (udev, units, wrapper) go under `contrib/`.
+- Watch over MTP (`src/wristpull/mtp.py`): libmtp CLI tools behind the `Mtp` protocol (`MtpTools`; exit codes mean
+  nothing, stdout/stderr markers decide, fixtures in `tests/fixtures/mtp/`). `[garmin] access = auto | gvfs | mtp`
+  (`mtp.resolve_access`). Import goes through `<data_dir>/staging/` (`importers.garmin.import_garmin_mtp`, name+size
+  prefilter, then the SHA-256 check); workouts talk to the watch only via `workouts/device.py` (`WatchFiles`:
+  `LocalWatch` / `MtpWatch`, `open_watch`). Tests inject `FakeMtp` (`tests/fake_mtp.py`) or `fake_mtp_runner`; an
+  autouse fixture blocks the real tools and clears `WRISTPULL_IN_CONTAINER`.

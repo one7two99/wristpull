@@ -10,7 +10,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import DataTable
 
-from ...garmin_usb import find_garmin_root
+from ...workouts.device import watch_present
 from ...workouts.drafts import drafts_from_plan
 from ...workouts.model import Workout, describe_steps, template
 from ...workouts.store import list_workouts, load, push_status, save, upcoming, workouts_dir
@@ -100,12 +100,11 @@ class WorkoutsScreen(WristpullScreen):
         app = self.app
         start, end = self.period()
         self.workouts = list_workouts(app.config, start=start, end=end)
-        roots = app.deps.roots() if app.deps.roots else []
-        connected = find_garmin_root(roots) is not None if roots else False
+        connected = watch_present(app.config, roots=app.deps.roots, access=app.deps.access)
         states = [self.state_of(w) for w in self.workouts]
         status = [
             _("Folder {path} · {start} – {end}").format(path=workouts_dir(app.config), start=fmt_date(start, year=True), end=fmt_date(end, year=True)),
-            (_("Watch connected") if connected else _("No watch mounted (push mounts it when possible)")) + " · " + _("{drafts} drafts, {pushed} pushed, {verified} verified, {invalid} invalid").format(drafts=states.count("draft") + states.count("ready"), pushed=states.count("pushed"), verified=states.count("verified"), invalid=states.count("invalid")),
+            (_("Watch connected") if connected else _("MTP access (push opens the watch)") if connected is None else _("No watch mounted (push mounts it when possible)")) + " · " + _("{drafts} drafts, {pushed} pushed, {verified} verified, {invalid} invalid").format(drafts=states.count("draft") + states.count("ready"), pushed=states.count("pushed"), verified=states.count("verified"), invalid=states.count("invalid")),
             _("Template for n: {kind}").format(kind={"time": _("time"), "distance": _("distance"), "intervals": _("intervals")}[self.template_kind]) + " · " + _("target folder {folder}").format(folder=app.config.workout.folder),
         ]
         if app.runner.busy and app.runner.active and app.runner.active.key.startswith("workout_"):
@@ -186,7 +185,7 @@ class WorkoutsScreen(WristpullScreen):
             if self.watch.mount_message:
                 status += self.watch.mount_message.splitlines()
         else:
-            status.append(_("{active} active, {pending} waiting for unplugging (of ~{limit}) · {root}").format(active=len(self.watch.active), pending=len(self.watch.pending), limit=WORKOUT_LIMIT, root=self.watch.root))
+            status.append(_("{active} active, {pending} waiting for unplugging (of ~{limit}) · {root}").format(active=len(self.watch.active), pending=len(self.watch.pending), limit=WORKOUT_LIMIT, root=self.watch.device or self.watch.root))
             if any(i.name_clash for i in self.watch.items):
                 status.append("⚠ " + _("Workouts with the same name may replace each other on the watch; give them distinct names."))
             if self.watch.near_limit:

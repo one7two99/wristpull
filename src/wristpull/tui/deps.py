@@ -59,4 +59,6 @@ class TuiDeps:
     refresh_interval: float = 30.0  # seconds between device polls on the overview; 0 disables
     coach_backend: Callable[..., Any] | None = None  # tests inject a FakeBackend factory (config, **kwargs) -> Backend
     editor: Callable[[Path], None] | None = None  # None: $EDITOR in a suspended terminal; tests inject a recorder
+    access: str | None = None  # "gvfs" | "mtp"; None: [garmin] access resolved per call (mtp inside the container)
+    mtp_factory: Callable[[], Any] | None = None  # None: wristpull.mtp.MtpTools; tests inject FakeMtp
     opened: list[Path] = field(default_factory=list)  # recorder used by tests and the files screen

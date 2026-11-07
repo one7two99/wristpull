@@ -232,7 +232,7 @@ def cmd_import_garmin(args: argparse.Namespace, config: Config) -> int:
     log = (lambda _m: None) if args.quiet else print
     stats = import_garmin(conn, config, path=args.path, dry_run=args.dry_run, log=log)
     if stats.root is None:
-        print("No Garmin device found. Connect the watch (MTP) or pass --path <GARMIN folder>.", file=sys.stderr)
+        print("No Garmin device found. Connect the watch (MTP), pass --path <GARMIN folder> or set [garmin] access.", file=sys.stderr)
         if stats.mount_message:
             print(stats.mount_message, file=sys.stderr)
         return 1
@@ -278,7 +278,13 @@ def cmd_inspect(args: argparse.Namespace, config: Config) -> int:
 
 def cmd_mount(args: argparse.Namespace, config: Config) -> int:
     from .garmin_usb import candidate_roots, find_garmin_root, remount_garmin, try_mount_garmin
+    from .mtp import MtpTools, probe_mtp, resolve_access
 
+    if resolve_access(config) == "mtp":
+        info, message = probe_mtp(MtpTools())
+        print("MTP access ([garmin] access): no mount is needed, the tools open the watch for every command.")
+        print(f"Device: {info.label()}" if info else f"No device: {message}", file=sys.stdout if info else sys.stderr)
+        return 0 if info else 1
     roots = candidate_roots(extra=config.garmin_mount_hints)
     if not args.remount and (root := find_garmin_root(roots)) is not None:
         print(f"already mounted: {root}")

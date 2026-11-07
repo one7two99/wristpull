@@ -204,6 +204,19 @@ def _block_real_adb(monkeypatch):
     monkeypatch.setattr(phone_module, "Adb", _NoRealAdb)
 
 
+def _no_real_mtp(argv: list[str]) -> tuple[int, str, str]:
+    raise AssertionError(f"real mtp-tools must not be used in tests ({argv[0]}); inject a FakeMtp or fake_mtp_runner")
+
+
+@pytest.fixture(autouse=True)
+def _block_real_mtp(monkeypatch):
+    """Guard: tests must never talk to a real watch; ``[garmin] access = auto`` stays gvfs outside the container."""
+    import wristpull.mtp as mtp_module
+
+    monkeypatch.setattr(mtp_module, "run_command", _no_real_mtp)
+    monkeypatch.delenv("WRISTPULL_IN_CONTAINER", raising=False)
+
+
 @pytest.fixture
 def monitor_fit() -> bytes:
     return build_monitor_fit()

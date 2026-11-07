@@ -187,3 +187,26 @@ def test_open_in_editor_without_editor_explains(tmp_path: Path, capsys, monkeypa
     target.write_text("x")
     assert open_in_editor(target) == 2
     assert "editor not found" in capsys.readouterr().err
+
+
+def test_mount_import_and_status_with_mtp_access(cfg_file: Path, garmin_tree: Path, capsys, monkeypatch):
+    """Inside the container (access auto -> mtp) the CLI drives the real MtpTools parsers against a fake runner."""
+    import wristpull.mtp as mtp_module
+    from fake_mtp import FakeMtp, fake_mtp_runner
+
+    fake = FakeMtp(garmin_tree.parent)
+    monkeypatch.setattr(mtp_module, "run_command", fake_mtp_runner(fake))
+    monkeypatch.setenv("WRISTPULL_IN_CONTAINER", "1")
+    assert main(["--config", str(cfg_file), "mount"]) == 0
+    out = capsys.readouterr().out
+    assert "no mount is needed" in out and "Device: fenix 6 Pro (0000deadbeef)" in out
+    assert main(["--config", str(cfg_file), "import", "garmin", "--dry-run"]) == 0
+    assert "mtp://GARMIN: 5 FIT files, 5 new" in capsys.readouterr().out and fake.fetched == []
+    assert main(["--config", str(cfg_file), "import", "garmin"]) == 0
+    assert "mtp://GARMIN: 5 FIT files, 5 new, 0 already archived" in capsys.readouterr().out and len(fake.fetched) == 5
+    assert main(["--config", str(cfg_file), "status"]) == 0
+    assert "connected over MTP (fenix 6 Pro" in capsys.readouterr().out
+    fake.present = False
+    assert main(["--config", str(cfg_file), "import", "garmin"]) == 1
+    assert "no MTP device" in capsys.readouterr().err
+    assert main(["--config", str(cfg_file), "mount"]) == 1
