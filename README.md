@@ -580,7 +580,7 @@ first contact `Monitor/` held just the current day), so import regularly, ideall
 
 A small web app for the phone and the browser: **Today** (resting HR, HRV, sleep, stress, steps
 and body battery against your 28-day mean, warning signs, training load, the latest coach check,
-when each source last synced) and **Trends** (4 weeks, 12 weeks or a year: resting HR and HRV of
+when each source last synced) and **Trends** (4 weeks, 12 weeks, 1, 2, 5 or 10 years – beyond a year one point per week: resting HR and HRV of
 watch and strap, sleep, stress, training hours per week, acute:chronic load with the 0.8–1.3
 band, weight and VO2max when the window has values), **Activities** (period and sport filter, Garmin duplicates from USB and phone merged; detail
 with heart-rate and altitude curves, zone times and laps) and **Sleep** (watch and strap side by
@@ -665,7 +665,7 @@ docker compose build
 docker compose run --rm cli wristpull status
 docker compose run --rm cli wristpull tui
 docker compose run --rm cli wristpull pull phone
-cp contrib/bin/wristpull ~/.local/bin/     # optional wrapper: `wristpull tui` runs the line above
+contrib/bin/wristpull tui                  # wrapper for the line above (works from the checkout)
 ```
 
 - **What is inside:** the extras `web`, `coach`, `tui`, plus `adb`, `mtp-tools` (libmtp) and

@@ -1242,6 +1242,9 @@ msgstr "1 Jahr"
 msgid "{n} weeks"
 msgstr "{n} Wochen"
 
+msgid "{n} years"
+msgstr "{n} Jahre"
+
 msgid "Gaps mean no data for that day, not zero."
 msgstr "Lücken heißen: keine Daten an dem Tag, nicht null."
 

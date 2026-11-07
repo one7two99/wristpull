@@ -6,9 +6,12 @@
 # Order matters: the watch deletes its monitoring files once a sync client has fetched them, so the
 # USB import comes first, then Gadgetbridge syncs the watch and the strap, then the phone is pulled.
 # Runs every command in the Docker `cli` service; set WRISTPULL_CMD="uv run wristpull" for the native
-# installation. Install: cp contrib/bin/wristpull-morning ~/.local/bin/ && chmod +x ~/.local/bin/wristpull-morning
+# installation. Run it from the checkout (contrib/bin/wristpull-morning) or copy it anywhere: it finds the
+# compose.yaml two directories above itself, else ~/dev/wristpull, unless WRISTPULL_COMPOSE says otherwise.
 set -u
-compose="${WRISTPULL_COMPOSE:-$HOME/dev/wristpull/compose.yaml}"
+here="$(cd "$(dirname "$0")" && pwd -P)"
+compose="${WRISTPULL_COMPOSE:-$here/../../compose.yaml}"
+[ -f "$compose" ] || compose="$HOME/dev/wristpull/compose.yaml"
 watch_vendor="${WRISTPULL_WATCH_VENDOR:-091e}"   # Garmin
 phone_vendor="${WRISTPULL_PHONE_VENDOR:-3310}"   # Mudita; see `lsusb` for your phone
 import_unit="wristpull-import-docker.service"    # the udev-started import, if installed (we wait for it)

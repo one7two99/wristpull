@@ -7,7 +7,7 @@
 </header>
 <nav class="segmented" aria-label="{{ _('Period') }}">
 {% for w in choices %}
-<a href="/trends?weeks={{ w }}" {% if w == d.weeks %}aria-current="page"{% endif %}>{% if w == 52 %}{{ _("1 year") }}{% else %}{{ _("{n} weeks").format(n=w) }}{% endif %}</a>
+<a href="/trends?weeks={{ w }}" {% if w == d.weeks %}aria-current="page"{% endif %}>{% if w == 52 %}{{ _("1 year") }}{% elif w > 52 %}{{ _("{n} years").format(n=w // 52) }}{% else %}{{ _("{n} weeks").format(n=w) }}{% endif %}</a>
 {% endfor %}
 </nav>
 <section class="charts">

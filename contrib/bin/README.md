@@ -3,12 +3,12 @@
 `wristpull` – a shell wrapper that runs the CLI from the Docker image:
 
 ```sh
-cp contrib/bin/wristpull ~/.local/bin/ && chmod +x ~/.local/bin/wristpull
-wristpull status                 # = docker compose run --rm cli wristpull status
-wristpull tui
+contrib/bin/wristpull status     # = docker compose run --rm cli wristpull status
+contrib/bin/wristpull tui
+# optional, to have it on the PATH: cp contrib/bin/wristpull ~/.local/bin/
 ```
 
-It uses `~/dev/wristpull/compose.yaml` unless `WRISTPULL_COMPOSE` points elsewhere, and drops the
+It finds the `compose.yaml` of its checkout by itself (`WRISTPULL_COMPOSE` overrides), and drops the
 pseudo-terminal (`run -T`) when stdin or stdout is not a terminal (timers, pipes). The `.env` next
 to the compose file provides UID/GID, the data directory and the config file. See README
 "Running everything in Docker".
@@ -16,11 +16,10 @@ to the compose file provides UID/GID, the data directory and the config file. Se
 `wristpull-morning` – the morning routine as a guided script (no timers, nothing runs unattended):
 
 ```sh
-cp contrib/bin/wristpull-morning ~/.local/bin/ && chmod +x ~/.local/bin/wristpull-morning
-wristpull-morning              # 1 watch: plug in → import (+ optional workout push) → unplug
-                               # 2 phone: sync watch and strap in Gadgetbridge → plug in → pull phone
-                               # 3 coach: optional daily check
-wristpull-morning phone coach  # only some steps
+contrib/bin/wristpull-morning              # 1 watch: plug in → import (+ optional workout push) → unplug
+                                           # 2 phone: sync watch and strap in Gadgetbridge → plug in → pull phone
+                                           # 3 coach: optional daily check
+contrib/bin/wristpull-morning phone coach  # only some steps
 ```
 
 It waits for the devices with `lsusb` (`WRISTPULL_WATCH_VENDOR=091e`, `WRISTPULL_PHONE_VENDOR=3310`

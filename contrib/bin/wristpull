@@ -1,9 +1,11 @@
 #!/bin/sh
 # wristpull from the Docker image: runs `docker compose run --rm cli wristpull "$@"` so the commands
-# feel native. Set WRISTPULL_COMPOSE to the compose.yaml of your checkout (default: ~/dev/wristpull).
-# Install: cp contrib/bin/wristpull ~/.local/bin/ && chmod +x ~/.local/bin/wristpull
+# feel native. Finds the compose.yaml two directories above itself (run from the checkout), else
+# ~/dev/wristpull, unless WRISTPULL_COMPOSE says otherwise. Optional: copy it to ~/.local/bin/.
 set -eu
-compose="${WRISTPULL_COMPOSE:-$HOME/dev/wristpull/compose.yaml}"
+here="$(cd "$(dirname "$0")" && pwd -P)"
+compose="${WRISTPULL_COMPOSE:-$here/../../compose.yaml}"
+[ -f "$compose" ] || compose="$HOME/dev/wristpull/compose.yaml"
 if [ ! -f "$compose" ]; then
     echo "wristpull: compose file not found: $compose (set WRISTPULL_COMPOSE)" >&2
     exit 2

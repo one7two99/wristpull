@@ -91,7 +91,7 @@ training load.
 1. **Today** – tiles for resting HR, HRV, sleep, stress, steps and body battery, each against the
    user's 28-day baseline; recovery flags; the latest coach daily check (excerpt, rating
    buttons); "last sync: watch … / phone …".
-2. **Trends** – 4, 12 or 52 weeks: resting HR (watch and strap), HRV, sleep hours and score,
+2. **Trends** – 4, 12, 52, 104, 260 or 520 weeks (beyond a year aggregated per ISO week): resting HR (watch and strap), HRV, sleep hours and score,
    stress, weekly volume (hours, km), acute:chronic workload ratio with the 0.8–1.3 band;
    weight and VO2max as point series when the window holds values (`merge.merged_metric_by_day`,
    fed by the Garmin Connect export and the watch's metrics files).

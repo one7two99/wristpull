@@ -33,7 +33,7 @@ TILES: tuple[tuple[str, str, str, str, str | None], ...] = (
     ("steps", "Steps", "", "int", "up"),
     ("body_battery_max", "Body Battery", "max", "int", "up"),
 )
-TREND_WEEKS = (4, 12, 52)
+TREND_WEEKS = (4, 12, 52, 104, 260, 520)  # beyond a year the trend charts aggregate per week
 # raw_files.source -> label msgid shown as "last sync"
 SOURCE_LABELS = {"garmin_usb": "Watch (USB)", "gadgetbridge_garmin": "Watch (phone)", "garmin_connect": "Connect export", "gadgetbridge": "Strap (phone)"}
 COACH_EXCERPT_CHARS = 700
@@ -124,6 +124,34 @@ def acwr_series(rows: list[dict[str, Any]], days: list[str]) -> list[float | Non
     return out
 
 
+def week_labels(days: list[str]) -> list[str]:
+    """The first day of every ISO week touched by ``days`` (the chart's x axis beyond a year)."""
+    labels: list[str] = []
+    for d in days:
+        monday = (date.fromisoformat(d) - timedelta(days=date.fromisoformat(d).weekday())).isoformat()
+        if not labels or labels[-1] != monday:
+            labels.append(monday)
+    return labels
+
+
+def weekly_points(days: list[str], values: list[float | None], agg: str = "mean", digits: int = 1) -> list[float | None]:
+    """Fold daily values into one per ISO week: the mean of the days with a value, or (``last``) the latest one."""
+    buckets: dict[str, list[float]] = {}
+    order: list[str] = []
+    for d, v in zip(days, values):
+        monday = (date.fromisoformat(d) - timedelta(days=date.fromisoformat(d).weekday())).isoformat()
+        if monday not in buckets:
+            buckets[monday] = []
+            order.append(monday)
+        if v is not None:
+            buckets[monday].append(float(v))
+    out: list[float | None] = []
+    for monday in order:
+        vals = buckets[monday]
+        out.append(None if not vals else (round(vals[-1], digits) if agg == "last" else round(sum(vals) / len(vals), digits)))
+    return out
+
+
 def trends_data(conn: sqlite3.Connection, today: date, weeks: int) -> dict[str, Any]:
     """Daily series for the last ``weeks`` weeks plus weekly training volume, ready for ECharts."""
     weeks = weeks if weeks in TREND_WEEKS else TREND_WEEKS[0]
@@ -137,24 +165,31 @@ def trends_data(conn: sqlite3.Connection, today: date, weeks: int) -> dict[str, 
 
     weekly = weekly_frame(daily_frame(conn, start.isoformat(), today.isoformat()))
     week_rows = weekly.to_dicts() if not weekly.is_empty() else []
+    by_week = weeks > 52  # one point per ISO week keeps a multi-year chart readable
+    labels = week_labels(days) if by_week else days
+
+    def series(values: list[float | None], agg: str = "mean", digits: int = 1) -> list[float | None]:
+        return weekly_points(days, values, agg, digits) if by_week else values
+
     charts = [
-        {"id": "rhr", "title": "Resting HR", "unit": "bpm", "kind": "line", "labels": days,
-         "series": [{"name": "Watch", "data": col("garmin_resting_hr")}, {"name": "Strap", "data": col("strap_resting_hr")}]},
-        {"id": "hrv", "title": "HRV last night", "unit": "ms", "kind": "line", "labels": days,
-         "series": [{"name": "Watch", "data": col("garmin_hrv_last_night_avg_ms")}, {"name": "Strap", "data": col("strap_hrv_last_night_avg_ms")}]},
-        {"id": "sleep", "title": "Sleep", "unit": "h", "kind": "bar", "labels": days,
-         "series": [{"name": "Watch", "data": col("garmin_sleep_duration_s", 3600, 2)}, {"name": "Strap", "data": col("strap_sleep_duration_s", 3600, 2)}]},
-        {"id": "stress", "title": "Stress", "unit": "avg", "kind": "line", "labels": days,
-         "series": [{"name": "Watch", "data": col("garmin_stress_avg")}, {"name": "Strap", "data": col("strap_stress_avg")}]},
+        {"id": "rhr", "title": "Resting HR", "unit": "bpm", "kind": "line", "labels": labels,
+         "series": [{"name": "Watch", "data": series(col("garmin_resting_hr"))}, {"name": "Strap", "data": series(col("strap_resting_hr"))}]},
+        {"id": "hrv", "title": "HRV last night", "unit": "ms", "kind": "line", "labels": labels,
+         "series": [{"name": "Watch", "data": series(col("garmin_hrv_last_night_avg_ms"))}, {"name": "Strap", "data": series(col("strap_hrv_last_night_avg_ms"))}]},
+        {"id": "sleep", "title": "Sleep", "unit": "h", "kind": "bar", "labels": labels,
+         "series": [{"name": "Watch", "data": series(col("garmin_sleep_duration_s", 3600, 2), "mean", 2)}, {"name": "Strap", "data": series(col("strap_sleep_duration_s", 3600, 2), "mean", 2)}]},
+        {"id": "stress", "title": "Stress", "unit": "avg", "kind": "line", "labels": labels,
+         "series": [{"name": "Watch", "data": series(col("garmin_stress_avg"))}, {"name": "Strap", "data": series(col("strap_stress_avg"))}]},
         {"id": "volume", "title": "Training per week", "unit": "h", "kind": "bar", "labels": [str(w["week"]) for w in week_rows],
          "series": [{"name": "Hours", "data": [_r(w.get("training_h"), 2) for w in week_rows]}]},
-        {"id": "acwr", "title": "Acute:chronic load", "unit": "", "kind": "acwr", "labels": days,
-         "series": [{"name": "ACWR", "data": acwr_series(rows, days)}], "band": [0.8, 1.3]},
+        {"id": "acwr", "title": "Acute:chronic load", "unit": "", "kind": "acwr", "labels": labels,
+         "series": [{"name": "ACWR", "data": series(acwr_series(rows, days), "mean", 2)}], "band": [0.8, 1.3]},
     ]
     for metric, chart_id, title, unit in (("weight_kg", "weight", "Weight", "kg"), ("vo2_max", "vo2max", "VO2max", "ml/kg/min")):
         values = merged_metric_by_day(conn, start.isoformat(), today.isoformat(), metric)
         if values:  # sparse history (a scale, the watch's estimate): points joined across the gaps
-            charts.append({"id": chart_id, "title": title, "unit": unit, "kind": "points", "labels": days, "series": [{"name": title, "data": [_r(values.get(d), 1) if d in values else None for d in days]}]})
+            daily = [_r(values.get(d), 1) if d in values else None for d in days]
+            charts.append({"id": chart_id, "title": title, "unit": unit, "kind": "points", "labels": labels, "series": [{"name": title, "data": series(daily, "last")}]})
     return {"weeks": weeks, "start": start.isoformat(), "end": today.isoformat(), "days_with_data": sum(1 for d in days if d in by_day), "charts": charts}
 
 

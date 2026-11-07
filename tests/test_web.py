@@ -148,6 +148,14 @@ def test_today_and_trends_data(seeded: Config, conn):
     acwr = next(c for c in trends["charts"] if c["id"] == "acwr")
     assert acwr["kind"] == "acwr" and all(v is None for v in acwr["series"][0]["data"])  # < 28 days history
     assert pages.trends_data(conn, TODAY, 7)["weeks"] == 4  # unknown choice falls back
+    years = pages.trends_data(conn, TODAY, 104)  # beyond a year: one point per ISO week
+    assert years["weeks"] == 104 and 104 <= len(years["charts"][0]["labels"]) <= 105 and years["charts"][0]["labels"][0] <= years["start"]
+    assert all(len(c["series"][0]["data"]) == len(c["labels"]) for c in years["charts"])
+    rhr_chart = next(c for c in years["charts"] if c["id"] == "rhr")
+    assert any(v is not None for v in rhr_chart["series"][0]["data"]) and all(v is None for v in rhr_chart["series"][1]["data"])  # watch has values, strap stays gaps
+    assert pages.weekly_points(["2026-10-05", "2026-10-06", "2026-10-12"], [50.0, 52.0, None], "mean") == [51.0, None]
+    assert pages.weekly_points(["2026-10-05", "2026-10-06", "2026-10-12"], [70.0, 68.5, 68.0], "last") == [68.5, 68.0]
+    assert pages.week_labels(["2026-10-07", "2026-10-08", "2026-10-13"]) == ["2026-10-05", "2026-10-12"]
     assert pages.acwr_series([], ["2026-10-01"]) == [None]
     assert pages.coach_blocks("## Status\nGood.\nStill good.\n\n## Today\nRest") == [
         {"kind": "heading", "text": "Status"}, {"kind": "text", "text": "Good.\nStill good."},
