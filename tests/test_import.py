@@ -55,7 +55,6 @@ def test_dry_run_copies_nothing(conn, config, garmin_tree: Path):
 
 
 def test_no_device_returns_empty_root(conn, config, tmp_path: Path):
-    config.garmin_mount_hints = [tmp_path / "nothing"]
     stats = import_garmin(conn, config, path=tmp_path / "nothing")
     assert stats.root is None and stats.found == 0
 

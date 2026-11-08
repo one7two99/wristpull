@@ -61,7 +61,6 @@ examples below use the short form.
 | `status` | what is stored, which device is connected |
 | `inspect FILE` | message types and fields of a FIT file |
 | `config` | show or create the configuration file |
-| `mount [--remount]` | mount the USB-connected watch, releasing KDE's hold on the MTP device if needed |
 | `export`, `report` | Markdown + CSV for Claude, weekly/monthly reports |
 | `coach` | training coach: daily check, weekly review, questions, ratings via an LLM |
 | `workout` | structured workouts as Markdown, pushed to the watch as FIT files |
@@ -86,21 +85,21 @@ invalid arguments.
 
 #### `wristpull import garmin`
 
-Finds the watch, copies every FIT file that is not yet in the archive and parses it into the
-database. Already archived files (same SHA-256) are skipped, so the command can run as often as
-you like. After a successful import `daily_summary` is rebuilt.
+Reads the watch over USB with the MTP tools, copies every FIT file that is not yet in the archive
+and parses it into the database. Already archived files (same SHA-256) are skipped, so the command
+can run as often as you like; files the archive already knows by name and size are not even
+downloaded. After a successful import `daily_summary` is rebuilt.
 
 | Option | Effect |
 |---|---|
-| `--path PATH` | use this `GARMIN` folder (or the mount point containing it) instead of auto-detection |
+| `--path PATH` | import this `GARMIN` folder (or a directory containing one) instead of the watch: a copy made with a file manager, or a mass-storage mount |
 | `--dry-run` | list the files that would be imported, copy and parse nothing |
 
 ```sh
-wristpull import garmin                      # auto-detect, mount via gio if needed
+wristpull import garmin                      # the watch on the cable
 wristpull import garmin --dry-run            # what is new?
-wristpull import garmin --path /run/user/1000/gvfs/mtp:host=091e_4cdb_<id>/Primary/GARMIN
 wristpull import garmin --path ~/backup/fenix  # any directory tree with a GARMIN folder or FIT files
-wristpull -q import garmin                   # summary line only, e.g. for cron/udev
+wristpull -q import garmin                   # summary line only, e.g. for the udev-started import
 ```
 
 Output per file: `+ Monitor/MAVG1415.FIT: heart_rate=672, stress=96, ...`, then a summary
@@ -109,9 +108,9 @@ Files that cannot be decoded are still archived and marked `parse_status = 'erro
 
 #### `wristpull status`
 
-Shows the config and database paths, the time of the last import, whether a watch is mounted (or
-attached but not mounted), raw files per source and kind, and for every table the row count with
-the first and last timestamp.
+Shows the config and database paths, the time of the last import, whether a watch answers over
+USB (and why not), the strap's address and key state, raw files per source and kind, and for every
+table the row count with the first and last timestamp.
 
 ```sh
 wristpull status
@@ -346,7 +345,7 @@ The training coach sends an aggregated data package to an LLM and stores the ans
 
 A workout is one Markdown file under `<data_dir>/workouts/`, written by hand, from a template or
 drafted by the coach from its weekly plan. `workout push` encodes it as a FIT workout file and
-copies it to `GARMIN/NewFiles/` on the mounted watch; the watch imports it when the cable is
+copies it to `GARMIN/NewFiles/` on the watch over USB; the watch imports it when the cable is
 unplugged and lists it under *Training → Workouts*, with the heart-rate targets guiding each step.
 Confirmed on a fenix 6X Pro (firmware 28.02) over MTP on 2026-11-02: the file appears under the Run
 activity's workouts right after unplugging, no restart, no eject needed.
@@ -391,8 +390,7 @@ header total counts every repetition.
 
 The FIT files follow what Garmin Connect itself writes onto the watch (product `connect`, a
 `file_creator` record, `capabilities` tcx; checked against the Connect-made files under
-`GARMIN/Workouts/` of a fenix 6X Pro). On a gvfs MTP mount plain file writes fail with
-"Operation not supported", so the push falls back to `gio copy` automatically. Drafts from the plan
+`GARMIN/Workouts/` of a fenix 6X Pro). Drafts from the plan
 take the text before the first colon or comma as the name, keep the full session text as the
 description, read the target from the intensity column first (`Z2`, `zone 2`, `150-160`, words
 like easy/tempo/hard) and pick the sport from the words (strength, ergometer, walk, …).
@@ -402,7 +400,7 @@ like easy/tempo/hard) and pick the sport from the words (strength, ergometer, wa
 | `workout new [--date D] [--name N] [--template time\|distance\|intervals] [--minutes M] [--metres M] [--edit]` | write a file from the template (warm-up, main part by time or distance or a 6 × 400 m interval block, cool-down) and print its path; `--edit` opens `$EDITOR` |
 | `workout list [--from D --to D]` | date, name, steps, total, status and validation errors per file |
 | `workout check FILE…` | parse and validate, print the steps the way the watch will show them (exit 2 on errors) |
-| `workout push [FILE…] [--date D] [--upcoming] [--force] [--path P] [--folder NewFiles\|Workouts] [--schedule] [--dry-run] [--eject\|--no-eject]` | build the FIT files and copy them to the watch (`--dry-run`: to `<data_dir>/workouts/out/`); `--upcoming` takes the workouts from today on that are not on the watch (never pushed, or removed again); `--force` also takes those already pushed and writes a file again even if an identical one is there; `--schedule` adds a schedule file with the planned dates (experimental); existing files on the watch are never overwritten |
+| `workout push [FILE…] [--date D] [--upcoming] [--force] [--path P] [--folder NewFiles\|Workouts] [--schedule] [--dry-run]` | build the FIT files and copy them to the watch (`--dry-run`: to `<data_dir>/workouts/out/`); `--upcoming` takes the workouts from today on that are not on the watch (never pushed, or removed again); `--force` also takes those already pushed and writes a file again even if an identical one is there; `--schedule` adds a schedule file with the planned dates (experimental); existing files on the watch are never overwritten |
 | `workout verify [--path P]` | read `GARMIN/Workouts/` and mark pushed workouts the watch has taken over as `verified` |
 | `workout watch [--path P]` | list the workouts on the watch: `active` ones in `GARMIN/Workouts/` and `pending` ones still in `GARMIN/NewFiles/` (active after unplugging), with sport, steps, created, origin (`wristpull` or `other`), the count against the limit (both together) and a warning when two share a name |
 | `workout remove NAME… [--path P] [--yes]` | remove workouts from the watch by name or file name, active or pending (taking a push back before unplugging); each file is first copied to `<data_dir>/workouts/watch-backup/`; asks per file unless `--yes` |
@@ -530,7 +528,7 @@ marks the active one; tabs can also be clicked. German and English, switchable a
 | `7` | Export & Report: Claude export or weekly/monthly report for a period with presets, result file list and Markdown preview; `o` opens the folder, `y`/`c` copy path or CLI |
 | `8` | Settings: edit every config value including `[ui]` and `[coach]`, `Ctrl+S` validates and writes `config.toml` (language switches immediately, `data_dir` after a restart); `Ctrl+T` checks whether the coach backend is reachable |
 | `9` | Coach: `d` daily check, `w` weekly review, type a question and press Enter, `p` dry run; runs table with tokens, cost and rating, the answer beside it; `+` `−` `0` rate the selected run, `g` goal wizard (multiple choice → profile), `e` edit the profile in `$EDITOR`, `t` draft workouts from the last weekly plan |
-| `0` | Workouts: files of the next three weeks (and the last one) with status, preview of the steps as the watch shows them plus the Markdown; `n` new from the template (then `$EDITOR`), `t` template time/distance, `e` edit, `c` drafts from the coach plan, `p` push the selected one, `P` push every upcoming one not on the watch, `f` force push every upcoming one, `d` dry run, `v` verify against `GARMIN/Workouts/`, `Del` twice deletes the file, `←`/`→` shift the period. `w` switches to the workouts **on the watch**: active ones and those still waiting in `NewFiles` for the cable to be pulled, count against the limit, origin, steps preview, ⚠ for duplicate names; there `Del` twice removes one (active or waiting) after a backup, `r` reads the watch again, `m` mounts it again |
+| `0` | Workouts: files of the next three weeks (and the last one) with status, preview of the steps as the watch shows them plus the Markdown; `n` new from the template (then `$EDITOR`), `t` template time/distance, `e` edit, `c` drafts from the coach plan, `p` push the selected one, `P` push every upcoming one not on the watch, `f` force push every upcoming one, `d` dry run, `v` verify against `GARMIN/Workouts/`, `Del` twice deletes the file, `←`/`→` shift the period. `w` switches to the workouts **on the watch**: active ones and those still waiting in `NewFiles` for the cable to be pulled, count against the limit, origin, steps preview, ⚠ for duplicate names; there `Del` twice removes one (active or waiting) after a backup, `r` reads the watch again |
 | `i` `p` `e` `r` | on the overview: import Garmin, pull phone, export the default range for Claude, weekly report with charts |
 | `/` `?` `F12` `q` | command palette, help, language, quit |
 
@@ -548,9 +546,7 @@ data_dir = "~/Health/wristpull"          # raw files and database
 timezone = "Europe/Berlin"               # IANA zone for local_date
 
 [garmin]
-folders = ["Activity", "Monitor", "Sleep", "Metrics", "HRVStatus"]
-mount_hints = []                         # extra directories that contain GARMIN/
-access = "auto"                          # auto | gvfs | mtp: how the watch is reached (see "Running everything in Docker")
+folders = ["Activity", "Monitor", "Sleep", "Metrics", "HRVStatus"]   # read over USB (MTP), or from --path
 
 [phone]
 serial = "<adb serial>"                   # ADB serial of the phone running Gadgetbridge
@@ -582,7 +578,6 @@ cooldown_hr_max = 125
 default_target = "Z2"                    # main-part target when the plan names none: Z2, 135-150 or 70-80 %
 schedule = false                         # also write a schedule file with the planned dates (experimental)
 folder = "NewFiles"                      # NewFiles (imported when unplugged) or Workouts
-eject = false                            # unmount the watch after a push (not needed on the fenix 6X Pro)
 ```
 
 ### Helper commands around the watch
@@ -592,14 +587,9 @@ not show up:
 
 ```sh
 lsusb | grep -i garmin                  # is the watch attached? (ID 091e:4cdb)
-gio mount -li | grep -A2 -i mtp         # MTP volumes and their activation_root URLs
-gio mount mtp://091e_4cdb_<serial>/      # mount the watch via gvfs
-gio mount -u mtp://091e_4cdb_<serial>/   # unmount (eject) before unplugging
-ls /run/user/$(id -u)/gvfs/              # where gvfs mounted it
-fuser -v /dev/bus/usb/<bus>/<dev>        # which process holds the USB device
-kquitapp6 kiod6                          # KDE only: release the device so gio can open it
-kioclient ls "mtp:/fenix 6X Pro/Primary/GARMIN/"                 # KDE alternative: list via KIO
-kioclient copy "mtp:/fenix 6X Pro/Primary/GARMIN/Monitor" ~/tmp/ # KDE alternative: copy via KIO
+mtp-detect                              # does libmtp see it? (inside the container: contrib/bin/wristpull … or docker compose run --rm cli mtp-detect)
+fuser -v /dev/bus/usb/<bus>/<dev>       # which process holds the USB device
+udevadm info -q property /dev/bus/usb/<bus>/<dev> | grep -E 'ID_MTP|SYSTEMD'   # is the udev rule in effect?
 ```
 
 ### Looking at the data
@@ -627,26 +617,17 @@ The TUI shows the same data without SQL (`wristpull tui`: days, activities, slee
 
 ### Connecting the fenix 6
 
-The fenix 6 presents itself to Linux as an **MTP** device, not as a USB drive. gvfs mounts it at
-`/run/user/<uid>/gvfs/mtp:host=091e_.../Primary/GARMIN`, which wristpull searches automatically
-(along with `/run/media/<user>/*`, `/media/*`, `/mnt/*` and the `mount_hints` from the config).
-If the watch is attached but not mounted, `wristpull import garmin` runs `gio mount` on every
-Garmin MTP device that `gio mount -li` reports.
+The fenix 6 presents itself as an **MTP** device, not as a USB drive. wristpull reads it with the
+libmtp command-line tools (`mtp-files`, `mtp-getfile`, …; in the Docker image, or `apt install
+mtp-tools` natively), so no mount is involved, but **nothing else may hold the device**: a desktop
+that mounts the watch (gvfs, KDE's `kiod6`) makes the tools fail with "device is busy", and
+wristpull then says so (`holds the watch`). The udev rule `contrib/udev/91-wristpull-garmin-docker.rules`
+keeps the desktop away from the watch for good; without it, unmount the watch in the file manager
+first (on KDE `kquitapp6 kiod6`). Every call opens the device again (about six seconds on a fenix
+6X Pro), which is fine for a daily import: the listing happens once, only unknown files are fetched.
 
-On **KDE** the `kiod6` service grabs the MTP device as soon as the watch is plugged in, and gvfs
-then fails with "Unable to open MTP device". wristpull detects this, quits `kiod6` (KDE starts it
-again on demand) and mounts once more. `wristpull mount` does only that step; `wristpull mount
---remount` first unmounts a stale mount (after the cable was pulled and plugged in again). In the
-TUI the key `m` on screen 2 and screen 0 runs the same remount. If it still fails, the manual
-workaround is printed:
-
-```sh
-kquitapp6 kiod6 && gio mount mtp://091e_4cdb_<serial>/
-wristpull import garmin
-```
-
-Alternatively copy the folders with KIO (`kioclient copy "mtp:/fenix 6X Pro/Primary/GARMIN/Monitor" ...`)
-and import the copy with `--path`.
+Without a cable to this machine, copy the `GARMIN/` folder with any file manager and import the copy
+with `--path`; the same works for a watch that appears as a USB drive.
 
 Files on the watch are only read, never deleted or modified, with two deliberate exceptions for
 workouts: `wristpull workout push` writes new FIT files into `GARMIN/NewFiles/` (or `Workouts/`),
@@ -790,18 +771,16 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
 - **Coach:** `cli` runs with `network_mode: host`, so `[coach] ollama_url =
   "http://localhost:11434"` works unchanged; API keys come from `.env` or your shell as for `web`.
   Never set `OLLAMA_HOST=0.0.0.0` and never run `adb -a`.
-- **Watch (MTP):** there is no gvfs in the container, so the watch is read with libmtp's
-  command-line tools (`mtp-files`, `mtp-getfile`, …) behind `src/wristpull/mtp.py`.
-  `[garmin] access = "auto"` picks them inside the container and the mount outside; `"mtp"`
-  forces them on the host as well (then `apt install mtp-tools`, and nothing else may hold the
-  device: no gvfs mount, no Dolphin). Every call opens the device again (about six seconds on a
-  fenix 6X Pro), so `import garmin` lists once, skips files already archived by name and size,
-  downloads the rest into `<data_dir>/staging/` and archives them from there with the usual
-  SHA-256 check; `workout push`, `verify`, `watch` and `remove` work the same way (`target` in the
-  push history reads `mtp://GARMIN/NewFiles/<file>`). The tools report no modification time, so
-  `device_mtime_utc` stays empty for these files. `wristpull mount` only reports the device;
-  `status` says "connected over MTP". Measured values and the full spike are in
-  [docs/docker-concept.md](docs/docker-concept.md).
+- **Watch (MTP):** the watch is read with libmtp's command-line tools (`mtp-files`,
+  `mtp-getfile`, …) behind `src/wristpull/mtp.py`, in the container and natively alike (then
+  `apt install mtp-tools`, and nothing else may hold the device, see "Connecting the fenix 6").
+  Every call opens the device again (about six seconds on a fenix 6X Pro), so `import garmin`
+  lists once, skips files already archived by name and size, downloads the rest into
+  `<data_dir>/staging/` and archives them from there with the usual SHA-256 check; `workout push`,
+  `verify`, `watch` and `remove` work the same way (`target` in the push history reads
+  `mtp://GARMIN/NewFiles/<file>`). The tools report no modification time, so `device_mtime_utc`
+  stays empty for these files. `status` says "connected over USB (MTP)". Measured values and the
+  full spike are in [docs/docker-concept.md](docs/docker-concept.md).
 - **Limits:** Linux only: Docker Desktop on macOS and Windows passes neither USB nor Bluetooth
   into containers; there the native installation reaches the devices
   ([docs/platforms.md](docs/platforms.md)).

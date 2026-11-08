@@ -36,7 +36,7 @@ A ninth screen, **9 Coach**, was added with the training-coach concept (`coach-c
 daily check, the weekly review and questions through the job runner, lists the runs with tokens, cost and
 rating, shows the answer, and hosts the goal wizard and the profile editor. A tenth, **0 Workouts**
 (2026-11-02), lists the Markdown workout files, previews the steps the way the watch shows them,
-opens them in `$EDITOR` and runs push/verify against the mounted watch as jobs.
+opens them in `$EDITOR` and runs push/verify against the watch (MTP) as jobs.
 
 ```
             ┌──────────────┐
@@ -62,7 +62,7 @@ opens them in `$EDITOR` and runs push/verify against the mounted watch as jobs.
 | 5 | Sleep | Nights with duration, stage bar (light/deep/REM/awake), HRV, SpO2, respiration; Garmin and strap side by side | so far only via sqlite3 |
 | 6 | Files | Tree of `raw/<source>/<year>/<kind>/`, `exports/`, `reports/`, config; details (SHA, status, size, message types); actions: inspect, copy path, open with `xdg-open`/`$EDITOR`, Markdown preview | `inspect FILE`, `config` |
 | 7 | Export & Report | Form: period (presets last week, last month, custom), kind (Claude export / weekly / monthly report), charts, CSV, output dir; result with file list and Markdown preview; copy path for chat | `export --for-claude`, `report week|month` |
-| 8 | Settings | Config fields (data_dir, timezone, garmin_folders, mount hints, phone_serial, export dir), new `[ui]` section (language, theme, default range), save writes `config.toml`; log view | `config --init`, editor |
+| 8 | Settings | Config fields (data_dir, timezone, garmin_folders, phone_serial, export dir), new `[ui]` section (language, theme, default range), save writes `config.toml`; log view | `config --init`, editor |
 | 9 | Coach | Runs table (tokens, cost, rating), answer, question input, journal note, goal wizard, profile editor, `t` drafts workouts from the last weekly plan | `coach daily|weekly|ask|rate|note|profile` |
 | 0 | Workouts | Workout files of the period with status, preview (steps + Markdown), new from template (`$EDITOR`), edit, drafts from the plan, push selected / upcoming / force, dry run, verify, delete; `w` switches to the workouts on the watch (count against the limit, preview, remove with backup) | `workout new|list|check|push|verify|watch|remove|from-plan` |
 | ? | Help | Key bindings, version and path info, link to docs/gadgetbridge.md | `--version` |
@@ -83,7 +83,7 @@ opens them in `$EDITOR` and runs push/verify against the mounted watch as jobs.
 - After a real night: verification panel ("mapping confirmed / open") driven by the `meta` table.
 
 **Backlog (proposals)**
-- **Watch mode**: detect a newly attached fenix (gvfs path appears) or phone (`adb devices` poll)
+- **Watch mode**: detect a newly attached fenix (USB) or phone (`adb devices` poll)
   and offer the import with one key; later udev/systemd.
 - **Data quality panel**: gaps (days without data per source), duplicates, error files, days with 0
   steps (the known midnight carry-over).
@@ -115,7 +115,7 @@ opens them in `$EDITOR` and runs push/verify against the mounted watch as jobs.
 ```
 src/wristpull/tui/
   app.py           WristpullApp(App): config, TuiDeps, JobRunner, screen stack, theme
-  deps.py          TuiDeps: adb_factory, roots, mounter, sleep, today, open_path, refresh_interval
+  deps.py          TuiDeps: adb_factory, mtp_factory, sleep, today, open_path, refresh_interval
   jobs.py          JobSpec, JobRunner (start, lock, result messages)
   queries.py       adapter library call -> rows for widgets (no SQL)
   i18n.py          _, ngettext, set_language, resolve_language
@@ -142,7 +142,7 @@ src/wristpull/tui/
   via `Worker.StateChanged`: SUCCESS renders `ImportStats`/`PullStats`, ERROR shows `AdbError`
   and friends, then `DataChanged` is posted and screens reload.
 - Devices come from `TuiDeps`: `pull_phone(adb=deps.adb_factory(serial), sleep=deps.sleep)`,
-  `import_garmin(roots=deps.roots, mounter=deps.mounter)`. The autouse guard in conftest remains
+  `import_garmin(mtp_factory=deps.mtp_factory)`. The autouse guard in conftest remains
   the safety net.
 - Cancel (second wave, cooperative): a `sleep=` wrapper that aborts when
   `get_current_worker().is_cancelled`, plus an optional `check_cancel` parameter in
@@ -170,8 +170,8 @@ src/wristpull/tui/
   of readable text in the code.
 
 ### Tests
-- `WristpullApp(config, deps)`; tests inject `TuiDeps(adb_factory=FakeAdb, roots=[garmin_tree],
-  mounter=(False, ""), sleep=no-op, today=fixed, open_path=recorder, refresh_interval=0)`. The app
+- `WristpullApp(config, deps)`; tests inject `TuiDeps(adb_factory=FakeAdb, mtp_factory=FakeMtp,
+  sleep=no-op, today=fixed, open_path=recorder, refresh_interval=0)`. The app
   never calls `load_config()` or `date.today()` itself.
 - `async with app.run_test(size=(120, 40)) as pilot: await pilot.press("i"); await
   app.workers.wait_for_complete()`, then assert on widget state (`DataTable.row_count`, log lines).

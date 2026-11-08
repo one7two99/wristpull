@@ -57,14 +57,9 @@ class HomeScreen(WristpullScreen):
     def _show_overview(self, ov: Overview) -> None:
         status = ov.status
         devices: list[str] = []
-        if status["garmin_connected"] and status.get("garmin_access") == "mtp":
+        if status["garmin_connected"]:
             model = (status.get("garmin_device") or {}).get("model") or "Garmin"
-            devices.append(f"● {model}: " + _("USB (MTP), no mount needed"))
-        elif status["garmin_connected"]:
-            model = (status.get("garmin_device") or {}).get("model") or "Garmin"
-            devices.append(f"● {model}: " + _("USB, mounted at {path}").format(path=status["garmin_root"]))
-        elif status.get("garmin_unmounted"):
-            devices.append("○ Garmin: " + _("attached, not mounted"))
+            devices.append(f"● {model}: " + _("USB (MTP)"))
         else:
             devices.append("✕ Garmin: " + _("not connected"))
         serial = self.app.config.phone_serial

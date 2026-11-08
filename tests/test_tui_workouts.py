@@ -28,6 +28,7 @@ def test_workouts_screen_new_edit_push_verify(config: Config, tmp_path: Path, ga
         path.write_text(path.read_text("utf-8").replace("run 40 min hr Z2", "run 30 min hr 135-150"), "utf-8")
 
     deps.editor = editor
+    (garmin_tree / "NewFiles").mkdir(exist_ok=True)  # the watch has it; the MTP tools cannot create folders
     app = make_app(config, deps)
     save(config, Workout(name="Old one", day=TODAY - date.resolution * 3, steps=[Step("active", duration_s=600)]))
 
@@ -38,7 +39,7 @@ def test_workouts_screen_new_edit_push_verify(config: Config, tmp_path: Path, ga
             screen = app.screen
             assert isinstance(screen, WorkoutsScreen)
             status = str(screen.query_one("#workouts-status", Panel).content)
-            assert "Watch connected" in status and "1 drafts" in status and "Template for n: time" in status
+            assert "open the watch over USB (MTP)" in status and "1 drafts" in status and "Template for n: time" in status
             table = screen.query_one("#workout-table", DataTable)
             assert table.row_count == 1
             # n: template + editor hook, the edited file is shown
@@ -144,6 +145,7 @@ def test_watch_view_lists_removes_and_force_pushes(config: Config, tmp_path: Pat
     from wristpull.workouts.watch import backup_dir
 
     deps = make_deps(tmp_path, garmin_tree.parent)
+    (garmin_tree / "NewFiles").mkdir(exist_ok=True)
     app = make_app(config, deps)
     save(config, Workout(name="Tomorrow", day=TODAY + date.resolution, steps=[Step("active", duration_s=600)]))
 
@@ -219,23 +221,13 @@ def test_watch_view_without_device(config: Config, tmp_path: Path):
             await wait_jobs(app)
             await pilot.pause()
             status = str(app.screen.query_one("#workouts-status", Panel).content)
-            assert "No Garmin device found" in status and "no mounter in tests" in status and "m mounts it again" in status
-            # m runs the remount job; a successful mount reads the watch right away
-            calls: list[list[Path]] = []
-            app.deps.remounter = lambda roots: (calls.append(roots), (True, "unmounted mtp://x/; mounted mtp://x/"))[1]
-            await pilot.press("m")
-            await wait_jobs(app)
-            await pilot.pause()
-            await wait_jobs(app)
-            await pilot.pause()
-            assert calls == [[]] and app.runner.last.spec.key == "workout_watch"
-            assert any("watch mounted" in line for line in app.runner.lines)
+            assert "No Garmin device found" in status and "no MTP device" in status
 
     run(scenario())
 
 
-def test_watch_view_and_mount_over_mtp(config: Config, tmp_path: Path, garmin_tree: Path):
-    """With access=mtp the workouts screen lists the watch through FakeMtp and the mount job only probes."""
+def test_watch_view_over_mtp(config: Config, tmp_path: Path, garmin_tree: Path):
+    """The workouts screen pushes to and lists the watch through FakeMtp."""
     from fake_mtp import FakeMtp
 
     (garmin_tree / "Workouts").mkdir()
@@ -243,7 +235,6 @@ def test_watch_view_and_mount_over_mtp(config: Config, tmp_path: Path, garmin_tr
     save(config, Workout(name="Easy run", day=TODAY + timedelta(days=1), steps=[Step("active", duration_s=600)]))
     fake = FakeMtp(garmin_tree.parent)
     deps = make_deps(tmp_path)
-    deps.access = "mtp"
     deps.mtp_factory = lambda: fake
     app = make_app(config, deps)
 
@@ -252,7 +243,7 @@ def test_watch_view_and_mount_over_mtp(config: Config, tmp_path: Path, garmin_tr
             await pilot.press("0")
             await pilot.pause()
             assert isinstance(app.screen, WorkoutsScreen)
-            assert "MTP access" in str(app.screen.query_one("#workouts-status", Panel).content)
+            assert "open the watch over USB (MTP)" in str(app.screen.query_one("#workouts-status", Panel).content)
             await pilot.press("p")  # push the upcoming workouts over MTP
             await wait_jobs(app)
             await pilot.pause()
@@ -262,9 +253,5 @@ def test_watch_view_and_mount_over_mtp(config: Config, tmp_path: Path, garmin_tr
             await pilot.pause()
             status = str(app.screen.query_one("#workouts-status", Panel).content)
             assert "1 waiting for unplugging" in status and "fenix 6 Pro" in status
-            await pilot.press("m")
-            await wait_jobs(app)
-            await pilot.pause()
-            assert any("MTP access" in line for line in app.runner.lines)
 
     run(scenario())

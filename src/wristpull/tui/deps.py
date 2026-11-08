@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from ..adb import Adb
-from ..garmin_usb import gio_garmin_mtp_urls, remount_garmin, try_mount_garmin
 from ..runtime import host_path, in_container
 from .i18n import _
 
@@ -49,17 +48,12 @@ def real_adb() -> Adb:
 @dataclass
 class TuiDeps:
     adb_factory: Callable[[], Adb] = real_adb
-    roots: Callable[[], list[Path]] | None = None  # None: the system mount points
-    mounter: Callable[[], tuple[bool, str]] = try_mount_garmin
-    mtp_urls: Callable[[], list[str]] = gio_garmin_mtp_urls  # attached-but-unmounted Garmin devices
-    remounter: Callable[[list[Path]], tuple[bool, str]] = remount_garmin  # unmount + mount again (key m)
     sleep: Callable[[float], None] = time.sleep
     today: Callable[[], date] = date.today
     open_path: Opener = open_path_default
     refresh_interval: float = 30.0  # seconds between device polls on the overview; 0 disables
     coach_backend: Callable[..., Any] | None = None  # tests inject a FakeBackend factory (config, **kwargs) -> Backend
     editor: Callable[[Path], None] | None = None  # None: $EDITOR in a suspended terminal; tests inject a recorder
-    access: str | None = None  # "gvfs" | "mtp"; None: [garmin] access resolved per call (mtp inside the container)
     mtp_factory: Callable[[], Any] | None = None  # None: wristpull.mtp.MtpTools; tests inject FakeMtp
     transport_factory: Callable[[str], Any] | None = None  # None: bleak (zeppos.transport.open_transport); tests inject FakeTransport
     opened: list[Path] = field(default_factory=list)  # recorder used by tests and the files screen

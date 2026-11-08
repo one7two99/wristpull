@@ -12,7 +12,7 @@ from textual.widgets import Button, Checkbox, Input, Label
 
 from ..format import fmt_float
 from ..i18n import _
-from ..jobs import JobRecord, garmin_import_job, mount_job, phone_pull_job, strap_pull_job
+from ..jobs import JobRecord, garmin_import_job, phone_pull_job, strap_pull_job
 from ..widgets import JobLog, Panel
 from .base import WristpullScreen
 
@@ -23,7 +23,6 @@ class SyncScreen(WristpullScreen):
         Binding("i", "import_garmin", "Import", show=False),
         Binding("p", "pull_phone", "Pull", show=False),
         Binding("b", "pull_strap", "Pull strap", show=False),
-        Binding("m", "mount", "Mount watch", show=False),
         Binding("x", "app.cancel_job", "Stop job", show=False),
         Binding("l", "clear_log", "Clear log", show=False),
         Binding("c", "copy_cli", "Copy CLI", show=False),
@@ -34,7 +33,7 @@ class SyncScreen(WristpullScreen):
         return _("Devices & Sync")
 
     def keys(self) -> list[tuple[str, str]]:
-        return [("i", _("import")), ("p", _("pull")), ("b", _("strap")), ("m", _("mount")), ("x", _("stop job")), ("l", _("clear log")), ("c", _("copy CLI")), ("Esc", _("back"))]
+        return [("i", _("import")), ("p", _("pull")), ("b", _("strap")), ("x", _("stop job")), ("l", _("clear log")), ("c", _("copy CLI")), ("Esc", _("back"))]
 
     def body(self) -> ComposeResult:
         config = self.app.config
@@ -42,8 +41,8 @@ class SyncScreen(WristpullScreen):
             with VerticalScroll(id="forms"):
                 with Vertical(classes="form"):
                     yield Label(_("GARMIN (USB)"), classes="form-title")
-                    yield Label(_("Path (empty: auto-detect)"))
-                    yield Input(placeholder=_("GARMIN folder or mount point"), id="garmin-path")
+                    yield Label(_("Path (empty: the watch over USB)"))
+                    yield Input(placeholder=_("a copied GARMIN folder"), id="garmin-path")
                     yield Checkbox(_("Dry run (list only)"), id="garmin-dry")
                     yield Button(_("i  Import Garmin"), id="btn-import", variant="primary")
                 with Vertical(classes="form"):
@@ -117,10 +116,6 @@ class SyncScreen(WristpullScreen):
             self.app.notify(_("No band configured: set [strap] address (wristpull strap scan)"), severity="warning")
             return
         self.app.start_job(self._strap_spec())
-        self.refresh_data()
-
-    def action_mount(self) -> None:
-        self.app.start_job(mount_job(self.app.config, self.app.deps))
         self.refresh_data()
 
     def action_import_garmin(self) -> None:

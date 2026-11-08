@@ -5,8 +5,9 @@
 - Health data never enters the repo. Data lives in `~/Health/wristpull/` (config `[storage] data_dir`).
   Tests use synthetic FIT files built with `wristpull.fit.writer` (re-exported as `tests/fitwriter.py`); never commit real `.fit`/`.sqlite` files.
 - Every new function gets a test. Before committing: `uv run pyflakes src tests && uv run pytest -q`.
-- Tests never touch hardware: inject `FakeAdb` (tests/fake_adb.py) and `roots`/`mounter`; an autouse
-  fixture in conftest blocks the real `Adb`. Fixtures: `tests/fitwriter.py` (FIT), `tests/gb_db.py` (Gadgetbridge DB).
+- Tests never touch hardware: inject `FakeAdb` (tests/fake_adb.py) and `FakeMtp` (tests/fake_mtp.py), or pass `path=`
+  for a directory; autouse fixtures in conftest block the real `Adb` and make the MTP tools answer "no device".
+  Fixtures: `tests/fitwriter.py` (FIT), `tests/gb_db.py` (Gadgetbridge DB).
 - Aggregation lives in `aggregate.py` (polars) on top of `merge.py`; export and report only render.
 - After each wave: update README, tests green, commit.
 - Raw files are immutable: SHA-256 dedup in `raw_files`, never overwrite, never delete on the device.
@@ -44,12 +45,12 @@
   exports with `tests/connect_export.py`.
 - Workouts (`src/wristpull/workouts/`): one Markdown file per workout under `<data_dir>/workouts/` (grammar in
   `model.py`), FIT encoding in `fit/workout.py` on top of `fit/writer.py`, push/verify in `push.py` via
-  `importers.garmin.locate_garmin` (inject `roots`/`mounter`), SQL only in `store.py` (`workout_pushes`).
+  `workouts/device.open_watch` (inject `mtp_factory`, or `path=` for a directory), SQL only in `store.py` (`workout_pushes`).
   Files on the watch are only added under `GARMIN/NewFiles/` (or `Workouts/`), never overwritten. The one deletion
   allowed on the device: `workouts/watch.py` removes top-level workout files in `GARMIN/Workouts/` or `NewFiles/` on explicit request,
   always after a backup to `<data_dir>/workouts/watch-backup/`; raw-data folders stay read-only. The fenix 6X Pro
   imports them from `NewFiles` at unplug (confirmed 2026-11-02) but stores only 20–25 workouts and silently drops
-  new files above that; the schedule file (calendar date) is unverified. Writes go through `gio copy` on gvfs MTP.
+  new files above that; the schedule file (calendar date) is unverified.
   Repeat blocks are flat as in FIT (block steps, then a `Step("repeat", repeat=N, repeat_from=i)`;
   `expand_steps` for totals). Names are unique per ISO week (generated names end with `dd.mm.`; `model.mark_name_clashes` makes duplicates invalid).
 - Web dashboard (`src/wristpull/web/`, Starlette + Jinja2 + vendored htmx/ECharts, optional extra `web`; concept
@@ -70,11 +71,11 @@
   macOS/Windows (`docs/platforms.md`). There are no native systemd units or udev rules any more, only the Docker ones.
   `docs/history/` holds the original German work orders, unmaintained.
 - Watch over MTP (`src/wristpull/mtp.py`): libmtp CLI tools behind the `Mtp` protocol (`MtpTools`; exit codes mean
-  nothing, stdout/stderr markers decide, fixtures in `tests/fixtures/mtp/`). `[garmin] access = auto | gvfs | mtp`
-  (`mtp.resolve_access`). Import goes through `<data_dir>/staging/` (`importers.garmin.import_garmin_mtp`, name+size
+  nothing, stdout/stderr markers decide, fixtures in `tests/fixtures/mtp/`). The watch is always reached over MTP;
+  `--path DIR` imports a directory instead (`LocalWatch`); there is no mount code (removed 2026-11-08). Import goes through `<data_dir>/staging/` (`importers.garmin.import_garmin_mtp`, name+size
   prefilter, then the SHA-256 check); workouts talk to the watch only via `workouts/device.py` (`WatchFiles`:
   `LocalWatch` / `MtpWatch`, `open_watch`). Tests inject `FakeMtp` (`tests/fake_mtp.py`) or `fake_mtp_runner`; an
-  autouse fixture blocks the real tools and clears `WRISTPULL_IN_CONTAINER`.
+  autouse fixture replaces the real tools with a "no raw devices" answer and clears `WRISTPULL_IN_CONTAINER`.
 - Helio Strap over Bluetooth (`src/wristpull/zeppos/`, source `zepp_ble`, concept `docs/strap-ble-concept.md`): the Zepp OS
   protocol as Gadgetbridge speaks it; `ecdh.py` (B-163, pure Python), `aes.py` (pure Python, no dependency), `chunked.py`
   (codec), `protocol.py` (pure builders/parsers), `band.py` (async client over the `Transport` protocol), `transport.py`

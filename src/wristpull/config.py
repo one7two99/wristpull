@@ -12,7 +12,6 @@ from .runtime import CONFIG_FILE_ENV, DATA_DIR_ENV
 from .timeutil import detect_local_zone
 
 DEFAULT_GARMIN_FOLDERS = ["Activity", "Monitor", "Sleep", "Metrics", "HRVStatus"]
-GARMIN_ACCESS = ("auto", "gvfs", "mtp")
 
 EXAMPLE_CONFIG = """\
 # wristpull configuration
@@ -27,13 +26,9 @@ data_dir = "{data_dir}"
 timezone = "{timezone}"
 
 [garmin]
-# Folders below GARMIN/ on the watch that are imported.
+# The watch is read over USB with the MTP tools (libmtp); `import garmin --path DIR` imports a copied
+# GARMIN folder instead. Folders below GARMIN/ that are imported:
 folders = {folders}
-# Additional directories to search for a mounted watch (a directory that contains GARMIN/).
-mount_hints = {mount_hints}
-# How the watch is reached: "auto" (MTP tools inside the Docker container, a gvfs/USB mount otherwise),
-# "gvfs" (a mounted GARMIN folder) or "mtp" (libmtp command-line tools, no mount).
-access = "{garmin_access}"
 
 [phone]
 # ADB serial of the phone running Gadgetbridge.
@@ -94,8 +89,6 @@ default_target = "{workout_default_target}"
 schedule = {workout_schedule}
 # Folder below GARMIN/ the FIT files are copied to: NewFiles (processed when the cable is unplugged) or Workouts.
 folder = "{workout_folder}"
-# Unmount (eject) the MTP mount after a push. Off by default: the fenix keeps MTP-written files without it.
-eject = {workout_eject}
 """
 
 UI_LANGUAGES = ("en", "de")
@@ -139,7 +132,6 @@ class WorkoutConfig:
     default_target: str = "Z2"
     schedule: bool = False
     folder: str = "NewFiles"
-    eject: bool = False
 
     def defaults(self):
         from .workouts.model import Defaults
@@ -168,8 +160,6 @@ class Config:
     data_dir: Path = field(default_factory=lambda: Path.home() / "Health" / "wristpull")
     timezone: str = field(default_factory=detect_local_zone)
     garmin_folders: list[str] = field(default_factory=lambda: list(DEFAULT_GARMIN_FOLDERS))
-    garmin_mount_hints: list[Path] = field(default_factory=list)
-    garmin_access: str = "auto"  # auto | gvfs | mtp, see GARMIN_ACCESS
     phone_serial: str | None = None
     phone_export_dir: str = "/sdcard/Gadgetbridge"
     strap_address: str = ""
@@ -196,13 +186,10 @@ class Config:
 
     def render(self) -> str:
         folders = "[" + ", ".join(f'"{f}"' for f in self.garmin_folders) + "]"
-        hints = "[" + ", ".join(f'"{str(h).replace(str(Path.home()), "~", 1)}"' for h in self.garmin_mount_hints) + "]"
         return EXAMPLE_CONFIG.format(
             data_dir=str(self.file_data_dir or self.data_dir).replace(str(Path.home()), "~", 1),
             timezone=self.timezone,
             folders=folders,
-            mount_hints=hints,
-            garmin_access=self.garmin_access,
             phone_serial=self.phone_serial or "",
             strap_address=self.strap_address,
             strap_adapter=self.strap_adapter,
@@ -234,7 +221,6 @@ class Config:
             workout_default_target=self.workout.default_target,
             workout_schedule="true" if self.workout.schedule else "false",
             workout_folder=self.workout.folder,
-            workout_eject="true" if self.workout.eject else "false",
         )
 
 
@@ -271,10 +257,6 @@ def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = Non
     garmin = data.get("garmin", {})
     if "folders" in garmin:
         cfg.garmin_folders = [str(f) for f in garmin["folders"]]
-    if "mount_hints" in garmin:
-        cfg.garmin_mount_hints = [_expand(str(p)) for p in garmin["mount_hints"]]
-    if garmin.get("access"):
-        cfg.garmin_access = str(garmin["access"]).strip().lower()
     phone = data.get("phone", {})
     if phone.get("serial"):
         cfg.phone_serial = str(phone["serial"])
@@ -321,8 +303,6 @@ def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = Non
         cfg.workout.schedule = bool(workout["schedule"])
     if workout.get("folder"):
         cfg.workout.folder = str(workout["folder"])
-    if "eject" in workout:
-        cfg.workout.eject = bool(workout["eject"])
     return cfg
 
 
@@ -357,8 +337,6 @@ def validate_config(cfg: Config) -> list[str]:
         problems.append("data_dir must not be empty")
     if not cfg.garmin_folders:
         problems.append("at least one Garmin folder is needed")
-    if cfg.garmin_access not in GARMIN_ACCESS:
-        problems.append(f"garmin access must be one of {', '.join(GARMIN_ACCESS)}")
     if cfg.ui_language and cfg.ui_language not in UI_LANGUAGES:
         problems.append(f"ui language must be one of {', '.join(UI_LANGUAGES)} or empty")
     if cfg.ui_range_days < 1:

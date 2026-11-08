@@ -21,8 +21,8 @@ from ..db import insert_row, insert_rows
 from ..fit.decode import decode_fit
 from ..fit.garmin import parse_fit
 from ..rows import SAMPLE_TABLES, ParsedRows
-from ..garmin_usb import FOLDER_KINDS, DeviceFile, candidate_roots, find_garmin_root, garmin_dir, list_fit_files, try_mount_garmin
-from ..mtp import GARMIN_ROOT, Mtp, MtpError, MtpFactory, MtpTools, NoMtpDeviceError, folder_id, probe_mtp, resolve_access
+from ..garmin_usb import FOLDER_KINDS, DeviceFile, garmin_dir, list_fit_files
+from ..mtp import GARMIN_ROOT, Mtp, MtpError, MtpFactory, MtpTools, NoMtpDeviceError, folder_id, probe_mtp
 from ..timeutil import zone
 
 SOURCE = "garmin_usb"
@@ -44,13 +44,13 @@ class ImportStats:
     found: int = 0
     new: int = 0
     skipped: int = 0
-    fetched: int = 0  # files downloaded over MTP (0 on a mount)
+    fetched: int = 0  # files downloaded over MTP (0 for a directory)
     discarded: int = 0  # JSON records dropped as placeholders/junk (Connect export)
     parsed_ok: int = 0
     errors: int = 0
     rows: dict[str, int] = field(default_factory=dict)
     error_files: list[tuple[str, str]] = field(default_factory=list)
-    mount_message: str | None = None
+    device_message: str | None = None
     stopped: bool = False  # the caller asked to stop before all files were handled
 
     def add_rows(self, counts: dict[str, int]) -> None:
@@ -170,28 +170,10 @@ def import_file(
     return "new", counts
 
 
-def locate_garmin(
-    config: Config,
-    explicit: Path | None = None,
-    *,
-    roots: Callable[[], list[Path]] | None = None,
-    mounter: Callable[[], tuple[bool, str]] = try_mount_garmin,
-) -> tuple[Path | None, str | None]:
-    """Find the GARMIN folder; without --path, try to gio-mount an attached MTP device first.
-
-    ``roots`` yields the directories to search (default: the system mount points);
-    tests inject both ``roots`` and ``mounter`` so they never touch a real device.
-    """
-    if explicit is not None:
-        return garmin_dir(explicit) or (explicit if explicit.is_dir() else None), None
-    search = roots or (lambda: candidate_roots(extra=config.garmin_mount_hints))
-    root = find_garmin_root(search())
-    if root is not None:
-        return root, None
-    mounted, message = mounter()
-    if mounted:
-        root = find_garmin_root(search())
-    return root, message
+def locate_garmin(explicit: Path) -> tuple[Path | None, str | None]:
+    """The GARMIN folder for ``--path``: the directory itself or its ``GARMIN`` child, else ``(None, why)``."""
+    root = garmin_dir(explicit) or (explicit if explicit.is_dir() else None)
+    return root, (None if root is not None else f"{explicit} is not a directory")
 
 
 def import_device_files(
@@ -274,11 +256,11 @@ def import_garmin_mtp(
     it reports what the name+size prefilter would fetch.
     """
     stats = ImportStats()
-    info, stats.mount_message = probe_mtp(mtp)
+    info, stats.device_message = probe_mtp(mtp)
     if info is None:
         return stats
     stats.root = MTP_ROOT_LABEL
-    log(f"  {stats.mount_message}")
+    log(f"  {stats.device_message}")
     known = RawArchive(config.raw_dir, conn).known_name_sizes(SOURCE)
     todo: list[tuple[str, str, object]] = []  # (folder as the device spells it, kind, MtpFile)
     try:
@@ -353,81 +335,22 @@ def import_garmin(
     path: Path | None = None,
     dry_run: bool = False,
     log: Log = lambda _msg: None,
-    roots: Callable[[], list[Path]] | None = None,
-    mounter: Callable[[], tuple[bool, str]] = try_mount_garmin,
     stop: Callable[[], bool] | None = None,
-    access: str | None = None,
     mtp_factory: MtpFactory | None = None,
 ) -> ImportStats:
-    """Find the watch, copy every new FIT file into the archive and parse it.
+    """Copy every new FIT file from the watch into the archive and parse it.
 
-    An explicit ``path`` is imported as a directory. Otherwise ``access`` (default: ``[garmin] access``
-    resolved by :func:`wristpull.mtp.resolve_access`) decides between the mounted GARMIN folder
-    (``roots``/``mounter``) and the MTP tools (``mtp_factory``, default :class:`MtpTools`).
-    ``stop`` is polled between files; when it returns True the import ends early with
-    ``stats.stopped`` set (files already imported stay imported).
+    Without ``path`` the watch is read over USB with the MTP tools (``mtp_factory``, default
+    :class:`MtpTools`); an explicit ``path`` (a copied ``GARMIN`` folder, or a directory containing
+    one) is imported as a directory. ``stop`` is polled between files; when it returns True the import
+    ends early with ``stats.stopped`` set (files already imported stay imported).
     """
-    if path is None and (access or resolve_access(config)) == "mtp":
+    if path is None:
         return import_garmin_mtp(conn, config, mtp=(mtp_factory or MtpTools)(), dry_run=dry_run, log=log, stop=stop)
     stats = ImportStats()
-    root, stats.mount_message = locate_garmin(config, path, roots=roots, mounter=mounter)
+    root, stats.device_message = locate_garmin(path)
     if root is None:
         return stats
-    if stats.mount_message:
-        log(f"  {stats.mount_message}")
     stats.root = root
     files: list[DeviceFile] = list_fit_files(root, config.garmin_folders)
     return import_device_files(conn, config, files, dry_run=dry_run, log=log, stop=stop, stats=stats)
-    if stats.mount_message:
-        log(f"  {stats.mount_message}")
-    stats.root = root
-    files: list[DeviceFile] = list_fit_files(root, config.garmin_folders)
-    stats.found = len(files)
-    archive = RawArchive(config.raw_dir, conn)
-    for df in files:
-        if stop is not None and stop():
-            stats.stopped = True
-            log("  stopped on request")
-            break
-        try:
-            data = df.path.read_bytes()
-        except OSError as exc:
-            stats.errors += 1
-            stats.error_files.append((str(df.path), str(exc)))
-            log(f"  ! {df.folder}/{df.name}: {exc}")
-            continue
-        if dry_run:
-            if archive.lookup(sha256_bytes(data)) is None:
-                stats.new += 1
-                log(f"  + {df.folder}/{df.name} ({df.size} bytes) would be imported")
-            else:
-                stats.skipped += 1
-            continue
-        status, counts = import_file(
-            conn,
-            archive,
-            data,
-            kind=df.kind,
-            original_name=df.name,
-            origin_path=str(df.path),
-            device_mtime=df.mtime,
-            tz_name=config.timezone,
-        )
-        if status == "new":
-            stats.new += 1
-            stats.parsed_ok += 1
-            stats.add_rows(counts)
-            summary = ", ".join(f"{k}={v}" for k, v in counts.items()) or "no rows"
-            log(f"  + {df.folder}/{df.name}: {summary}")
-        elif status == "skipped":
-            stats.skipped += 1
-        else:
-            stats.new += 1
-            stats.errors += 1
-            err = conn.execute("SELECT parse_error FROM raw_files WHERE sha256 = ?", (sha256_bytes(data),)).fetchone()
-            stats.error_files.append((str(df.path), err[0] if err else "unknown"))
-            log(f"  ! {df.folder}/{df.name}: {err[0] if err else 'unknown error'}")
-    if not dry_run and stats.parsed_ok:
-        rebuild_daily_summary(conn, source=SOURCE)
-        conn.commit()
-    return stats

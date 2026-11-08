@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from wristpull.config import Config
 from wristpull.mtp import (
     MTP_BUSY_HINT,
     MtpBusyError,
@@ -19,7 +18,6 @@ from wristpull.mtp import (
     parse_files,
     parse_folders,
     probe_mtp,
-    resolve_access,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "mtp"
@@ -172,14 +170,8 @@ def test_no_device_busy_and_probe_messages():
 def test_default_runner_is_looked_up_at_call_time(monkeypatch):
     import wristpull.mtp as mtp_module
 
-    with pytest.raises(AssertionError, match="real mtp-tools"):  # the conftest guard
+    with pytest.raises(NoMtpDeviceError):  # the conftest stand-in answers "no raw devices"
         MtpTools().device_info()
     monkeypatch.setattr(mtp_module, "run_command", lambda argv: (0, fx("detect.txt"), ""))
     assert MtpTools().device_info().serial == "0000deadbeef"
 
-
-def test_resolve_access():
-    assert resolve_access(Config(garmin_access="auto"), {}) == "gvfs"
-    assert resolve_access(Config(garmin_access="auto"), {"WRISTPULL_IN_CONTAINER": "1"}) == "mtp"
-    assert resolve_access(Config(garmin_access="gvfs"), {"WRISTPULL_IN_CONTAINER": "1"}) == "gvfs"
-    assert resolve_access(Config(garmin_access="mtp"), {}) == "mtp"

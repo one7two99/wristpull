@@ -6,7 +6,7 @@ FROM python:3.14-slim
 COPY --from=ghcr.io/astral-sh/uv:0.11.24 /uv /usr/local/bin/uv
 
 # adb: the phone over USB or Wi-Fi (the adb server runs in the `cli` container, keys under $HOME/.android).
-# mtp-tools: the watch over MTP without gvfs (libmtp command-line tools behind src/wristpull/mtp.py).
+# mtp-tools: the watch over USB/MTP (libmtp command-line tools behind src/wristpull/mtp.py).
 # bleak (extra `ble`) talks to the strap through the host's BlueZ over D-Bus (compose mounts the socket into `cli`).
 # nano (fallback) and micro: editors for `workout new --edit` and the TUI ($EDITOR comes from the host shell).
 RUN apt-get update -qq \

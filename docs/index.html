@@ -154,7 +154,7 @@ footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--
     <div class="terminal" aria-label="Terminal session">
       <div class="bar">alice@laptop — fish — three commands, one morning</div>
 <pre><code><span class="prompt">$</span> wristpull import garmin
-  mounted mtp://091e_4cdb_&lt;id&gt;/
+  MTP: fenix 6X Pro (&lt;serial&gt;)
   + Sleep/GB171544.fit: sleep=1, sleep_stages=15
   + HRVStatus/GB171539.fit: hrv=1, hrv_values=91
   + Monitor/MB171500.FIT: heart_rate=428, stress=520
@@ -197,7 +197,7 @@ Recovered: resting HR 47 bpm is below your 7-day mean of 52 …
     <p class="measure">Around 4,000 lines of Python 3.14 with two runtime dependencies (<code>fitdecode</code>, <code>polars</code>). Every function has a test and every test runs on synthetic FIT files, so the repository never contains a single real heartbeat.</p>
   </div>
   <div class="flow" style="margin-top:2rem">
-    <div class="node"><b>watch over USB</b>GARMIN/Activity, Monitor, Sleep, Metrics, HRVStatus<div class="dim">gio-mounts the MTP device, even on KDE</div></div>
+    <div class="node"><b>watch over USB</b>GARMIN/Activity, Monitor, Sleep, Metrics, HRVStatus<div class="dim">read with the MTP tools, no mount, in the Docker container or natively</div></div>
     <div class="node"><b>phone over ADB</b>Gadgetbridge.db + the FIT files it fetched over Bluetooth<div class="dim">triggers the export by intent, hashes files remotely, pulls only what is new</div></div>
     <div class="node"><b>raw archive</b>raw/&lt;source&gt;/&lt;year&gt;/&lt;kind&gt;/&lt;sha8&gt;_name<div class="dim">immutable, deduplicated, never overwritten</div></div>
     <div class="node"><b>parsers</b>FIT profile + Gadgetbridge layouts<div class="dim">re-parse anytime with <code>wristpull reparse</code></div></div>
@@ -223,7 +223,7 @@ Recovered: resting HR 47 bpm is below your 7-day mean of 52 …
     <h2>What you get today</h2>
   </div>
   <div class="grid" style="margin-top:2rem">
-    <div class="card"><h3>Import that respects the device</h3><p>Finds the mounted watch, copies only files whose SHA-256 is unknown, parses activities (sessions, laps, per-second records, HR zones), monitoring (HR, steps, stress, body battery, respiration, SpO2), sleep (stages, assessment scores) and HRV status. Never deletes anything on the watch.</p></div>
+    <div class="card"><h3>Import that respects the device</h3><p>Reads the watch over USB, copies only files whose SHA-256 is unknown, parses activities (sessions, laps, per-second records, HR zones), monitoring (HR, steps, stress, body battery, respiration, SpO2), sleep (stages, assessment scores) and HRV status. Never deletes anything on the watch.</p></div>
     <div class="card"><h3>Phone pull without a vendor app</h3><p>Talks to Gadgetbridge over ADB: triggers the database export, compares file hashes on the phone, pulls only new files. Reads the Zepp strap's per-minute HR, stress, temperature, HRV and the band's own sleep sessions.</p></div>
     <div class="card"><h3>Terminal UI in German and English</h3><p>Ten screens: overview with 7-day KPIs, sync with live job log and cancel, days, activities with HR zones and laps, sleep with stage bars, files with FIT inspection, export, settings, the coach and the workouts. <span class="kbd">F12</span> switches the language at runtime.</p></div>
     <div class="card"><h3>Exports made for a chat window</h3><p><code>wristpull export --for-claude</code> writes a compact Markdown summary plus CSVs for a date range, sized to paste into any assistant. <code>report week|month</code> renders deltas against the previous period with SVG charts.</p></div>

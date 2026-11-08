@@ -25,14 +25,13 @@ def test_load_custom_values(tmp_path: Path):
     path = tmp_path / "config.toml"
     path.write_text(
         '[storage]\ndata_dir = "~/Somewhere/health"\n[time]\ntimezone = "Europe/Vienna"\n'
-        '[garmin]\nfolders = ["Activity"]\nmount_hints = ["/mnt/watch"]\n[phone]\nserial = "ABC"\n',
+        '[garmin]\nfolders = ["Activity"]\n[phone]\nserial = "ABC"\n',
         "utf-8",
     )
     cfg = load_config(path)
     assert cfg.data_dir == Path.home() / "Somewhere" / "health"
     assert cfg.timezone == "Europe/Vienna"
     assert cfg.garmin_folders == ["Activity"]
-    assert cfg.garmin_mount_hints == [Path("/mnt/watch")]
     assert cfg.phone_serial == "ABC"
     rendered = cfg.render()
     assert 'timezone = "Europe/Vienna"' in rendered
@@ -51,12 +50,12 @@ def test_ui_section_defaults_and_values(tmp_path: Path):
 
 
 def test_validate_and_write_config_roundtrip(tmp_path: Path):
-    cfg = Config(data_dir=tmp_path / "H", timezone="Europe/Berlin", garmin_mount_hints=[Path("/mnt/watch")], phone_serial="ABC", ui_language="de", ui_range_days=14)
+    cfg = Config(data_dir=tmp_path / "H", timezone="Europe/Berlin", phone_serial="ABC", ui_language="de", ui_range_days=14)
     assert validate_config(cfg) == []
     path = write_config(cfg, tmp_path / "cfg" / "config.toml")
     assert cfg.path == path
     loaded = load_config(path)
-    assert loaded.garmin_mount_hints == [Path("/mnt/watch")] and loaded.phone_serial == "ABC"
+    assert loaded.phone_serial == "ABC"
     assert loaded.ui_language == "de" and loaded.ui_range_days == 14 and loaded.data_dir == tmp_path / "H"
     bad = Config(timezone="Mars/Olympus", garmin_folders=[], ui_language="xx", ui_range_days=0, phone_export_dir="relative")
     problems = validate_config(bad)
@@ -111,16 +110,3 @@ def test_config_file_env_names_the_default_path(tmp_path: Path):
     assert default_config_path({"WRISTPULL_CONFIG_FILE": str(target)}) == target
     assert default_config_path({"XDG_CONFIG_HOME": "/x"}) == Path("/x/wristpull/config.toml")
     assert load_config(env={"WRISTPULL_CONFIG_FILE": str(target)}).path == target
-
-
-def test_garmin_access_key_roundtrip_and_validation(tmp_path: Path):
-    from wristpull.config import validate_config, write_config
-
-    assert Config().garmin_access == "auto"
-    path = tmp_path / "config.toml"
-    cfg = Config(data_dir=tmp_path / "data", garmin_access="mtp")
-    write_config(cfg, path)
-    assert load_config(path, env={}).garmin_access == "mtp"
-    path.write_text(path.read_text().replace('access = "mtp"', 'access = "GVFS"'))
-    assert load_config(path, env={}).garmin_access == "gvfs"
-    assert validate_config(Config(garmin_access="fuse")) == ["garmin access must be one of auto, gvfs, mtp"]

@@ -106,14 +106,8 @@ msgstr "Noch keine Schlafdaten (Uhr nachts nicht getragen oder Sleep-Ordner leer
 msgid "{n} raw files with parse errors"
 msgstr "{n} Rohdateien mit Parse-Fehlern"
 
-msgid "Garmin attached but not mounted; the import will try to mount it"
-msgstr "Garmin angeschlossen, aber nicht gemountet; der Import versucht das Mounten"
-
 msgid "Garmin over MTP: {message}"
 msgstr "Garmin über MTP: {message}"
-
-msgid "MTP access: no mount is needed, the tools open the watch for every command"
-msgstr "MTP-Zugriff: kein Mount nötig, die Tools öffnen die Uhr bei jedem Befehl"
 
 msgid "palette"
 msgstr "Palette"
@@ -355,15 +349,6 @@ msgstr "Hinweise"
 msgid "Refreshed"
 msgstr "Aktualisiert"
 
-msgid "USB, mounted at {path}"
-msgstr "USB, gemountet unter {path}"
-
-msgid "USB (MTP), no mount needed"
-msgstr "USB (MTP), kein Mount nötig"
-
-msgid "attached, not mounted"
-msgstr "angeschlossen, nicht gemountet"
-
 msgid "not connected"
 msgstr "nicht verbunden"
 
@@ -405,12 +390,6 @@ msgstr "Pull"
 
 msgid "GARMIN (USB)"
 msgstr "GARMIN (USB)"
-
-msgid "Path (empty: auto-detect)"
-msgstr "Pfad (leer: automatisch suchen)"
-
-msgid "GARMIN folder or mount point"
-msgstr "GARMIN-Ordner oder Mountpunkt"
 
 msgid "Dry run (list only)"
 msgstr "Nur prüfen (dry-run)"
@@ -706,9 +685,6 @@ msgstr "max HF"
 msgid "min"
 msgstr "min"
 
-msgid "mount hints, comma-separated"
-msgstr "Mount-Hinweise, kommagetrennt"
-
 msgid "next field"
 msgstr "nächstes Feld"
 
@@ -992,15 +968,6 @@ msgstr "Gesamt"
 msgid "Folder {path} · {start} – {end}"
 msgstr "Ordner {path} · {start} – {end}"
 
-msgid "Watch connected"
-msgstr "Uhr verbunden"
-
-msgid "No watch mounted (push mounts it when possible)"
-msgstr "Keine Uhr eingebunden (der Push versucht es selbst)"
-
-msgid "MTP access (push opens the watch)"
-msgstr "MTP-Zugriff (der Push öffnet die Uhr)"
-
 msgid "{drafts} drafts, {pushed} pushed, {verified} verified, {invalid} invalid"
 msgstr "{drafts} Entwürfe, {pushed} übertragen, {verified} bestätigt, {invalid} ungültig"
 
@@ -1047,9 +1014,6 @@ msgid "{n} workout file written to {dir}"
 msgid_plural "{n} workout files written to {dir}"
 msgstr[0] "{n} Trainingsdatei nach {dir} geschrieben"
 msgstr[1] "{n} Trainingsdateien nach {dir} geschrieben"
-
-msgid "The watch was ejected; unplug it now. It lists the workouts under Training > Workouts."
-msgstr "Die Uhr wurde ausgeworfen; jetzt abstecken. Sie zeigt die Trainings unter Training > Trainings."
 
 msgid "Unplug the watch when you are done; it imports the files and lists them under Training > Workouts."
 msgstr "Uhr abstecken, wenn du fertig bist; sie übernimmt die Dateien und zeigt sie unter Training > Trainings."
@@ -1119,25 +1083,6 @@ msgstr "{n} von ~{limit} Trainings auf der Uhr"
 
 msgid "{n} of ~{limit} workouts on the watch · {root}"
 msgstr "{n} von ~{limit} Trainings auf der Uhr · {root}"
-
-# --- mounting ------------------------------------------------------------------
-msgid "mount"
-msgstr "einbinden"
-
-msgid "Mount the watch"
-msgstr "Uhr einbinden"
-
-msgid "mounting the watch …"
-msgstr "binde die Uhr ein …"
-
-msgid "watch mounted"
-msgstr "Uhr eingebunden"
-
-msgid "could not mount the watch"
-msgstr "Uhr konnte nicht eingebunden werden"
-
-msgid "m mounts it again."
-msgstr "m bindet sie neu ein."
 
 # --- pending workouts in NewFiles ----------------------------------------------
 msgid "{active} active, {pending} waiting for unplugging (of ~{limit})"
@@ -1529,3 +1474,15 @@ msgstr "nichts Neues"
 
 msgid "strap {device}: {fetched}; {new} new buffers, {skipped} already archived, {errors} errors"
 msgstr "Band {device}: {fetched}; {new} neue Puffer, {skipped} bereits archiviert, {errors} Fehler"
+
+msgid "Push, verify and the watch view open the watch over USB (MTP)"
+msgstr "Push, Prüfen und die Uhr-Ansicht öffnen die Uhr über USB (MTP)"
+
+msgid "USB (MTP)"
+msgstr "USB (MTP)"
+
+msgid "Path (empty: the watch over USB)"
+msgstr "Pfad (leer: die Uhr über USB)"
+
+msgid "a copied GARMIN folder"
+msgstr "ein kopierter GARMIN-Ordner"

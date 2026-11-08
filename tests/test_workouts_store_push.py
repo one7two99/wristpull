@@ -6,9 +6,8 @@ import pytest
 from wristpull.config import Config
 from wristpull.fit.decode import decode_fit
 from wristpull.workouts.model import Step, Workout, parse_markdown
-import errno
 
-from wristpull.workouts.push import WORKOUT_LIMIT_WARN, VerifyResult, device_folder, push, verify, workouts_on_watch, write_device_file
+from wristpull.workouts.push import WORKOUT_LIMIT_WARN, VerifyResult, device_folder, push, verify, workouts_on_watch
 from wristpull.workouts.store import existing_for_day, mark_folder_clashes, list_workouts, load, output_dir, pending_pushes, push_status, pushes, save, set_status, workouts_dir
 
 
@@ -56,9 +55,8 @@ def test_push_dry_run_and_to_device(config: Config, conn, garmin_tree: Path):
     assert push_status(conn, tempo.path) is None  # dry runs do not change the status
     assert load(Path(tempo.path)).status == "draft"
     # real push to a fake watch: files land in NewFiles, status flips to pushed, history recorded
-    result = push(conn, config, [easy, tempo], roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), schedule=True, log=log.append)
+    result = push(conn, config, [easy, tempo], path=garmin_tree, schedule=True, log=log.append)
     assert result.ok and result.root == garmin_tree and result.target == garmin_tree / "NewFiles"
-    assert not result.ejected and result.eject_message is None  # eject is off by default
     assert len(result.written) == 2 and result.schedule is not None and result.schedule.exists()
     assert decode_fit(result.written[0].read_bytes()).file_type == "workout" and decode_fit(result.schedule.read_bytes()).file_type == "schedules"
     assert load(Path(tempo.path)).status == "pushed" and push_status(conn, tempo.path) == "pushed"
@@ -66,31 +64,30 @@ def test_push_dry_run_and_to_device(config: Config, conn, garmin_tree: Path):
     assert len(history) == 4 and history[0]["status"] == "pushed" and history[0]["watch_serial"] == "3999999999" and history[-1]["status"] == "dry_run"
     # pushing again writes nothing new on the device (same content hash) but records the push
     before = sorted(p.name for p in (garmin_tree / "NewFiles").iterdir())
-    push(conn, config, [tempo], roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), log=log.append)
+    push(conn, config, [tempo], path=garmin_tree, log=log.append)
     assert sorted(p.name for p in (garmin_tree / "NewFiles").iterdir()) == before and any("already on the device" in line for line in log)
     # Workouts folder as the target, matching the existing folder's case
     (garmin_tree / "WORKOUTS").mkdir()
-    result = push(conn, config, [easy], roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), folder="Workouts")
+    result = push(conn, config, [easy], path=garmin_tree, folder="Workouts")
     assert result.target == garmin_tree / "WORKOUTS" and device_folder(garmin_tree, "newfiles") == garmin_tree / "NewFiles"
 
 
 def test_push_without_device(config: Config, conn):
     save(config, _w(date(2026, 11, 5)))
-    result = push(conn, config, list_workouts(config), roots=lambda: [], mounter=lambda: (False, "nothing attached"))
-    assert result.root is None and result.mount_message == "nothing attached" and result.written == []
+    result = push(conn, config, list_workouts(config), path=config.data_dir / "nowhere")
+    assert result.root is None and "is not a directory" in result.device_message and result.written == []
     assert pending_pushes(conn) == []
-    assert push(conn, config, [parse_markdown("# x\n")], roots=lambda: []).root is None
+    assert push(conn, config, [parse_markdown("# x\n")], path=config.data_dir / "nowhere").root is None
 
 
 def test_verify_marks_workouts_the_watch_took_over(config: Config, conn, garmin_tree: Path):
     save(config, _w(date(2026, 11, 5)))
     save(config, _w(date(2026, 11, 6), "Tempo"))
     items = list_workouts(config)
-    roots = lambda: [garmin_tree.parent]  # noqa: E731
-    result = push(conn, config, items, roots=roots, mounter=lambda: (False, "no"))
+    result = push(conn, config, items, path=garmin_tree)
     assert len(pending_pushes(conn)) == 2
     # nothing under Workouts yet
-    check = verify(conn, config, roots=roots, mounter=lambda: (False, "no"))
+    check = verify(conn, config, path=garmin_tree)
     assert check.root == garmin_tree and check.on_watch == [] and check.missing == ["Easy run", "Tempo"] and check.verified == []
     # the watch "processes" the first file: it appears under Workouts (and some foreign file too)
     (garmin_tree / "Workouts").mkdir()
@@ -99,56 +96,12 @@ def test_verify_marks_workouts_the_watch_took_over(config: Config, conn, garmin_
     on_watch = workouts_on_watch(garmin_tree)
     assert len(on_watch) == 1 and on_watch[0][0] == "Easy run" and on_watch[0][1] == pending_pushes(conn)[0]["time_created_utc"]
     log: list[str] = []
-    check = verify(conn, config, roots=roots, mounter=lambda: (False, "no"), log=log.append)
+    check = verify(conn, config, path=garmin_tree, log=log.append)
     assert check.verified == ["Easy run"] and check.missing == ["Tempo"]
     assert load(Path(items[0].path)).status == "verified" and push_status(conn, items[0].path) == "verified"
     assert [r["name"] for r in pending_pushes(conn)] == ["Tempo"]
     assert any("✓ Easy run" in line for line in log)
-    assert verify(conn, config, roots=lambda: [], mounter=lambda: (False, "gone")).root is None
-
-
-class _NoWriteDir(type(Path())):
-    """A path whose write_bytes fails like a gvfs MTP mount does."""
-
-    def write_bytes(self, data):  # noqa: D401
-        raise OSError(errno.ENOTSUP, "Operation not supported")
-
-
-def test_write_device_file_falls_back_to_gio_copy(tmp_path: Path):
-    calls: list[list[str]] = []
-
-    def runner(argv):
-        calls.append(argv)
-        Path(argv[3]).write_bytes(Path(argv[2]).read_bytes())  # pretend gio copied it
-        return 0, "", ""
-
-    target = _NoWriteDir(tmp_path / "GARMIN" / "NewFiles" / "w.fit")
-    target.parent.mkdir(parents=True)
-    assert write_device_file(target, b"abc", runner=runner) == "gio"
-    assert calls[0][:2] == ["gio", "copy"] and calls[0][3] == str(target) and target.read_bytes() == b"abc"
-    assert not Path(calls[0][2]).exists()  # temp file cleaned up
-    assert write_device_file(tmp_path / "plain.fit", b"xyz", runner=runner) == "write" and len(calls) == 1
-    with pytest.raises(OSError, match="gio copy"):
-        write_device_file(_NoWriteDir(tmp_path / "GARMIN" / "NewFiles" / "x.fit"), b"a", runner=lambda argv: (1, "", "boom"))
-    with pytest.raises(OSError):
-        write_device_file(tmp_path / "missing-dir" / "x.fit", b"a", runner=runner)  # ENOENT is not retried
-
-
-def test_push_ejects_an_mtp_mount(config: Config, conn, garmin_tree: Path, monkeypatch):
-    """The eject step is driven by the path of the mount; simulate it with a runner that records the call."""
-    from wristpull.workouts import device as device_module
-
-    save(config, _w(date(2026, 11, 5)))
-    calls: list[list[str]] = []
-    runner = lambda argv: (calls.append(argv), (0, "", ""))[1]  # noqa: E731
-    monkeypatch.setattr(device_module, "eject_garmin", lambda root, run: (True, "ejected mtp://x/") if run(["gio", "mount", "-u", "mtp://x/"])[0] == 0 else (False, "no"))
-    result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner, eject=True)
-    assert result.ejected and result.eject_message == "ejected mtp://x/" and calls[-1] == ["gio", "mount", "-u", "mtp://x/"]
-    config.workout.eject = True  # the config default applies when the caller passes nothing
-    result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner)
-    assert result.ejected
-    result = push(conn, config, list_workouts(config), roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), runner=runner, eject=False)
-    assert not result.ejected and result.eject_message is None
+    assert verify(conn, config, path=config.data_dir / "nowhere").root is None
 
 
 def test_verify_warns_near_the_watch_limit(config: Config, conn, garmin_tree: Path):
@@ -160,7 +113,7 @@ def test_verify_warns_near_the_watch_limit(config: Config, conn, garmin_tree: Pa
     for i in range(WORKOUT_LIMIT_WARN):
         (garmin_tree / "Workouts" / f"W{i}.fit").write_bytes(build_workout_fit(_w(date(2026, 11, 5), f"Old {i}")))
     log: list[str] = []
-    result = verify(conn, config, roots=lambda: [garmin_tree.parent], mounter=lambda: (False, "no"), log=log.append)
+    result = verify(conn, config, path=garmin_tree, log=log.append)
     assert len(result.on_watch) == WORKOUT_LIMIT_WARN and result.near_limit and any("20 workouts on the watch" in line for line in log)
 
 

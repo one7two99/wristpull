@@ -20,18 +20,15 @@ def run(coro):
 
 def make_deps(tmp_path: Path, garmin_tree: Path | None = None, *, phone_root: Path | None = None) -> TuiDeps:
     opened: list[Path] = []
+    # FakeMtp serves <root>/GARMIN/…; callers pass either the GARMIN folder or its parent
+    mtp_root = (garmin_tree.parent if garmin_tree.name.upper() == "GARMIN" else garmin_tree) if garmin_tree else None
     return TuiDeps(
         adb_factory=lambda: FakeAdb(phone_root or tmp_path / "phone"),
-        roots=(lambda: [garmin_tree]) if garmin_tree else (lambda: []),
-        mounter=lambda: (False, "no mounter in tests"),
-        mtp_urls=lambda: [],
-        remounter=lambda roots: (False, "no remounter in tests"),
         sleep=lambda _s: None,
         today=lambda: TODAY,
         open_path=opened.append,
         refresh_interval=0,
-        access="gvfs",
-        mtp_factory=lambda: FakeMtp(tmp_path / "no-mtp-device", present=False),
+        mtp_factory=(lambda: FakeMtp(mtp_root)) if garmin_tree else (lambda: FakeMtp(tmp_path / "no-mtp-device", present=False)),
     )
 
 

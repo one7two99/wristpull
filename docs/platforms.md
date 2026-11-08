@@ -69,12 +69,12 @@ uv run wristpull status
 | Needs | For |
 |---|---|
 | Python 3.14, uv | the package |
-| `mtp-tools` (libmtp) and `[garmin] access = "mtp"` | the watch without a mount; alternatively a gvfs mount of the watch (`access = "gvfs"`, the desktop's MTP mount; on KDE `kiod6` may hold the device first) |
+| `mtp-tools` (libmtp) | the watch over USB; nothing else may hold it (install the udev rule, or unmount the watch in the desktop first) |
 | `bluez`, user in `bluetooth` or a desktop session | the strap |
 | `adb` (`android-tools-adb`), keys in `~/.android` | the phone |
 
 Paths: all of section 2. The native path is what the Docker image runs inside anyway, so it is
-exercised by every container run; the gvfs mount is the one part that exists only natively.
+exercised by every container run.
 
 ## 4. macOS (expected, not verified)
 
@@ -88,7 +88,7 @@ uv sync --extra tui --extra coach --extra web --extra ble
 
 | Path | How | Status |
 |---|---|---|
-| Garmin over USB | `[garmin] access = "mtp"` with Homebrew's libmtp tools (`mtp-files`, `mtp-getfile`); nothing else may hold the watch (no Android File Transfer running) | expected |
+| Garmin over USB | Homebrew's libmtp tools (`mtp-files`, `mtp-getfile`); nothing else may hold the watch (no Android File Transfer running) | expected |
 | Garmin, copied folder | copy `GARMIN/` with Android File Transfer or OpenMTP, then `import garmin --path` | expected |
 | Garmin Connect export | `import garmin-export` | expected (pure Python) |
 | Strap over Bluetooth | bleak uses CoreBluetooth; macOS asks once for Bluetooth permission for the terminal app | expected |
@@ -151,7 +151,7 @@ phase 3; it is a separate project.
 | Machine | Recommended | Devices | Also |
 |---|---|---|---|
 | Linux | Docker stack (`wristpull-setup`) | watch USB, strap BLE, phone ADB, workout push | native uv for development |
-| Linux without Docker | native uv, `access = "mtp"` | the same | gvfs mount instead of mtp-tools |
+| Linux without Docker | native uv with `mtp-tools` | the same | `import garmin --path` from a copied folder |
 | macOS | native uv | watch via libmtp (expected), strap via CoreBluetooth (expected), phone ADB | Docker Desktop for the dashboard only |
 | Windows | native uv | watch from a copied folder, strap via WinRT (expected), phone ADB | WSL 2 for the shell scripts |
 | Android phone | dashboard viewer | optional data source with Gadgetbridge | |

@@ -31,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_import = sub.add_parser("import", help="import data from a device")
     import_sub = p_import.add_subparsers(dest="device", required=True)
     p_garmin = import_sub.add_parser("garmin", help="import FIT files from a USB-connected Garmin watch")
-    p_garmin.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_garmin.add_argument("--path", type=Path, help="a GARMIN folder (or a directory containing one) instead of the watch over USB")
     p_garmin.add_argument("--dry-run", action="store_true", help="list new files without copying or parsing")
     p_export = import_sub.add_parser("garmin-export", help="import the Garmin Connect account export (portal zip or extracted directory)")
     p_export.add_argument("path", type=Path, help="the downloaded export zip, the UploadedFiles_*.zip, or the extracted directory")
@@ -47,8 +47,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_inspect.add_argument("--messages", help="comma-separated message names/numbers to show in full")
     p_inspect.add_argument("--limit", type=int, default=5, help="rows per message type when --messages is used")
 
-    p_mount = sub.add_parser("mount", help="mount the USB-connected Garmin watch (releases KDE's hold on the MTP device if needed)")
-    p_mount.add_argument("--remount", action="store_true", help="unmount a stale mount first, then mount again")
 
     p_config = sub.add_parser("config", help="show or create the configuration file")
     p_config.add_argument("--init", action="store_true", help="write a default config file if none exists")
@@ -150,20 +148,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_wpush.add_argument("--date", help="push the workouts planned for this local date")
     p_wpush.add_argument("--upcoming", action="store_true", help="push every valid workout from today on that is not on the watch yet")
     p_wpush.add_argument("--force", action="store_true", help="also push workouts already pushed (with --upcoming), and write files again even if an identical one is on the watch")
-    p_wpush.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_wpush.add_argument("--path", type=Path, help="a GARMIN folder (or a directory containing one) instead of the watch over USB")
     p_wpush.add_argument("--folder", choices=["NewFiles", "Workouts"], help="target folder below GARMIN/ (default: [workout] folder)")
     p_wpush.add_argument("--schedule", action="store_true", help="also write a schedule file with the planned dates")
     p_wpush.add_argument("--dry-run", action="store_true", help="write the FIT files to <data_dir>/workouts/out/ instead of the watch")
-    eject_group = p_wpush.add_mutually_exclusive_group()
-    eject_group.add_argument("--eject", dest="eject", action="store_true", default=None, help="unmount the MTP mount after writing")
-    eject_group.add_argument("--no-eject", dest="eject", action="store_false", help="leave the mount in place (default: [workout] eject)")
     p_wverify = workout_sub.add_parser("verify", help="read GARMIN/Workouts on the watch and mark the pushed workouts it has taken over")
-    p_wverify.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_wverify.add_argument("--path", type=Path, help="a GARMIN folder (or a directory containing one) instead of the watch over USB")
     p_wwatch = workout_sub.add_parser("watch", help="list the workouts on the watch: active (GARMIN/Workouts) and pending (GARMIN/NewFiles)")
-    p_wwatch.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_wwatch.add_argument("--path", type=Path, help="a GARMIN folder (or a directory containing one) instead of the watch over USB")
     p_wremove = workout_sub.add_parser("remove", help="remove workouts from the watch (backed up to <data_dir>/workouts/watch-backup/ first)")
     p_wremove.add_argument("names", nargs="+", help="workout name or file name as shown by 'workout watch' (pending files in NewFiles too)")
-    p_wremove.add_argument("--path", type=Path, help="GARMIN folder or mount point (default: auto-detect)")
+    p_wremove.add_argument("--path", type=Path, help="a GARMIN folder (or a directory containing one) instead of the watch over USB")
     p_wremove.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     p_wplan = workout_sub.add_parser("from-plan", help="draft one workout per session of the coach's last weekly plan")
     p_wplan.add_argument("--week", help="Monday of the week to plan (default: the week the plan was written for)")
@@ -390,9 +385,9 @@ def cmd_import_garmin(args: argparse.Namespace, config: Config) -> int:
     log = (lambda _m: None) if args.quiet else print
     stats = import_garmin(conn, config, path=args.path, dry_run=args.dry_run, log=log)
     if stats.root is None:
-        print("No Garmin device found. Connect the watch (MTP), pass --path <GARMIN folder> or set [garmin] access.", file=sys.stderr)
-        if stats.mount_message:
-            print(stats.mount_message, file=sys.stderr)
+        print("No Garmin device found. Connect the watch over USB or pass --path <GARMIN folder>.", file=sys.stderr)
+        if stats.device_message:
+            print(stats.device_message, file=sys.stderr)
         return 1
     mode = "dry run: " if args.dry_run else ""
     print(f"{mode}{stats.root}: {stats.found} FIT files, {stats.new} new, {stats.skipped} already archived, {stats.errors} errors")
@@ -432,27 +427,6 @@ def cmd_inspect(args: argparse.Namespace, config: Config) -> int:
                 summary[msg.name]["_shown"] = count + 1
                 print(f"  [{wanted_key}] " + ", ".join(f"{k}={v}" for k, v in msg.named.items() if v is not None))
     return 0
-
-
-def cmd_mount(args: argparse.Namespace, config: Config) -> int:
-    from .garmin_usb import candidate_roots, find_garmin_root, remount_garmin, try_mount_garmin
-    from .mtp import MtpTools, probe_mtp, resolve_access
-
-    if resolve_access(config) == "mtp":
-        info, message = probe_mtp(MtpTools())
-        print("MTP access ([garmin] access): no mount is needed, the tools open the watch for every command.")
-        print(f"Device: {info.label()}" if info else f"No device: {message}", file=sys.stdout if info else sys.stderr)
-        return 0 if info else 1
-    roots = candidate_roots(extra=config.garmin_mount_hints)
-    if not args.remount and (root := find_garmin_root(roots)) is not None:
-        print(f"already mounted: {root}")
-        return 0
-    mounted, message = remount_garmin(roots) if args.remount else try_mount_garmin()
-    print(message, file=sys.stdout if mounted else sys.stderr)
-    if mounted:
-        root = find_garmin_root(candidate_roots(extra=config.garmin_mount_hints))
-        print(f"GARMIN folder: {root}" if root else "mounted, but no GARMIN folder found yet; try again in a few seconds")
-    return 0 if mounted else 1
 
 
 def cmd_config(args: argparse.Namespace, config: Config) -> int:
@@ -751,9 +725,9 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
 
             listing = read_watch(conn, config, path=args.path)
             if listing.root is None:
-                print("No Garmin device found. Connect the watch (MTP), pass --path <GARMIN folder> or set [garmin] access.", file=sys.stderr)
-                if listing.mount_message:
-                    print(listing.mount_message, file=sys.stderr)
+                print("No Garmin device found. Connect the watch over USB or pass --path <GARMIN folder>.", file=sys.stderr)
+                if listing.device_message:
+                    print(listing.device_message, file=sys.stderr)
                 return 1
             if args.workout_cmd == "remove":
                 keys = list(args.names)
@@ -785,9 +759,9 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
 
             result = verify(conn, config, path=args.path, log=log)
             if result.root is None:
-                print("No Garmin device found. Connect the watch (MTP) or pass --path <GARMIN folder>.", file=sys.stderr)
-                if result.mount_message:
-                    print(result.mount_message, file=sys.stderr)
+                print("No Garmin device found. Connect the watch over USB or pass --path <GARMIN folder>.", file=sys.stderr)
+                if result.device_message:
+                    print(result.device_message, file=sys.stderr)
                 return 1
             print(f"{result.root}: {len(result.on_watch)} workouts on the watch, {len(result.verified)} newly confirmed, {len(result.missing)} pushed but not found")
             if result.limit_warning:
@@ -811,16 +785,16 @@ def cmd_workout(args: argparse.Namespace, config: Config) -> int:
         if not selected:
             print("nothing to push", file=sys.stderr)
             return 2
-        result = push(conn, config, selected, path=args.path, folder=args.folder, schedule=True if args.schedule else None, dry_run=args.dry_run, eject=args.eject, force=args.force, log=log)
+        result = push(conn, config, selected, path=args.path, folder=args.folder, schedule=True if args.schedule else None, dry_run=args.dry_run, force=args.force, log=log)
         if result.root is None and not result.invalid:
-            print("No Garmin device found. Connect the watch (MTP) or pass --path <GARMIN folder>.", file=sys.stderr)
-            if result.mount_message:
-                print(result.mount_message, file=sys.stderr)
+            print("No Garmin device found. Connect the watch over USB or pass --path <GARMIN folder>.", file=sys.stderr)
+            if result.device_message:
+                print(result.device_message, file=sys.stderr)
             return 1
         mode = "dry run: " if args.dry_run else ""
         print(f"{mode}{len(result.written)} workout files written to {result.target}" + (f", schedule {result.schedule.name}" if result.schedule else ""))
         if not args.dry_run and result.written:
-            state = "The watch was ejected; unplug it now." if result.ejected else "Unplug the watch when you are done."
+            state = "Unplug the watch when you are done."
             print(state + (" It imports the files from NewFiles and lists them under Training > Workouts." if (args.folder or config.workout.folder) == "NewFiles" else " The files are in GARMIN/Workouts; a restart of the watch may be needed."))
         for name, errors in result.invalid:
             print(f"  ✗ {name}: " + "; ".join(errors), file=sys.stderr)
@@ -901,8 +875,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_inspect(args, config)
     if args.command == "config":
         return cmd_config(args, config)
-    if args.command == "mount":
-        return cmd_mount(args, config)
     if args.command == "export":
         return cmd_export(args, config)
     if args.command == "tui":

@@ -1,24 +1,23 @@
-"""The watch's workout folders behind one small interface: a mounted GARMIN directory or the MTP tools.
+"""The watch's workout folders behind one small interface: the MTP tools, or a GARMIN directory.
 
 Push, verify, listing and removal (`push.py`, `watch.py`) only talk to :class:`WatchFiles`, so the
 rules that protect the watch (never overwrite, remove only top-level workout files after a backup,
-raw-data folders read-only) are written once. :class:`LocalWatch` wraps today's path/gio code,
-:class:`MtpWatch` the libmtp tools (:mod:`wristpull.mtp`).
+raw-data folders read-only) are written once. :class:`MtpWatch` is the watch over USB through the
+libmtp tools (:mod:`wristpull.mtp`), :class:`LocalWatch` a directory passed with ``--path``.
 """
 
 from __future__ import annotations
 
 import tempfile
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
 from ..config import Config
-from ..garmin_usb import Runner, eject_garmin, parse_device_info, read_device_info, run_command, try_mount_garmin
+from ..garmin_usb import parse_device_info, read_device_info
 from ..importers.garmin import locate_garmin
-from ..mtp import GARMIN_ROOT, Mtp, MtpDeviceInfo, MtpError, MtpFactory, MtpTools, folder_id, probe_mtp, resolve_access
+from ..mtp import GARMIN_ROOT, Mtp, MtpDeviceInfo, MtpError, MtpFactory, MtpTools, folder_id, probe_mtp
 from ..timeutil import iso_utc
 
 MTP_ROOT = Path(GARMIN_ROOT)  # the device namespace, shown as the root of an MtpWatch
@@ -43,15 +42,13 @@ class WatchFiles(Protocol):
     def exists(self, folder: str, name: str) -> bool: ...
     def write(self, folder: str, name: str, data: bytes) -> str: ...
     def remove(self, folder: str, name: str) -> str: ...
-    def eject(self) -> tuple[bool, str]: ...
 
 
 class LocalWatch:
-    """A mounted ``GARMIN`` directory (gvfs MTP mount, USB mass storage, or a directory passed with ``--path``)."""
+    """A ``GARMIN`` directory on disk: a copy of the watch's folder, or a mass-storage mount, passed with ``--path``."""
 
-    def __init__(self, root: Path, *, runner: Runner = run_command) -> None:
+    def __init__(self, root: Path) -> None:
         self.root = root
-        self.runner = runner
 
     def describe(self) -> str:
         return str(self.root)
@@ -94,22 +91,17 @@ class LocalWatch:
         return (self.folder_path(folder) / name).exists()
 
     def write(self, folder: str, name: str, data: bytes) -> str:
-        from .push import write_device_file
-
         target = self.folder_path(folder)
         if not target.is_dir():
             target.mkdir(parents=True, exist_ok=True)
         if (target / name).exists():
             raise FileExistsError(f"{target / name} exists; files on the watch are never overwritten")
-        return write_device_file(target / name, data, runner=self.runner)
+        (target / name).write_bytes(data)
+        return "write"
 
     def remove(self, folder: str, name: str) -> str:
-        from .watch import remove_device_file
-
-        return remove_device_file(self.folder_path(folder) / name, runner=self.runner)
-
-    def eject(self) -> tuple[bool, str]:
-        return eject_garmin(self.root, self.runner)
+        (self.folder_path(folder) / name).unlink()
+        return "unlink"
 
 
 class MtpWatch:
@@ -190,35 +182,13 @@ class MtpWatch:
             raise OSError(str(exc)) from exc
         return "mtp"
 
-    def eject(self) -> tuple[bool, str]:
-        return False, "MTP: nothing to eject, the tools close the device after every call"
 
-
-def open_watch(
-    config: Config,
-    path: Path | None = None,
-    *,
-    roots: Callable[[], list[Path]] | None = None,
-    mounter: Callable[[], tuple[bool, str]] = try_mount_garmin,
-    access: str | None = None,
-    mtp_factory: MtpFactory | None = None,
-    runner: Runner = run_command,
-) -> tuple[WatchFiles | None, str | None]:
-    """The watch as :class:`WatchFiles`, or ``(None, why)``. An explicit ``path`` is always a directory;
-    otherwise ``access`` (default ``[garmin] access``) chooses between the mount and the MTP tools."""
-    if path is None and (access or resolve_access(config)) == "mtp":
+def open_watch(config: Config, path: Path | None = None, *, mtp_factory: MtpFactory | None = None) -> tuple[WatchFiles | None, str | None]:
+    """The watch as :class:`WatchFiles`, or ``(None, why)``: the MTP tools (``mtp_factory``, default
+    :class:`MtpTools`) over USB, or the directory ``path`` when one is given."""
+    if path is None:
         mtp = (mtp_factory or MtpTools)()
         info, message = probe_mtp(mtp)
         return (MtpWatch(mtp, info) if info is not None else None), message
-    root, message = locate_garmin(config, path, roots=roots, mounter=mounter)
-    return (LocalWatch(root, runner=runner) if root is not None else None), message
-
-
-def watch_present(config: Config, *, roots: Callable[[], list[Path]] | None = None, access: str | None = None) -> bool | None:
-    """Cheap presence check for status lines: a mounted GARMIN folder, or ``None`` over MTP (probing costs seconds)."""
-    from ..garmin_usb import candidate_roots, find_garmin_root
-
-    if (access or resolve_access(config)) == "mtp":
-        return None
-    search = roots or (lambda: candidate_roots(extra=config.garmin_mount_hints))
-    return find_garmin_root(search()) is not None
+    root, message = locate_garmin(path)
+    return (LocalWatch(root) if root is not None else None), message

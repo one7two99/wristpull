@@ -38,12 +38,6 @@ FINISHED = (WorkerState.SUCCESS, WorkerState.ERROR, WorkerState.CANCELLED)
 
 
 @dataclass
-class MountOutcome:
-    mounted: bool
-    message: str
-
-
-@dataclass
 class JobSpec:
     key: str
     title: str
@@ -151,8 +145,8 @@ def describe_result(record: JobRecord) -> list[str]:
     if isinstance(result, ImportStats):
         if result.root is None:
             lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
-            if result.mount_message:
-                lines.append("  " + result.mount_message)
+            if result.device_message:
+                lines.append("  " + result.device_message)
             return lines
         lines.append(
             "✓ "
@@ -205,37 +199,31 @@ def describe_result(record: JobRecord) -> list[str]:
     elif isinstance(result, PushResult):
         if result.root is None and not result.invalid:
             lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
-            if result.mount_message:
-                lines.append("  " + result.mount_message)
+            if result.device_message:
+                lines.append("  " + result.device_message)
             return lines
         if result.written:
             prefix = _("dry run: ") if result.dry_run else ""
             lines.append("✓ " + prefix + ngettext("{n} workout file written to {dir}", "{n} workout files written to {dir}", len(result.written)).format(n=len(result.written), dir=result.target))
             if not result.dry_run:
-                lines.append("  " + (_("The watch was ejected; unplug it now. It lists the workouts under Training > Workouts.") if result.ejected else _("Unplug the watch when you are done; it imports the files and lists them under Training > Workouts.")))
+                lines.append("  " + _("Unplug the watch when you are done; it imports the files and lists them under Training > Workouts."))
         for name, errors in result.invalid:
             lines.append(f"  ! {name}: " + "; ".join(errors))
     elif isinstance(result, VerifyResult):
         if result.root is None:
             lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
-            if result.mount_message:
-                lines.append("  " + result.mount_message)
+            if result.device_message:
+                lines.append("  " + result.device_message)
             return lines
         lines.append("✓ " + _("{on_watch} workouts on the watch, {verified} newly confirmed, {missing} pushed but not found").format(on_watch=len(result.on_watch), verified=len(result.verified), missing=len(result.missing)))
         if result.near_limit:
             lines.append("  ! " + _("The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."))
-    elif isinstance(result, MountOutcome):
-        if result.mounted:
-            lines.append("✓ " + _("watch mounted"))
-            lines += ["  " + line for line in result.message.split("; ")]
-        else:
-            lines.append("✗ " + _("could not mount the watch"))
             lines += ["  " + line for line in result.message.splitlines()]
     elif isinstance(result, WatchListing):
         if result.root is None:
             lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
-            if result.mount_message:
-                lines.append("  " + result.mount_message)
+            if result.device_message:
+                lines.append("  " + result.device_message)
             return lines
         lines.append("✓ " + _("{active} active, {pending} waiting for unplugging (of ~{limit})").format(active=len(result.active), pending=len(result.pending), limit=WORKOUT_LIMIT))
         if result.near_limit:
@@ -267,7 +255,7 @@ def garmin_import_job(config: Config, deps: TuiDeps, *, path: Path | None = None
     cli = "wristpull import garmin" + (f" --path {path}" if path else "") + (" --dry-run" if dry_run else "")
 
     def run(conn: sqlite3.Connection, log: Log) -> ImportStats:
-        return import_garmin(conn, config, path=path, dry_run=dry_run, log=log, roots=deps.roots, mounter=deps.mounter, stop=stop, access=deps.access, mtp_factory=deps.mtp_factory)
+        return import_garmin(conn, config, path=path, dry_run=dry_run, log=log, stop=stop, mtp_factory=deps.mtp_factory)
 
     return JobSpec("import_garmin", _("Import Garmin"), cli, run)
 
@@ -367,7 +355,7 @@ def workout_push_job(config: Config, deps: TuiDeps, workouts: list[Workout], *, 
     cli = f"wristpull workout push {files}" + (" --schedule" if schedule else "") + (" --force" if force else "") + (" --dry-run" if dry_run else "")
 
     def run(conn: sqlite3.Connection, log: Log) -> PushResult:
-        return push(conn, config, workouts, roots=deps.roots, mounter=deps.mounter, schedule=schedule, dry_run=dry_run, force=force, log=log, access=deps.access, mtp_factory=deps.mtp_factory)
+        return push(conn, config, workouts, schedule=schedule, dry_run=dry_run, force=force, log=log, mtp_factory=deps.mtp_factory)
 
     return JobSpec("workout_push", _("Push workouts"), cli, run)
 
@@ -376,7 +364,7 @@ def workout_verify_job(config: Config, deps: TuiDeps) -> JobSpec:
     from ..workouts.push import verify
 
     def run(conn: sqlite3.Connection, log: Log) -> VerifyResult:
-        return verify(conn, config, roots=deps.roots, mounter=deps.mounter, log=log, access=deps.access, mtp_factory=deps.mtp_factory)
+        return verify(conn, config, log=log, mtp_factory=deps.mtp_factory)
 
     return JobSpec("workout_verify", _("Verify workouts"), "wristpull workout verify", run)
 
@@ -386,7 +374,7 @@ def watch_list_job(config: Config, deps: TuiDeps) -> JobSpec:
 
     def run(conn: sqlite3.Connection, log: Log) -> WatchListing:
         log(_("reading GARMIN/Workouts …"))
-        return read_watch(conn, config, roots=deps.roots, mounter=deps.mounter, access=deps.access, mtp_factory=deps.mtp_factory)
+        return read_watch(conn, config, mtp_factory=deps.mtp_factory)
 
     return JobSpec("workout_watch", _("Workouts on the watch"), "wristpull workout watch", run)
 
@@ -397,24 +385,6 @@ def watch_remove_job(config: Config, deps: TuiDeps, file_names: list[str]) -> Jo
     cli = "wristpull workout remove " + " ".join(f'"{n}"' for n in file_names) + " --yes"
 
     def run(conn: sqlite3.Connection, log: Log) -> RemoveResult:
-        return remove_from_watch(conn, config, file_names, roots=deps.roots, mounter=deps.mounter, log=log, access=deps.access, mtp_factory=deps.mtp_factory)
+        return remove_from_watch(conn, config, file_names, log=log, mtp_factory=deps.mtp_factory)
 
     return JobSpec("workout_remove", _("Remove workouts from the watch"), cli, run)
-
-
-def mount_job(config: Config, deps: TuiDeps) -> JobSpec:
-    """Unmount a stale mount of the watch and mount it again (releasing KDE's kiod6 if it holds the device)."""
-    from ..garmin_usb import candidate_roots
-    from ..mtp import MtpTools, probe_mtp, resolve_access
-
-    def run(conn: sqlite3.Connection, log: Log) -> MountOutcome:
-        if (deps.access or resolve_access(config)) == "mtp":
-            info, message = probe_mtp((deps.mtp_factory or MtpTools)())
-            log(_("MTP access: no mount is needed, the tools open the watch for every command"))
-            return MountOutcome(info is not None, message)
-        roots = deps.roots() if deps.roots else candidate_roots(extra=config.garmin_mount_hints)
-        log(_("mounting the watch …"))
-        mounted, message = deps.remounter(roots)
-        return MountOutcome(mounted, message)
-
-    return JobSpec("mount", _("Mount the watch"), "wristpull mount --remount", run)

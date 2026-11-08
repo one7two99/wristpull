@@ -11,7 +11,6 @@ swapped for a ctypes binding to libmtp without touching callers or :class:`tests
 
 from __future__ import annotations
 
-import os
 import re
 import shutil
 import tempfile
@@ -20,17 +19,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from .config import Config
 from .garmin_usb import Runner
 from .garmin_usb import run_command as _run_command
-from .runtime import in_container
 
 MTP_TIMEOUT = 300.0  # mtp-files walks every object on the device
 GARMIN_ROOT = "/GARMIN"
 MTP_TOOLS_HINT = "mtp-tools (libmtp) are not installed: apt install mtp-tools, or use the Docker image"
 MTP_BUSY_HINT = (
-    "another program holds the watch (a gvfs mount, Dolphin or kiod6 on the host, or no permission on "
-    "/dev/bus/usb); unmount it there or see README 'Running everything in Docker'"
+    "another program holds the watch (the desktop's file manager or MTP handling, or no permission on "
+    "/dev/bus/usb); close it there, or install contrib/udev/91-wristpull-garmin-docker.rules (README, "
+    "'Running everything in Docker')"
 )
 NOISE = "MTP extended association type"
 _NO_DEVICE = re.compile(r"no (raw )?devices?( have been)? found|^No devices\.$", re.IGNORECASE | re.MULTILINE)
@@ -239,15 +237,6 @@ def _tail(out: str, err: str) -> str:
 
 
 # --- choosing the access path ---------------------------------------------------------------
-
-
-def resolve_access(config: Config, env: Mapping[str, str] | None = None) -> str:
-    """``[garmin] access`` with ``auto`` resolved: MTP tools inside the container, gvfs/mount otherwise."""
-    env = os.environ if env is None else env
-    access = config.garmin_access
-    if access == "auto":
-        return "mtp" if in_container(env) else "gvfs"
-    return access
 
 
 def probe_mtp(mtp: Mtp) -> tuple[MtpDeviceInfo | None, str]:

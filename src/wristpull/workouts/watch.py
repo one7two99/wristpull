@@ -19,7 +19,6 @@ from ..archive import sha256_bytes
 from ..config import Config
 from ..fit.decode import decode_fit
 from ..fit.workout import workout_from_fit
-from ..garmin_usb import Runner, run_command, try_mount_garmin
 from ..mtp import MtpFactory
 from ..timeutil import iso_utc
 from .device import LocalWatch, WatchFiles, open_watch
@@ -60,7 +59,7 @@ class WatchWorkout:
 class WatchListing:
     root: Path | None = None
     items: list[WatchWorkout] = field(default_factory=list)
-    mount_message: str | None = None
+    device_message: str | None = None
     watch: WatchFiles | None = None  # how the watch was reached (reused for a cheap re-read after removing)
     device: str | None = None
 
@@ -171,18 +170,14 @@ def read_watch(
     config: Config,
     *,
     path: Path | None = None,
-    roots: Callable[[], list[Path]] | None = None,
-    mounter: Callable[[], tuple[bool, str]] = try_mount_garmin,
-    access: str | None = None,
     mtp_factory: MtpFactory | None = None,
-    runner: Runner = run_command,
     watch: WatchFiles | None = None,
     known: dict[str, WatchWorkout] | None = None,
 ) -> WatchListing:
     """List the workouts on the watch (``watch`` reuses an open connection, else see :func:`open_watch`)."""
     listing = WatchListing()
     if watch is None:
-        watch, listing.mount_message = open_watch(config, path, roots=roots, mounter=mounter, access=access, mtp_factory=mtp_factory, runner=runner)
+        watch, listing.device_message = open_watch(config, path, mtp_factory=mtp_factory)
     if watch is None:
         return listing
     listing.root = watch.root
@@ -209,21 +204,7 @@ def backup_watch_workout(config: Config, item: WatchWorkout) -> Path:
     return target
 
 
-def remove_device_file(path: Path, *, runner: Runner = run_command) -> str:
-    """Delete a file on the watch; gvfs MTP mounts may refuse ``unlink``, then ``gio remove`` does it."""
-    try:
-        path.unlink()
-        return "unlink"
-    except OSError as exc:
-        if isinstance(exc, FileNotFoundError):
-            raise
-    code, out, err = runner(["gio", "remove", str(path)])
-    if code != 0:
-        raise OSError(f"gio remove {path} failed: {(err or out).strip() or code}")
-    return "gio"
-
-
-def remove_watch_workout(conn: sqlite3.Connection, config: Config, item: WatchWorkout, *, runner: Runner = run_command, watch: WatchFiles | None = None) -> Path:
+def remove_watch_workout(conn: sqlite3.Connection, config: Config, item: WatchWorkout, *, watch: WatchFiles | None = None) -> Path:
     """Back up, then delete one workout file from ``GARMIN/Workouts``; matching pushes become ``removed``.
 
     Returns the backup path. Refuses anything outside the top level of a ``Workouts`` folder.
@@ -231,7 +212,7 @@ def remove_watch_workout(conn: sqlite3.Connection, config: Config, item: WatchWo
     if item.path.parent.name.lower() not in ("workouts", "newfiles") or item.path.suffix.lower() != ".fit":
         raise ValueError(f"refusing to remove {item.path}: only workout files directly in GARMIN/Workouts or GARMIN/NewFiles")
     backup = backup_watch_workout(config, item)
-    watch = watch or LocalWatch(item.path.parent.parent, runner=runner)
+    watch = watch or LocalWatch(item.path.parent.parent)
     watch.remove(item.path.parent.name, item.path.name)
     rows = push_rows_for(conn, sha256=item.sha256, name=item.workout.name if item.workout else None, time_created_utc=item.time_created_utc)
     mark_removed(conn, [int(r["id"]) for r in rows])
@@ -244,17 +225,13 @@ def remove_from_watch(
     keys: list[str],
     *,
     path: Path | None = None,
-    roots: Callable[[], list[Path]] | None = None,
-    mounter: Callable[[], tuple[bool, str]] = try_mount_garmin,
-    runner: Runner = run_command,
     log: Log = lambda _m: None,
-    access: str | None = None,
     mtp_factory: MtpFactory | None = None,
     watch: WatchFiles | None = None,
 ) -> RemoveResult:
     """Remove the workouts whose file name or workout name is in ``keys``; re-reads the watch afterwards."""
     result = RemoveResult()
-    listing = read_watch(conn, config, path=path, roots=roots, mounter=mounter, access=access, mtp_factory=mtp_factory, runner=runner, watch=watch)
+    listing = read_watch(conn, config, path=path, mtp_factory=mtp_factory, watch=watch)
     if listing.watch is None:
         result.listing = listing
         return result
@@ -266,7 +243,7 @@ def remove_from_watch(
             continue
         matched |= hit
         try:
-            backup = remove_watch_workout(conn, config, item, runner=runner, watch=listing.watch)
+            backup = remove_watch_workout(conn, config, item, watch=listing.watch)
         except (OSError, ValueError) as exc:
             result.errors.append((item.path.name, str(exc)))
             log(f"  ! {item.path.name}: {exc}")

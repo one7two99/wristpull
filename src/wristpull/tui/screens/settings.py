@@ -48,8 +48,6 @@ class SettingsScreen(WristpullScreen):
                 yield Label(_("GARMIN (USB)"), classes="form-title")
                 yield Label(_("folders, comma-separated"))
                 yield Input(value=", ".join(config.garmin_folders), id="set-folders")
-                yield Label(_("mount hints, comma-separated"))
-                yield Input(value=", ".join(str(p) for p in config.garmin_mount_hints), id="set-hints")
                 yield Label(_("PHONE (ADB)"), classes="form-title")
                 yield Label("serial")
                 yield Input(value=config.phone_serial or "", id="set-serial")
@@ -139,7 +137,6 @@ class SettingsScreen(WristpullScreen):
             file_data_dir=data_dir if overridden else None,
             timezone=self.query_one("#set-timezone", Input).value.strip(),
             garmin_folders=_list(self.query_one("#set-folders", Input).value),
-            garmin_mount_hints=[Path(p).expanduser() for p in _list(self.query_one("#set-hints", Input).value)],
             phone_serial=self.query_one("#set-serial", Input).value.strip() or None,
             phone_export_dir=self.query_one("#set-export-dir", Input).value.strip(),
             ui_language=str(language) if language else None,
@@ -159,7 +156,7 @@ class SettingsScreen(WristpullScreen):
             return
         path = write_config(cfg, self.app.config.path or default_config_path())
         live = self.app.config
-        for field_name in ("data_dir", "file_data_dir", "timezone", "garmin_folders", "garmin_mount_hints", "phone_serial", "phone_export_dir", "ui_language", "ui_theme", "ui_range_days", "coach", "path"):
+        for field_name in ("data_dir", "file_data_dir", "timezone", "garmin_folders", "phone_serial", "phone_export_dir", "ui_language", "ui_theme", "ui_range_days", "coach", "path"):
             setattr(live, field_name, getattr(cfg, field_name))
         self.app.theme = cfg.ui_theme
         self.app.notify(_("Saved to {path}").format(path=path))

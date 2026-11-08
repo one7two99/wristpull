@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import errno
 import sqlite3
-import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -13,7 +11,6 @@ from pathlib import Path
 from ..archive import sha256_bytes
 from ..config import Config
 from ..fit.workout import build_schedule_fit, build_workout_fit, workout_created
-from ..garmin_usb import Runner, run_command, try_mount_garmin
 from ..mtp import MtpFactory
 from ..timeutil import iso_utc
 from .device import LocalWatch, WatchFiles, open_watch
@@ -23,30 +20,6 @@ from .watch import WORKOUT_LIMIT_WARN, list_watch_workouts
 
 Log = Callable[[str], None]
 FOLDERS = ("NewFiles", "Workouts")
-GVFS_ERRNOS = {errno.ENOTSUP, errno.EOPNOTSUPP, errno.EIO, errno.EINVAL}
-
-
-def write_device_file(target: Path, data: bytes, *, runner: Runner = run_command) -> str:
-    """Write ``data`` to ``target``; on a gvfs MTP mount plain writes fail with ENOTSUP, so fall back to ``gio copy``.
-
-    Returns ``'write'`` or ``'gio'`` for the log.
-    """
-    try:
-        target.write_bytes(data)
-        return "write"
-    except OSError as exc:
-        if exc.errno not in GVFS_ERRNOS:
-            raise
-    with tempfile.NamedTemporaryFile(suffix=".fit", delete=False) as tmp:
-        tmp.write(data)
-        tmp_path = Path(tmp.name)
-    try:
-        code, out, err = runner(["gio", "copy", str(tmp_path), str(target)])
-    finally:
-        tmp_path.unlink(missing_ok=True)
-    if code != 0:
-        raise OSError(f"gio copy to {target} failed: {(err or out).strip() or code}")
-    return "gio"
 
 
 @dataclass
@@ -58,10 +31,8 @@ class PushResult:
     invalid: list[tuple[str, list[str]]] = field(default_factory=list)
     errors: list[tuple[str, str]] = field(default_factory=list)  # (file name, why) for files the device refused
     schedule: Path | None = None
-    mount_message: str | None = None
+    device_message: str | None = None
     device: str | None = None  # how the watch was reached, for the log
-    ejected: bool = False
-    eject_message: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -74,7 +45,7 @@ class VerifyResult:
     on_watch: list[str] = field(default_factory=list)  # workout names found under GARMIN/Workouts
     verified: list[str] = field(default_factory=list)  # pending pushes now confirmed
     missing: list[str] = field(default_factory=list)  # pending pushes not (yet) on the watch
-    mount_message: str | None = None
+    device_message: str | None = None
 
     @property
     def near_limit(self) -> bool:
@@ -98,30 +69,23 @@ def push(
     workouts: list[Workout],
     *,
     path: Path | None = None,
-    roots: Callable[[], list[Path]] | None = None,
-    mounter: Callable[[], tuple[bool, str]] = try_mount_garmin,
     schedule: bool | None = None,
     folder: str | None = None,
     dry_run: bool = False,
-    eject: bool | None = None,
     force: bool = False,
     log: Log = lambda _m: None,
-    runner: Runner = run_command,
-    access: str | None = None,
     mtp_factory: MtpFactory | None = None,
     watch: WatchFiles | None = None,
 ) -> PushResult:
     """Encode every valid workout and copy it to ``GARMIN/<folder>/`` (dry run: ``<data_dir>/workouts/out/``).
 
     Existing files on the watch are never overwritten or deleted; a changed workout gets a
-    new file name carrying its content hash. ``eject`` (default: ``[workout] eject``, off) unmounts the
-    MTP mount afterwards; the fenix 6X Pro keeps the files without it. ``force`` writes a file again
-    even when one with the same content is already in the target folder (under a time-stamped name).
-    The watch is reached through ``watch`` or :func:`open_watch` (mount or MTP tools, see ``access``).
+    new file name carrying its content hash. ``force`` writes a file again even when one with the
+    same content is already in the target folder (under a time-stamped name). The watch is reached
+    through ``watch`` or :func:`open_watch` (the MTP tools over USB, or the directory ``path``).
     """
     result = PushResult(dry_run=dry_run)
     schedule = config.workout.schedule if schedule is None else schedule
-    eject = config.workout.eject if eject is None else eject
     folder = folder or config.workout.folder
     valid: list[Workout] = []
     mark_folder_clashes(config, workouts)
@@ -137,12 +101,12 @@ def push(
     if dry_run:
         out = output_dir(config)
         out.mkdir(parents=True, exist_ok=True)
-        watch = LocalWatch(out.parent, runner=runner)  # <data_dir>/workouts/out as the "folder"
+        watch = LocalWatch(out.parent)  # <data_dir>/workouts/out as the "folder"
         folder = out.name
         result.root = out
     else:
         if watch is None:
-            watch, result.mount_message = open_watch(config, path, roots=roots, mounter=mounter, access=access, mtp_factory=mtp_factory, runner=runner)
+            watch, result.device_message = open_watch(config, path, mtp_factory=mtp_factory)
         if watch is None:
             return result
         result.root = watch.root
@@ -166,7 +130,7 @@ def push(
                 result.errors.append((name, str(exc)))
                 log(f"  ! {name}: {exc}")
                 continue
-            log(f"  + {name} ({len(data)} bytes{', via gio copy' if how == 'gio' else ', over MTP' if how == 'mtp' else ''})")
+            log(f"  + {name} ({len(data)} bytes{', over MTP' if how == 'mtp' else ''})")
         result.written.append(result.target / name)
         record_push(conn, workout, sha256=digest, time_created_utc=iso_utc(created_at[workout.name]), target=watch.locator(folder, name), watch_serial=serial, dry_run=dry_run)
         if not dry_run and workout.path:
@@ -181,9 +145,6 @@ def push(
         except OSError as exc:
             result.errors.append((schedule_name, str(exc)))
             log(f"  ! {schedule_name}: {exc}")
-    if eject and not dry_run and result.root is not None and (result.written or result.schedule):
-        result.ejected, result.eject_message = watch.eject()
-        log(f"  {'⏏' if result.ejected else '!'} {result.eject_message}")
     return result
 
 
@@ -197,17 +158,14 @@ def verify(
     config: Config,
     *,
     path: Path | None = None,
-    roots: Callable[[], list[Path]] | None = None,
-    mounter: Callable[[], tuple[bool, str]] = try_mount_garmin,
     log: Log = lambda _m: None,
-    access: str | None = None,
     mtp_factory: MtpFactory | None = None,
     watch: WatchFiles | None = None,
 ) -> VerifyResult:
     """Read GARMIN/Workouts and confirm the pushes the watch has taken over (status ``verified``)."""
     result = VerifyResult()
     if watch is None:
-        watch, result.mount_message = open_watch(config, path, roots=roots, mounter=mounter, access=access, mtp_factory=mtp_factory)
+        watch, result.device_message = open_watch(config, path, mtp_factory=mtp_factory)
     if watch is None:
         return result
     result.root = watch.root

@@ -93,8 +93,9 @@ Conclusions:
 - The host grabs the device only when something opens it (gvfs mount, Dolphin/kiod6). The
   volume monitor alone does not. The contrib rule clears `ID_MTP_DEVICE` and
   `ID_MEDIA_PLAYER` for `091e` *after* `70-uaccess.rules` so the desktop no longer offers the
-  watch; with that rule the native gvfs path on the same machine needs `[garmin] access = "gvfs"`
-  plus a manual `gio mount` (verified in phase C).
+  watch (verified in phase C). Since wave 2 of the cleanup (2026-11-08) the MTP tools are the only
+  way to the watch, natively as well; the gvfs/mount code, `wristpull mount` and `[garmin] access`
+  are gone, `import garmin --path` imports a directory.
 
 ## Phase B on the real watch (2026-11-07, `docker compose run --rm cli wristpull …`)
 
@@ -162,8 +163,8 @@ With `91-wristpull-garmin-docker.rules` installed and the `-docker` user units c
   the host path; wrapper `contrib/bin/wristpull`.
 - **Phase B – MTP device layer:** `mtp.py` (parsers, `MtpTools`, `FakeMtp`), import over a
   staging directory with name+size prefilter before the SHA-256 dedup, push/verify/watch/remove
-  through a small `WatchFiles` abstraction (`workouts/device.py`), `[garmin] access = auto | gvfs | mtp`,
-  `status` and `mount` aware of MTP.
+  through a small `WatchFiles` abstraction (`workouts/device.py`), `[garmin] access = auto | gvfs | mtp`
+  (removed again on 2026-11-08: MTP is the only path), `status` and `mount` aware of MTP.
 - **Phase C – automation on the host:** udev rule for the container variant (group, mode, hide
   from the desktop, start the user unit), systemd units that run `docker compose run --rm cli …`.
 - Not part of this: publishing the image (GHCR), `wristpull ship` / the server move,
