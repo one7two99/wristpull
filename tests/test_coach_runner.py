@@ -102,7 +102,7 @@ def test_truncated_answer_and_cost_estimate(conn, config):
 
 def test_coach_cli(tmp_path: Path, monkeypatch, capsys):
     cfg = tmp_path / "config.toml"
-    cfg.write_text(f'[storage]\ndata_dir = "{tmp_path / "Health"}"\n[time]\ntimezone = "Europe/Berlin"\n[coach]\nbackend = "ollama"\nmodel = "gemma3:4b"\n', "utf-8")
+    cfg.write_text(f'[storage]\ndata_dir = "{(tmp_path / "Health").as_posix()}"\n[time]\ntimezone = "Europe/Berlin"\n[coach]\nbackend = "ollama"\nmodel = "gemma3:4b"\n', "utf-8")
     assert main(["--config", str(cfg), "coach", "show"]) == 1
     assert "no coach runs" in capsys.readouterr().out
     assert main(["--config", str(cfg), "coach", "profile"]) == 2  # default profile created, placeholders open
@@ -164,7 +164,7 @@ def test_coach_note_notes_and_plan_ics_cli(tmp_path: Path, capsys, monkeypatch):
     from wristpull.coach.store import save_run
 
     cfg = tmp_path / "config.toml"
-    cfg.write_text(f'[storage]\ndata_dir = "{tmp_path / "Health"}"\n[time]\ntimezone = "Europe/Berlin"\n', "utf-8")
+    cfg.write_text(f'[storage]\ndata_dir = "{(tmp_path / "Health").as_posix()}"\n[time]\ntimezone = "Europe/Berlin"\n', "utf-8")
     assert main(["--config", str(cfg), "coach", "notes"]) == 1
     assert main(["--config", str(cfg), "coach", "note", "legs heavy", "--date", "2026-10-05"]) == 0
     assert main(["--config", str(cfg), "coach", "note", "   "]) == 2

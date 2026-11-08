@@ -79,7 +79,7 @@ def test_report_week_and_month(conn, config, garmin_tree: Path):
 
 def test_export_and_report_cli(garmin_tree: Path, tmp_path: Path, capsys):
     cfg = tmp_path / "config.toml"
-    cfg.write_text(f'[storage]\ndata_dir = "{tmp_path / "Health"}"\n[time]\ntimezone = "Europe/Berlin"\n', "utf-8")
+    cfg.write_text(f'[storage]\ndata_dir = "{(tmp_path / "Health").as_posix()}"\n[time]\ntimezone = "Europe/Berlin"\n', "utf-8")
     assert main(["--config", str(cfg), "import", "garmin", "--path", str(garmin_tree)]) == 0
     capsys.readouterr()
     assert main(["--config", str(cfg), "export", "--for-claude", "--from", "2026-10-01", "--to", "2026-10-31", "--stdout"]) == 0

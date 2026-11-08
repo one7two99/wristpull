@@ -31,7 +31,7 @@ WEB_DIR = Path(__file__).resolve().parents[1] / "src" / "wristpull" / "web"
 @pytest.fixture
 def cfg_file(tmp_path: Path) -> Path:
     path = tmp_path / "config.toml"
-    path.write_text(f'[storage]\ndata_dir = "{tmp_path / "Health"}"\n[time]\ntimezone = "Europe/Berlin"\n', "utf-8")
+    path.write_text(f'[storage]\ndata_dir = "{(tmp_path / "Health").as_posix()}"\n[time]\ntimezone = "Europe/Berlin"\n', "utf-8")
     return path
 
 

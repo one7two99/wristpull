@@ -119,5 +119,5 @@ def test_toml_path_uses_tilde_and_forward_slashes(monkeypatch):
     assert toml_path(home / "Health" / "wristpull") == "~/Health/wristpull"
     assert toml_path(home) == "~"
     assert toml_path(Path("/srv/wp")) == "/srv/wp"
-    assert toml_path(Path(str(home) + "sibling")) == str(home) + "sibling"  # a prefix, not the home itself
+    assert toml_path(Path(str(home) + "sibling")) == (str(home) + "sibling").replace("\\", "/")  # a prefix, not the home itself
     assert toml_path(Path(r"C:\Users\x\Health")) == "C:/Users/x/Health"  # Windows: forward slashes keep the TOML valid

@@ -86,7 +86,7 @@ def test_cli_asker_and_run_wizard(config: Config):
 
 def test_profile_wizard_cli(tmp_path: Path, monkeypatch, capsys):
     cfg = tmp_path / "config.toml"
-    cfg.write_text(f'[storage]\ndata_dir = "{tmp_path / "Health"}"\n', "utf-8")
+    cfg.write_text(f'[storage]\ndata_dir = "{(tmp_path / "Health").as_posix()}"\n', "utf-8")
     scripted = iter(["2", "", "1", "3 sessions", "1", "3", "none", "1", "2", "60 years"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(scripted))
     assert main(["--config", str(cfg), "coach", "profile", "--wizard", "--lang", "de"]) == 0
