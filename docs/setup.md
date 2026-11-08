@@ -3,6 +3,7 @@
 The whole stack runs from the Docker image: dashboard, CLI, TUI, the watch over USB, the phone over
 ADB, the strap over Bluetooth. The host needs neither Python nor uv. Everything below is Linux
 (USB and Bluetooth pass-through); tested on Ubuntu 26.04 with Docker 29 and Compose v5.
+Other operating systems and the phones: [platforms.md](platforms.md).
 
 ## 0. The short way: `contrib/bin/wristpull-setup`
 

@@ -37,6 +37,8 @@ including the watch over USB, the phone over ADB and the strap over Bluetooth, s
 neither Python nor uv (Linux only). On a fresh machine `contrib/bin/wristpull-setup` walks through
 the whole setup and asks only for what is missing (or restores a backup); [docs/setup.md](docs/setup.md)
 is the same checklist by hand, the details are under "Running everything in Docker".
+[docs/platforms.md](docs/platforms.md) says which way fits which machine (Linux, macOS, Windows,
+Android, iPhone), what each path imports and what it needs.
 
 ## Usage
 
