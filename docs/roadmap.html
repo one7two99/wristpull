@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wristpull roadmap</title>
+<meta name="description" content="Where wristpull is going: what shipped, what's in progress, what's planned — and how to get involved.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M20.72%209.28A9.5%209.5%200%201%200%2020.72%2022.72%22%20fill%3D%22none%22%20stroke%3D%22%23242b33%22%20stroke-width%3D%224.2%22/%3E%3Ccircle%20cx%3D%2214%22%20cy%3D%2216%22%20r%3D%223.6%22%20fill%3D%22%23ce3a32%22/%3E%3Cpath%20d%3D%22M14%2016H24%22%20stroke%3D%22%23ce3a32%22%20stroke-width%3D%224.2%22/%3E%3Cpath%20d%3D%22M23%2010L30%2016L23%2022Z%22%20fill%3D%22%23ce3a32%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="wristpull.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="topbar">
+  <a class="brand" href="index.html" aria-label="wristpull home"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2"/><circle cx="14" cy="16" r="3.6" fill="var(--red)"/><path d="M14 16H24" stroke="var(--red)" stroke-width="4.2"/><path d="M23 10L30 16L23 22Z" fill="var(--red)"/></svg>wristpull</a>
+  <nav aria-label="Main">
+    <a href="features.html">Features</a><a href="hub.html">The Hub</a><a href="install.html">Install</a><a href="roadmap.html" aria-current="page">Roadmap</a><a href="https://github.com/one7two99/wristpull">GitHub</a>
+  </nav>
+</header>
+
+<div class="phero">
+  <p class="kicker">Roadmap &amp; getting involved</p>
+  <h1>Where this is going</h1>
+  <p class="lede">Everything marked <b>shipped</b> runs every morning on real hardware. The principle never changes: the database on your machine stays the single source of truth.</p>
+</div>
+
+<section>
+  <div class="timeline">
+    <div class="milestone live">
+      <span class="tstat">shipped</span>
+      <h3>The full pipeline</h3>
+      <p>Garmin watch over USB, the Helio Strap over Bluetooth without a phone, Gadgetbridge over ADB — every raw file archived immutably, parsed into one SQLite database, daily summaries merged across sources.</p>
+    </div>
+    <div class="milestone live">
+      <span class="tstat">shipped</span>
+      <h3>Ten years of history: the Garmin Connect export</h3>
+      <p>Hand wristpull the account export zip and your whole history comes home — activities with their names, daily summaries, nights with sleep scores, VO2max and weight. Live data always wins; the export fills the past.</p>
+    </div>
+    <div class="milestone live">
+      <span class="tstat">shipped</span>
+      <h3>Dashboard, TUI, coach, workouts</h3>
+      <p>The web dashboard for the phone (Today, trends up to ten years, activities, sleep, coach, workout editor), a ten-screen terminal UI in German and English, the auditable AI coach with three backends, and structured workouts pushed back to the watch.</p>
+    </div>
+    <div class="milestone live">
+      <span class="tstat">shipped</span>
+      <h3>Runs as a product already</h3>
+      <p>One Docker image for everything, guided first-run setup, import on plug-in, a morning routine script, full-state backup and restore for moving machines, CI on Linux, macOS and Windows.</p>
+    </div>
+    <div class="milestone active">
+      <span class="tstat">in progress</span>
+      <h3>The wristpull Hub</h3>
+      <p>The same stack on a small box you just plug in — hardware selection, first-boot experience and auto-updates. The <a href="hub.html">beta list</a> is open.</p>
+    </div>
+    <div class="milestone active">
+      <span class="tstat">in progress</span>
+      <h3>Smaller edges</h3>
+      <p>Publishing a ready-made container image, scheduling workouts onto the watch calendar, more Gadgetbridge devices verified by their owners.</p>
+    </div>
+    <div class="milestone">
+      <span class="tstat">planned</span>
+      <h3>Ask your data anything</h3>
+      <p>An MCP server over the local database, so any AI assistant you already use can query your history — locally, with the same you-see-what-leaves principle.</p>
+    </div>
+    <div class="milestone">
+      <span class="tstat">planned</span>
+      <h3>More of your health, same principle</h3>
+      <p>Nutrition and body-scale data as additional sources, and the dashboard on a small home server for the whole household.</p>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="sec-head">
+    <p class="kicker">Get involved</p>
+    <h2>Small tools keep big platforms honest</h2>
+    <p class="dim">wristpull stays viable only if people run it, break it and report what they find. All of these help, in ascending order of effort:</p>
+  </div>
+  <div class="cards">
+    <div class="card"><h3>Join the Hub beta list</h3><p>One e-mail to <a href="mailto:bethechange@wristpull.de?subject=Hub%20beta">bethechange@wristpull.de</a> — every name is a vote that the Hub should exist.</p></div>
+    <div class="card"><h3>Star, share, tell someone</h3><p>Visibility is what lets an independent project survive. If you share the subscription fatigue, say so where the next person reads it.</p></div>
+    <div class="card"><h3>Wish for a feature</h3><p><a href="https://github.com/one7two99/wristpull/issues">GitHub issues</a> are open — what would make you switch for good?</p></div>
+    <div class="card"><h3>Run it on your devices</h3><p>Another Garmin, a different band: every new device teaches the parsers something. The README shows how to report a file that parsed wrong.</p></div>
+    <div class="card"><h3>Improve the coach's words</h3><p>Coach prompts and the German translation are plain text. Better wording helps every user; the number check keeps the honesty.</p></div>
+    <div class="card"><h3>Read the code</h3><p>Python, tested, MIT. If you can audit it, audit it — a privacy claim is worth exactly as much as its most recent review.</p></div>
+  </div>
+</section>
+
+<footer>
+  <div class="row">
+    <span><b>wristpull</b> · free &amp; open source (MIT) · the Hub makes it effortless</span>
+    <span>built in Germany · wristpull.de</span>
+  </div>
+  <div class="row">
+    <span>No cookies. No analytics. No cloud. That's the whole point.</span>
+    <span><a href="https://github.com/one7two99/wristpull">GitHub</a> · <a href="hub.html">The Hub</a> · <a href="mailto:bethechange@wristpull.de">bethechange@wristpull.de</a></span>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

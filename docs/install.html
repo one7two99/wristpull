@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install wristpull</title>
+<meta name="description" content="Install wristpull yourself: Docker stack on Linux in three commands, native install for development and macOS/Windows. Open source, MIT.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M20.72%209.28A9.5%209.5%200%201%200%2020.72%2022.72%22%20fill%3D%22none%22%20stroke%3D%22%23242b33%22%20stroke-width%3D%224.2%22/%3E%3Ccircle%20cx%3D%2214%22%20cy%3D%2216%22%20r%3D%223.6%22%20fill%3D%22%23ce3a32%22/%3E%3Cpath%20d%3D%22M14%2016H24%22%20stroke%3D%22%23ce3a32%22%20stroke-width%3D%224.2%22/%3E%3Cpath%20d%3D%22M23%2010L30%2016L23%2022Z%22%20fill%3D%22%23ce3a32%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="wristpull.css">
+<style>
+.chips{display:flex;gap:.5rem;flex-wrap:wrap}
+.chip{font-size:.84rem;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:.2rem .8rem;color:var(--ink-2)}
+.twocol{display:grid;gap:1.4rem}
+@media(min-width:900px){.twocol{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="topbar">
+  <a class="brand" href="index.html" aria-label="wristpull home"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2"/><circle cx="14" cy="16" r="3.6" fill="var(--red)"/><path d="M14 16H24" stroke="var(--red)" stroke-width="4.2"/><path d="M23 10L30 16L23 22Z" fill="var(--red)"/></svg>wristpull</a>
+  <nav aria-label="Main">
+    <a href="features.html">Features</a><a href="hub.html">The Hub</a><a href="install.html" aria-current="page">Install</a><a href="roadmap.html">Roadmap</a><a href="https://github.com/one7two99/wristpull">GitHub</a>
+  </nav>
+</header>
+
+<div class="phero">
+  <p class="kicker">Install it yourself</p>
+  <h1>From clone to dashboard in three commands</h1>
+  <p class="lede">The primary way is the <b>Docker stack on Linux</b>: one image runs the dashboard and every command — the watch over USB, the band over Bluetooth, the phone over ADB. The host needs neither Python nor uv. A guided setup script does the whole thing and asks only for what's missing.</p>
+  <div class="chips" style="margin-top:.4rem">
+    <span class="chip">Python 3.14</span><span class="chip">SQLite</span><span class="chip">Docker + Caddy (HTTPS)</span><span class="chip">libmtp</span><span class="chip">BLE via bleak</span><span class="chip">Textual TUI</span><span class="chip">MIT licence</span><span class="chip">CI on Linux · macOS · Windows</span>
+  </div>
+</div>
+
+<section>
+  <div class="steps">
+    <div class="step">
+      <div>
+        <h3>Clone and run the setup</h3>
+        <p>The script builds the image, writes the environment, installs the udev rule (import on plug-in) and sets up the dashboard — asking before every change.</p>
+<pre><code><span class="p">$</span> git clone https://github.com/one7two99/wristpull.git ~/dev/wristpull
+<span class="p">$</span> cd ~/dev/wristpull
+<span class="p">$</span> contrib/bin/wristpull-setup</code></pre>
+      </div>
+    </div>
+    <div class="step">
+      <div>
+        <h3>First import</h3>
+        <p>Watch on the cable, or the band in Bluetooth range — either alone already works.</p>
+<pre><code><span class="p">$</span> contrib/bin/wristpull import garmin
+<span class="p">$</span> contrib/bin/wristpull pull strap</code></pre>
+      </div>
+    </div>
+    <div class="step">
+      <div>
+        <h3>Look at your data</h3>
+        <p>The dashboard is already running for your home network; the terminal UI is one command.</p>
+<pre><code><span class="p">$</span> contrib/bin/wristpull tui   <span class="c"># or: open the dashboard on your phone</span></code></pre>
+      </div>
+    </div>
+    <div class="step">
+      <div>
+        <h3>Optional: rescue your history and meet the coach</h3>
+<pre><code><span class="p">$</span> contrib/bin/wristpull import garmin-export ~/Downloads/&lt;your-garmin-export&gt;.zip
+<span class="p">$</span> contrib/bin/wristpull coach profile --wizard
+<span class="p">$</span> contrib/bin/wristpull coach daily --dry-run   <span class="c"># read the prompt before anything is sent</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <p class="dim" style="margin-top:1.4rem;max-width:70ch">Every detail — Gadgetbridge setup, the morning routine, backups and moving machines — is documented in the <a href="https://github.com/one7two99/wristpull#readme">README</a> and <code>docs/</code>.</p>
+</section>
+
+<section style="padding-top:0">
+  <div class="sec-head">
+    <p class="kicker">Which machine fits</p>
+    <h2>Platforms and devices</h2>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th scope="col">Platform</th><th scope="col">How</th><th scope="col">What works</th></tr></thead>
+      <tbody>
+        <tr><td><b>Linux</b> (laptop, mini-PC, home server)</td><td>Docker stack — the reference setup</td><td class="yes">Everything: watch, band, phone, dashboard, coach, automation</td></tr>
+        <tr><td><b>macOS / Windows</b></td><td>Native install (Python + uv)</td><td>Everything except container automation — Docker there can't reach USB/Bluetooth</td></tr>
+        <tr><td><b>Your phone</b></td><td>Browser</td><td class="yes">The dashboard, from your home network</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tablewrap" style="margin-top:1rem">
+    <table>
+      <thead><tr><th scope="col">Device</th><th scope="col">Path</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        <tr><td>Garmin fēnix 6X Pro</td><td>USB cable</td><td class="yes">verified daily</td></tr>
+        <tr><td>Amazfit Helio Strap</td><td>Bluetooth, no phone</td><td class="yes">verified daily</td></tr>
+        <tr><td>Other Garmin watches</td><td>USB (FIT files)</td><td class="no">should work — reports welcome</td></tr>
+        <tr><td>Anything Gadgetbridge reads</td><td>via the Gadgetbridge app</td><td class="no">import works; parsers grow per device</td></tr>
+        <tr><td>Your old Garmin account</td><td>account export (zip)</td><td class="yes">full history import</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="twocol">
+    <div class="soft" style="display:grid;gap:.8rem;align-content:start">
+      <p class="kicker">For the data people</p>
+      <h2 style="font-size:1.4rem">It's just SQLite</h2>
+      <p class="dim" style="font-size:.95rem">Twenty documented tables, UTC timestamps plus local dates on every row, raw files archived beside them. Bring polars, pandas, Grafana or a plain shell:</p>
+<pre><code><span class="p">$</span> sqlite3 ~/Health/wristpull/wristpull.sqlite \
+  "SELECT local_date, steps, resting_hr, sleep_score
+   FROM daily_summary
+   ORDER BY local_date DESC LIMIT 14"</code></pre>
+      <p class="dim" style="font-size:.95rem">Markdown + CSV exports for any date range are one command — sized to paste into an AI chat.</p>
+    </div>
+    <div class="soft" style="display:grid;gap:.8rem;align-content:start">
+      <p class="kicker">For the careful</p>
+      <h2 style="font-size:1.4rem">Built like infrastructure</h2>
+      <ul style="margin:0;padding-left:1.1rem;color:var(--ink-2);display:grid;gap:.4rem;font-size:.95rem">
+        <li>Raw files immutable, SHA-256-deduplicated, never deleted on the device</li>
+        <li>Dashboard: HTTPS via Caddy, scrypt-hashed password, rate-limited login, strict CSP, zero external requests</li>
+        <li>Secrets only in the environment — never in config files or the repo</li>
+        <li>Tests run on synthetic data only; the repository has never contained a real heartbeat</li>
+        <li>Full-state backup and restore for moving to a new machine</li>
+      </ul>
+      <p class="dim" style="font-size:.95rem"><a href="https://github.com/one7two99/wristpull">Read the source</a> — it's an evening, not a weekend.</p>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <figure>
+    <div class="shot"><img src="screenshots/01-overview.svg" alt="The wristpull terminal UI: overview screen with device status, 7-day KPIs with sparklines and recent activities" loading="lazy"></div>
+    <figcaption>Prefer a terminal? The TUI has ten screens, German and English — rendered here from synthetic test data.</figcaption>
+  </figure>
+</section>
+
+<footer>
+  <div class="row">
+    <span><b>wristpull</b> · free &amp; open source (MIT) · the Hub makes it effortless</span>
+    <span>built in Germany · wristpull.de</span>
+  </div>
+  <div class="row">
+    <span>No cookies. No analytics. No cloud. That's the whole point.</span>
+    <span><a href="https://github.com/one7two99/wristpull">GitHub</a> · <a href="roadmap.html">Roadmap</a> · <a href="mailto:bethechange@wristpull.de">bethechange@wristpull.de</a></span>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

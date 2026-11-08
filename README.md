@@ -820,9 +820,12 @@ workouts over; the import service template shows where that step belongs.
 
 ## Website and screenshots
 
-`docs/index.html` is a static one-page presentation of the project (reasons, pipeline, features,
-LLM choice, screens, roadmap, how to support it); `docs/screenshots/` holds the pseudonymised TUI
-renders it uses, produced from the synthetic test fixtures only, and `docs/logos/` the logo. The
+`docs/` carries the static project website (planned home: wristpull.de): `index.html` (the story
+and the three reasons to switch), `features.html`, `hub.html` (the planned wristpull Hub, with the
+beta contact), `install.html` and `roadmap.html`, sharing `wristpull.css`. Fonts are self-hosted
+under `docs/fonts/` (`@fontsource/source-sans-3`), so the site makes no external requests and sets
+no cookies. `docs/screenshots/` holds the pseudonymised TUI renders, produced from the synthetic
+test fixtures only, and `docs/logos/` the logo; every chart on the site shows synthetic data. The
 `docs/` folder is laid out for GitHub Pages ("deploy from a branch", folder `/docs`; `.nojekyll`
 keeps the files as they are). Locally: `python3 -m http.server 8000` from the repository root and
 open `/docs/`.

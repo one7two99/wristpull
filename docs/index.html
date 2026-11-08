@@ -2,331 +2,198 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="claude:viewport-fit-sides" content="cover">
-<title>wristpull</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M20.72%209.28A9.5%209.5%200%201%200%2020.72%2022.72%22%20fill%3D%22none%22%20stroke%3D%22%23141518%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22butt%22%20stroke-linejoin%3D%22miter%22%20stroke-miterlimit%3D%2210%22/%3E%3Ccircle%20cx%3D%2214%22%20cy%3D%2216%22%20r%3D%223.6%22%20fill%3D%22%23e5342e%22/%3E%3Cpath%20d%3D%22M14%2016H24%22%20fill%3D%22none%22%20stroke%3D%22%23e5342e%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22butt%22%20stroke-linejoin%3D%22miter%22%20stroke-miterlimit%3D%2210%22/%3E%3Cpath%20d%3D%22M23%2010L30%2016L23%2022Z%22%20fill%3D%22%23e5342e%22/%3E%3C/svg%3E">
-<meta name="description" content="wristpull pulls your wearable data off the watch and the phone, keeps it in a local SQLite and lets you pick the LLM that coaches you. No cloud, no subscription.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@600;700&display=swap">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wristpull — your health data belongs at home</title>
+<meta name="description" content="wristpull pulls the data off your Garmin watch and your fitness band, keeps every heartbeat in one database in your home, and coaches you with an AI you control. No account, no subscription, no cloud.">
+<meta property="og:title" content="wristpull — your health data belongs at home">
+<meta property="og:description" content="Local-first fitness data: watch, band, ten years of history, dashboard, AI coach — all in your own home. Open source, built in Germany.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M20.72%209.28A9.5%209.5%200%201%200%2020.72%2022.72%22%20fill%3D%22none%22%20stroke%3D%22%23242b33%22%20stroke-width%3D%224.2%22/%3E%3Ccircle%20cx%3D%2214%22%20cy%3D%2216%22%20r%3D%223.6%22%20fill%3D%22%23ce3a32%22/%3E%3Cpath%20d%3D%22M14%2016H24%22%20stroke%3D%22%23ce3a32%22%20stroke-width%3D%224.2%22/%3E%3Cpath%20d%3D%22M23%2010L30%2016L23%2022Z%22%20fill%3D%22%23ce3a32%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="wristpull.css">
 <style>
-/* Layout: a terminal session narrated like a field manual. Left-aligned, one measure, mono labels, the logo red as the only loud colour. */
-:root {
-  --bg: #0e1218;
-  --bg-2: #141a23;
-  --panel: #1a2230;
-  --line: #2a3443;
-  --fg: #dfe6ee;
-  --fg-2: #9aa7b6;
-  --accent: #f0514b;        /* the logo red, lifted a little for dark ground */
-  --accent-ink: #ffffff;
-  --data: #6fc3c9;          /* teal for data and links */
-  --good: #7fcf8a;
-  --warn: #e9a06c;
-  --display: "Sora", "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
-  color-scheme: dark;
-}
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #f6f3ec; --bg-2: #efebe1; --panel: #ffffff; --line: #d9d2c3; --fg: #1b2028; --fg-2: #58606c;
-    --accent: #e5342e; --accent-ink: #ffffff; --data: #0f7f86; --good: #2d8a46; --warn: #b4651a;
-    color-scheme: light;
-  }
-}
-:root[data-theme="light"] {
-  --bg: #f6f3ec; --bg-2: #efebe1; --panel: #ffffff; --line: #d9d2c3; --fg: #1b2028; --fg-2: #58606c;
-  --accent: #e5342e; --accent-ink: #ffffff; --data: #0f7f86; --good: #2d8a46; --warn: #b4651a;
-  color-scheme: light;
-}
-* { box-sizing: border-box; }
-html, body { margin: 0; }
-body {
-  background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 17px; line-height: 1.6;
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0;
-}
-a { color: var(--data); text-decoration-thickness: 1px; text-underline-offset: 3px; }
-a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.wrap { max-width: 1040px; margin: 0 auto; }
-.measure { max-width: 68ch; }
-h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.12; text-wrap: balance; margin: 0; letter-spacing: -0.02em; }
-h1 { font-size: clamp(2.1rem, 4.6vw, 3.3rem); font-weight: 700; }
-h2 { font-size: clamp(1.5rem, 2.8vw, 2rem); }
-h3 { font-size: 1.2rem; font-family: var(--body); font-weight: 600; }
-p { margin: 0; }
-.eyebrow { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
-code, pre, .mono { font-family: var(--mono); font-size: 0.92em; }
-code { background: var(--bg-2); padding: 0.1em 0.4em; border-radius: 3px; }
-pre { background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 1rem 1.2rem; overflow-x: auto; line-height: 1.5; font-size: 0.86rem; margin: 0; }
-pre code { background: none; padding: 0; }
-.prompt { color: var(--accent); }
-.dim { color: var(--fg-2); }
-section { padding-block: clamp(3rem, 7vw, 5.5rem); border-top: 1px solid var(--line); }
-section.hero { border-top: 0; padding-top: clamp(3rem, 8vw, 6rem); }
-.stack { display: grid; gap: 1.2rem; }
-.grid { display: grid; gap: 1.2rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-.grid > * { min-width: 0; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.2rem 1.3rem; display: grid; gap: 0.5rem; align-content: start; }
-.card h3 { margin-top: 0.1rem; }
-.topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-block: 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.brand { display: inline-flex; align-items: center; gap: 0.55rem; font-family: var(--display); font-weight: 600; font-size: 1.35rem; letter-spacing: -0.03em; color: var(--fg); text-decoration: none; }
-.brand span { color: var(--accent); }
-.mark { width: 1.6em; height: 1.6em; flex: none; color: var(--fg); }
-.hero .mark { width: 72px; height: 72px; }
-.hero-head { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
-nav a { margin-left: 1rem; font-family: var(--mono); font-size: 0.85rem; text-decoration: none; color: var(--fg-2); }
-nav a:hover { color: var(--fg); }
-.hero-grid { display: grid; gap: 2.5rem; grid-template-columns: 1fr; }
-.hero-grid h1 { max-width: 18ch; }
-.lede { font-size: 1.2rem; color: var(--fg-2); max-width: 58ch; }
-.cta { display: inline-flex; gap: 0.6rem; align-items: center; font-family: var(--mono); font-size: 0.9rem; padding: 0.7rem 1.1rem; border-radius: 4px; text-decoration: none; }
-.cta.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.cta.ghost { border: 1px solid var(--line); color: var(--fg); }
-.ctas { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 0.6rem; }
-.terminal { border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); overflow: hidden; }
-.terminal .bar { display: flex; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 0.75rem; color: var(--fg-2); }
-.terminal pre { border: 0; border-radius: 0; background: transparent; white-space: pre-wrap; overflow-wrap: anywhere; }
-.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-top: 1rem; max-width: 820px; }
-.fact { border-left: 2px solid var(--accent); padding-left: 0.8rem; }
-.fact b { display: block; font-family: var(--mono); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
-.fact span { color: var(--fg-2); font-size: 0.9rem; }
-.manifesto { display: grid; gap: 1.6rem; counter-reset: reason; }
-.reason { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); gap: 1rem; }
-.reason::before { counter-increment: reason; content: counter(reason, decimal-leading-zero); font-family: var(--mono); color: var(--accent); font-size: 1.1rem; padding-top: 0.2rem; }
-.reason h3 { margin-bottom: 0.3rem; }
-.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.8rem; font-family: var(--mono); font-size: 0.82rem; }
-.node { border: 1px solid var(--line); border-radius: 6px; padding: 0.8rem 0.9rem; background: var(--panel); min-width: 0; }
-.node b { display: block; color: var(--accent); font-weight: 600; margin-bottom: 0.3rem; }
-.node .dim { font-size: 0.78rem; }
-table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
-.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
-th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-2); background: var(--bg-2); }
-tr:last-child td { border-bottom: 0; }
-.tag { display: inline-block; font-family: var(--mono); font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid var(--line); color: var(--fg-2); }
-.tag.local { border-color: var(--good); color: var(--good); }
-.tag.cloud { border-color: var(--warn); color: var(--warn); }
-.shots { display: grid; gap: 1.6rem; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
-figure { margin: 0; display: grid; gap: 0.5rem; min-width: 0; }
-figure img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: #0b0f14; display: block; }
-figcaption { font-size: 0.9rem; color: var(--fg-2); }
-figcaption b { color: var(--fg); font-family: var(--mono); font-size: 0.85rem; }
-.wide { grid-column: 1 / -1; }
-.note { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; padding: 1rem 1.2rem; background: var(--panel); }
-.support { display: grid; gap: 1.2rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--fg-2); font-size: 0.9rem; display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-.kbd { font-family: var(--mono); font-size: 0.8em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 0.4em; background: var(--bg-2); }
-@media (prefers-reduced-motion: no-preference) {
-  .cursor { animation: blink 1.1s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-}
+.hero{display:grid;gap:2.5rem;align-items:center;padding-top:clamp(2rem,5vw,3.6rem)}
+@media(min-width:960px){.hero{grid-template-columns:minmax(0,10fr) minmax(0,9fr)}}
+.hero .stack{display:grid;gap:1.2rem;justify-items:start}
+.lede{font-size:1.18rem;color:var(--ink-2);max-width:54ch}
+.lede b{color:var(--ink)}
+.trust{display:flex;gap:1.6rem;flex-wrap:wrap;margin-top:1rem;color:var(--ink-2);font-size:.92rem}
+.trust span{display:inline-flex;gap:.4rem;align-items:center}
+.trust svg{color:var(--green);flex:none}
+.pillarlink{text-decoration:none;color:inherit}
+.pillarlink .more{color:var(--green);font-weight:600;font-size:.92rem}
+.hub-t{display:grid;gap:2rem;align-items:center}
+@media(min-width:900px){.hub-t{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}}
+.hub-t .stack{display:grid;gap:1rem;justify-items:start}
+.price{font-size:1.05rem}.price b{font-size:1.6rem}
+.hubbox{display:grid;place-items:center}
+.hubbox svg{width:min(100%,320px);height:auto}
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <header class="topbar">
-  <a class="brand" href="#top" aria-label="wristpull"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><circle cx="14" cy="16" r="3.6" fill="var(--accent)"/><path d="M14 16H24" fill="none" stroke="var(--accent)" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><path d="M23 10L30 16L23 22Z" fill="var(--accent)"/></svg><span class="word">wrist<span>pull</span></span></a>
-  <nav aria-label="Sections">
-    <a href="#why">Why</a><a href="#how">How</a><a href="#features">Features</a><a href="#llm">LLMs</a><a href="#screens">Screens</a><a href="#roadmap">Roadmap</a><a href="#support">Support</a>
+  <a class="brand" href="index.html" aria-label="wristpull home"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2"/><circle cx="14" cy="16" r="3.6" fill="var(--red)"/><path d="M14 16H24" stroke="var(--red)" stroke-width="4.2"/><path d="M23 10L30 16L23 22Z" fill="var(--red)"/></svg>wristpull</a>
+  <nav aria-label="Main">
+    <a href="features.html">Features</a><a href="hub.html">The Hub</a><a href="install.html">Install</a><a href="roadmap.html">Roadmap</a><a href="https://github.com/one7two99/wristpull">GitHub</a>
   </nav>
 </header>
 
-<section class="hero" id="top">
-  <div class="hero-grid">
+<section class="hero">
+  <div class="stack">
+    <span class="badge">Open source · No cloud · Built in Germany</span>
+    <h1>Your health data belongs at home.</h1>
+    <p class="lede">wristpull pulls the data off your <b>Garmin watch</b> and your <b>fitness band</b>, keeps every heartbeat in <b>one database in your home</b>, and coaches you with an AI you control. No account. No subscription. No one else reading your heart rate.</p>
+    <div class="ctas">
+      <a class="btn primary" href="hub.html">Get notified about the Hub</a>
+      <a class="btn ghost" href="install.html">Install it yourself</a>
+    </div>
+    <div class="trust">
+      <span><svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7.6 13.2 4.4 10l-1.3 1.3 4.5 4.5 9-9L15.3 5.5z"/></svg>No account</span>
+      <span><svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7.6 13.2 4.4 10l-1.3 1.3 4.5 4.5 9-9L15.3 5.5z"/></svg>No subscription</span>
+      <span><svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7.6 13.2 4.4 10l-1.3 1.3 4.5 4.5 9-9L15.3 5.5z"/></svg>No tracking — not even here</span>
+    </div>
+  </div>
+  <div class="dash" role="img" aria-label="The wristpull dashboard with synthetic sample data: today's recovery numbers and a falling resting heart rate trend">
+    <div class="dbar"><b>wristpull</b><span class="tab on">Today</span><span class="tab">Trends</span><span class="tab">Sleep</span>
+      <span class="lock"><svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5 9V6a5 5 0 0 1 10 0v3h1v9H4V9h1Zm2 0h6V6a3 3 0 0 0-6 0v3Z"/></svg>local</span></div>
+    <div class="tiles">
+      <div class="tile"><small>Resting HR</small><b>46</b> <span class="delta">▾ 2</span></div>
+      <div class="tile"><small>HRV</small><b>42 ms</b> <span class="delta">▴ 3</span></div>
+      <div class="tile"><small>Sleep</small><b>7:12</b> <span class="delta">▴ 0:18</span></div>
+      <div class="tile"><small>Load ratio</small><b>0.9</b> <span class="delta">in range</span></div>
+    </div>
+    <div class="chart">
+      <h4>Resting heart rate · last 30 days</h4>
+      <svg viewBox="0 0 640 180" aria-hidden="true">
+        <line x1="8" y1="12" x2="632" y2="12" stroke="var(--line)" stroke-dasharray="3 5"/>
+        <line x1="8" y1="84" x2="632" y2="84" stroke="var(--line)" stroke-dasharray="3 5"/>
+        <line x1="8" y1="156" x2="632" y2="156" stroke="var(--line)" stroke-dasharray="3 5"/>
+        <path d="M8.0,29.4 L29.5,50.2 L51.0,57.7 L72.6,67.9 L94.1,51.0 L115.6,37.2 L137.1,12.0 L158.6,29.5 L180.1,29.2 L201.7,49.7 L223.2,70.8 L244.7,76.7 L266.2,107.9 L287.7,130.1 L309.2,128.3 L330.8,132.1 L352.3,153.1 L373.8,154.6 L395.3,144.3 L416.8,156.0 L438.3,146.0 L459.9,141.7 L481.4,156.0 L502.9,156.0 L524.4,138.0 L545.9,152.8 L567.4,156.0 L589.0,156.0 L610.5,143.8 L632.0,144.5 L632,170 L8,170 Z" fill="var(--red)" opacity=".08"/>
+        <polyline points="8.0,29.4 29.5,50.2 51.0,57.7 72.6,67.9 94.1,51.0 115.6,37.2 137.1,12.0 158.6,29.5 180.1,29.2 201.7,49.7 223.2,70.8 244.7,76.7 266.2,107.9 287.7,130.1 309.2,128.3 330.8,132.1 352.3,153.1 373.8,154.6 395.3,144.3 416.8,156.0 438.3,146.0 459.9,141.7 481.4,156.0 502.9,156.0 524.4,138.0 545.9,152.8 567.4,156.0 589.0,156.0 610.5,143.8 632.0,144.5" fill="none" stroke="var(--red)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="632" cy="144.5" r="4.5" fill="var(--red)" stroke="var(--panel)" stroke-width="2"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:1.5rem">
+  <div class="story">
+    <p class="kicker">Why I'm building this</p>
+    <p>I'm Philipp, an IT consultant from Germany. I've spent two decades running infrastructure for companies — and the last few years watching consumer tech move the other way: everything becomes a cloud, everything becomes a subscription, and now our most private data is being fed into AI systems nobody can look inside.</p>
+    <p>Health data is the data you can't change. You can replace a leaked credit card; you can't replace your heart. Nobody knows what will be done with these records in ten years — so the safest place for them is your own home.</p>
+    <p>People who work in IT can do more than complain. We can build the alternative and prove it's better. wristpull is my attempt: local-first, open source, and soon simple enough for people who never want to touch a terminal.</p>
+    <div class="sig">
+      <div class="avatar" aria-hidden="true">P</div>
+      <div><b>Philipp</b> — be the change.<br><small><a href="mailto:bethechange@wristpull.de">bethechange@wristpull.de</a></small></div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="sec-head">
+    <p class="kicker">Three reasons people switch</p>
+    <h2>Keep it. See it. Use it.</h2>
+  </div>
+  <div class="cards">
+    <a class="card pillarlink" href="features.html#keep">
+      <div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 10.5 12 4l9 6.5"/><path d="M5.5 9.5V20h13V9.5"/></svg></div>
+      <h3>Your data stays with you</h3>
+      <p>Every file your devices write is archived untouched, byte for byte. One SQLite database holds every heartbeat since 2015 — readable by any tool, forever.</p>
+      <p class="claim">Your Garmin export is no longer a dead end: wristpull imports all ten years of it.</p>
+      <p class="more">How your data is kept</p>
+    </a>
+    <a class="card pillarlink" href="features.html#understand">
+      <div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg></div>
+      <h3>You see what leaves</h3>
+      <p>The AI coach gets a few hundred words of daily aggregates — never raw data, GPS or serial numbers. Local model or cloud model: your choice, per run.</p>
+      <p class="claim">A dry run writes the exact prompt to disk before anything is sent.</p>
+      <p class="more">How the coach works</p>
+    </a>
+    <a class="card pillarlink" href="features.html">
+      <div class="ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 21s-7-4.6-9.5-9A5.6 5.6 0 0 1 12 6.3 5.6 5.6 0 0 1 21.5 12c-2.5 4.4-9.5 9-9.5 9Z"/></svg></div>
+      <h3>A complete system</h3>
+      <p>Watch over USB, band over Bluetooth without a phone, a dashboard for your phone, a coach — and your training plan pushed back to the watch.</p>
+      <p class="claim">Not a script. A system you live with.</p>
+      <p class="more">Everything it can do</p>
+    </a>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="sec-head">
+    <p class="kicker">You see what leaves</p>
+    <h2>The AI coach reads a summary — never your life</h2>
+  </div>
+  <div class="pillar2">
+    <div class="datacard raw">
+      <h3>What your devices record</h3>
+      <ul>
+        <li>15,470 files, every heartbeat since 2015</li>
+        <li>heart rate minute by minute, day and night</li>
+        <li>GPS tracks of every run</li>
+        <li>sleep stages, stress, HRV, SpO2</li>
+        <li>device serial numbers</li>
+      </ul>
+      <p class="sum">Stays on your machine. All of it.</p>
+    </div>
+    <div class="gate">
+      <div class="sw" role="img" aria-label="Choice per run: your machine or a cloud model"><b>● your machine</b><span>○ cloud model</span></div>
+      <span>your choice,<br>per run</span>
+    </div>
+    <div class="datacard extract">
+      <h3>What the coach sees</h3>
+      <ul>
+        <li>about 300 words of daily aggregates</li>
+        <li>“Resting HR 46, baseline 52”</li>
+        <li>“Sleep 7 h 12 min, score 81”</li>
+        <li>“Load ratio 0.9 — in range”</li>
+        <li>no raw data, no GPS, no serials</li>
+      </ul>
+      <p class="sum">A few hundred words. Nothing more.</p>
+    </div>
+  </div>
+  <div class="note g" style="margin-top:1rem;max-width:760px">
+    <p><b>Don't trust it — check it.</b> <code>wristpull coach daily --dry-run</code> writes the exact text to disk <em>before</em> anything is sent. Read what the AI would receive, then decide. No cloud service lets you do that.</p>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="softer hub-t">
     <div class="stack">
-      <div class="hero-head"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><circle cx="14" cy="16" r="3.6" fill="var(--accent)"/><path d="M14 16H24" fill="none" stroke="var(--accent)" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><path d="M23 10L30 16L23 22Z" fill="var(--accent)"/></svg><p class="eyebrow">Local-first wearable data · Python · SQLite · your choice of LLM</p></div>
-      <h1>Your body produces the data. Your machine should hold it.</h1>
-      <p class="lede">wristpull pulls the raw files off a Garmin watch over USB and the Gadgetbridge export off your phone over ADB, normalises everything into one local SQLite database and lets a language model of <em>your</em> choosing coach you. No vendor cloud. No subscription. No account.</p>
-      <p class="measure dim">It currently runs every day with a <b>Garmin fenix 6X Pro</b> <em>and</em> an <b>Amazfit Helio Strap</b> worn side by side. Those two are examples, not requirements: they are simply the devices the project owner wears. Anything Gadgetbridge can read, or any watch that exposes its FIT files, is a candidate source, and the Garmin Connect account export brings the years from before.</p>
+      <span class="status"><i></i>In development — beta testers wanted</span>
+      <h2>The wristpull Hub</h2>
+      <p class="dim" style="max-width:52ch">A small box that does all of this for you. Plug it in, pair your watch, open the dashboard on your phone. No terminal, no Docker, no cloud — your data never leaves the house.</p>
+      <p class="price">Target price: <b>under €150</b>, once. <span class="dim">Not per month. (A target, not a promise.)</span></p>
       <div class="ctas">
-        <a class="cta primary" href="https://github.com/one7two99/wristpull">Source on GitHub</a>
-        <a class="cta ghost" href="#how">How the pipeline works</a>
-      </div>
-      <div class="facts">
-        <div class="fact"><b>0</b><span>accounts, trackers or telemetry</span></div>
-        <div class="fact"><b>20</b><span>normalised SQLite tables</span></div>
-        <div class="fact"><b>3</b><span>LLM backends, one of them fully offline</span></div>
-        <div class="fact"><b>MIT</b><span>licensed, tests with synthetic data only</span></div>
+        <a class="btn primary" href="mailto:bethechange@wristpull.de?subject=Hub%20beta">Join the beta list</a>
+        <a class="btn ghost" href="hub.html">More about the Hub</a>
       </div>
     </div>
-    <div class="terminal" aria-label="Terminal session">
-      <div class="bar">alice@laptop — fish — three commands, one morning</div>
-<pre><code><span class="prompt">$</span> wristpull import garmin
-  MTP: fenix 6X Pro (&lt;serial&gt;)
-  + Sleep/GB171544.fit: sleep=1, sleep_stages=15
-  + HRVStatus/GB171539.fit: hrv=1, hrv_values=91
-  + Monitor/MB171500.FIT: heart_rate=428, stress=520
-  GARMIN: 41 FIT files, 5 new, 36 already archived, 0 errors
-
-<span class="prompt">$</span> wristpull pull phone
-  Intent TRIGGER_DATABASE_EXPORT sent, export written at 06:17 UTC
-  Gadgetbridge.db: imported, heart_rate=689, hrv_values=400, sleep=1
-  device: fenix 6X Pro [AA:BB:…] -&gt; gadgetbridge_garmin
-  device: Amazfit Helio Strap [AA:BB:…] -&gt; gadgetbridge_zepp
-
-<span class="prompt">$</span> wristpull coach daily --backend ollama --model gemma3:12b --lang en
-## Status
-Recovered: resting HR 47 bpm is below your 7-day mean of 52 …
-<span class="dim">[run #4, ollama/gemma3:12b, 385 s, 1141 in / 433 out tokens, $0.0000]</span><span class="cursor">▌</span></code></pre>
+    <div class="hubbox" aria-hidden="true">
+      <svg viewBox="0 0 320 220">
+        <rect x="60" y="80" width="200" height="70" rx="14" fill="var(--panel)" stroke="var(--line)" stroke-width="2"/>
+        <circle cx="90" cy="115" r="6" fill="var(--green)"/>
+        <rect x="110" y="109" width="90" height="12" rx="6" fill="var(--tint)"/>
+        <path d="M230 115h14" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M160 78 V60" stroke="var(--line)" stroke-width="2.5" stroke-dasharray="1 7" stroke-linecap="round"/>
+        <circle cx="160" cy="40" r="17" fill="var(--bg)" stroke="var(--ink-2)" stroke-width="2.5"/>
+        <path d="M152 40h5l2-5 3 10 2-5h5" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M70 170 h180" stroke="var(--line)" stroke-width="2" stroke-linecap="round"/>
+        <text x="160" y="196" text-anchor="middle" fill="var(--ink-2)" font-size="13" font-family="inherit">fits behind your router</text>
+      </svg>
     </div>
-  </div>
-</section>
-
-<section id="why">
-  <div class="stack">
-    <p class="eyebrow">Why this exists</p>
-    <h2>Reclaim the data you already paid for with your heartbeat</h2>
-    <p class="measure">I am an IT consultant. I own a Garmin fenix and a cheap heart-rate strap. Both are excellent sensors and both want to be gateways to a subscription. wristpull is the result of refusing that deal. These are the reasons, in the order they annoyed me.</p>
-  </div>
-  <div class="manifesto" style="margin-top:2.5rem">
-    <div class="reason"><div><h3>The sensor is yours, the data should be too</h3><p>Every FIT file the watch writes is already on the device. wristpull reads it over a USB cable and keeps the byte-identical original in a read-only archive, hashed with SHA-256. Nothing is uploaded to be looked at.</p></div></div>
-    <div class="reason"><div><h3>No subscription for a graph of your own sleep</h3><p>Vendors move sleep scores, HRV status and training readiness behind paywalls one feature at a time. wristpull parses the same fields from the same files and stores them as plain columns you can query with <code>sqlite3</code>.</p></div></div>
-    <div class="reason"><div><h3>Independence from the device you wear today</h3><p>Sources are a column, not an architecture decision. Garmin over USB, Garmin via Gadgetbridge, a Zepp strap via Gadgetbridge: three sources already, merged by a documented rule, two of them worn at the same time on the same wrist. Switch watches and the history stays; add a second device and the data sits side by side instead of in two apps.</p></div></div>
-    <div class="reason"><div><h3>You decide which model reads your health</h3><p>A fully local Ollama model, the Claude API, or any model on OpenRouter. The backend choice is the privacy choice, made explicitly in the config, and a dry run shows the exact bytes that would be sent before anything leaves the machine.</p></div></div>
-    <div class="reason"><div><h3>Numbers are computed, not hallucinated</h3><p>Baselines, deltas, the acute-to-chronic workload ratio and recovery flags are calculated in Python. The model only interprets, must quote the numbers it used, and every quoted number is checked against the data package.</p></div></div>
-    <div class="reason"><div><h3>Verified against the device, not against marketing</h3><p>Sleep stages, HRV and SpO2 mappings were cross-checked row by row with Gadgetbridge's own tables and the watch display. Where a mapping is still unconfirmed, the UI says so.</p></div></div>
-  </div>
-</section>
-
-<section id="how">
-  <div class="stack">
-    <p class="eyebrow">How it works</p>
-    <h2>A pipeline you can read in an afternoon</h2>
-    <p class="measure">Around 4,000 lines of Python 3.14 with two runtime dependencies (<code>fitdecode</code>, <code>polars</code>). Every function has a test and every test runs on synthetic FIT files, so the repository never contains a single real heartbeat.</p>
-  </div>
-  <div class="flow" style="margin-top:2rem">
-    <div class="node"><b>watch over USB</b>GARMIN/Activity, Monitor, Sleep, Metrics, HRVStatus<div class="dim">read with the MTP tools, no mount, in the Docker container or natively</div></div>
-    <div class="node"><b>phone over ADB</b>Gadgetbridge.db + the FIT files it fetched over Bluetooth<div class="dim">triggers the export by intent, hashes files remotely, pulls only what is new</div></div>
-    <div class="node"><b>raw archive</b>raw/&lt;source&gt;/&lt;year&gt;/&lt;kind&gt;/&lt;sha8&gt;_name<div class="dim">immutable, deduplicated, never overwritten</div></div>
-    <div class="node"><b>parsers</b>FIT profile + Gadgetbridge layouts<div class="dim">re-parse anytime with <code>wristpull reparse</code></div></div>
-    <div class="node"><b>SQLite</b>20 tables, UTC + local date on every row<div class="dim">daily_summary per source, merged on read</div></div>
-    <div class="node"><b>outputs</b>TUI, Markdown + CSV export, reports, coach<div class="dim">everything also works from cron</div></div>
-  </div>
-  <div class="grid" style="margin-top:2rem">
-    <div class="card"><p class="eyebrow">Data layout</p>
-<pre><code>~/Health/wristpull/
-├── wristpull.sqlite
-├── raw/&lt;source&gt;/&lt;year&gt;/&lt;kind&gt;/&lt;sha8&gt;_&lt;name&gt;
-├── exports/&lt;from&gt;_&lt;to&gt;/summary.md + *.csv
-├── reports/week-2026-W44/report.md + *.svg
-└── coach/profile.md · dryrun/*.md</code></pre></div>
-    <div class="card"><p class="eyebrow">Merge rule, written down</p><p><code>garmin_usb</code> wins over <code>gadgetbridge_garmin</code> column by column; the strap stays a separate source with its own <code>strap_*</code> columns. Activities and nights are deduplicated by start minute. One rule, one place (<code>merge.py</code>), one test.</p></div>
-    <div class="card"><p class="eyebrow">Time, done properly</p><p>Every sample row carries <code>ts_utc</code> in ISO-8601, the IANA zone and a <code>local_date</code>. Midnight step counters are attributed to the day they belong to. DST changes are a test case, not a surprise.</p></div>
-  </div>
-</section>
-
-<section id="features">
-  <div class="stack">
-    <p class="eyebrow">Features</p>
-    <h2>What you get today</h2>
-  </div>
-  <div class="grid" style="margin-top:2rem">
-    <div class="card"><h3>Import that respects the device</h3><p>Reads the watch over USB, copies only files whose SHA-256 is unknown, parses activities (sessions, laps, per-second records, HR zones), monitoring (HR, steps, stress, body battery, respiration, SpO2), sleep (stages, assessment scores) and HRV status. Never deletes anything on the watch.</p></div>
-    <div class="card"><h3>Phone pull without a vendor app</h3><p>Talks to Gadgetbridge over ADB: triggers the database export, compares file hashes on the phone, pulls only new files. Reads the Zepp strap's per-minute HR, stress, temperature, HRV and the band's own sleep sessions.</p></div>
-    <div class="card"><h3>Terminal UI in German and English</h3><p>Ten screens: overview with 7-day KPIs, sync with live job log and cancel, days, activities with HR zones and laps, sleep with stage bars, files with FIT inspection, export, settings, the coach and the workouts. <span class="kbd">F12</span> switches the language at runtime.</p></div>
-    <div class="card"><h3>Exports made for a chat window</h3><p><code>wristpull export --for-claude</code> writes a compact Markdown summary plus CSVs for a date range, sized to paste into any assistant. <code>report week|month</code> renders deltas against the previous period with SVG charts.</p></div>
-    <div class="card"><h3>A coach that shows its working</h3><p>Daily recovery check, weekly review with a plan for the next week, free questions. Goal wizard with multiple choice, an editable profile, ratings and notes that the coach sees next time. Every run with prompt, answer, tokens and cost in the database.</p></div>
-    <div class="card"><h3>Workouts onto the watch, no Connect account</h3><p>Write a workout as three Markdown lines (warm-up, main part by time or distance, cool-down, each with a heart-rate target as bpm, zone or percent), or let the coach draft the week. <code>wristpull workout push</code> encodes it as a FIT file and copies it to the watch over the same cable; the watch guides you through the steps.</p></div>
-    <div class="card"><h3>A dashboard for the phone</h3><p><code>wristpull serve</code>, or one <code>docker compose up</code> with Caddy in front: today's values against your 28-day mean, trends over a year, activities with HR curves and zones, nights from watch and strap side by side, coach runs with ratings, the journal and a workout editor with a live check. HTTPS and a password in your home network, nothing loaded from the internet.</p></div>
-    <div class="card"><h3>Repairable by design</h3><p>Found a wrong field mapping? Fix the parser and run <code>wristpull reparse --kind sleep</code>. Raw files are the truth; tables are derived. Nothing is ever fetched twice.</p></div>
-  </div>
-</section>
-
-<section id="llm">
-  <div class="stack">
-    <p class="eyebrow">Choose the model, own the decision</p>
-    <h2>On premise, in the cloud, or none at all</h2>
-    <p class="measure">The coach never sees raw records, GPS or serial numbers, only daily and weekly aggregates. What it sees is identical for every backend, so you can start local and move up only when you want better answers.</p>
-  </div>
-  <div class="tablewrap" style="margin-top:2rem">
-    <table>
-      <thead><tr><th>Backend</th><th>Data leaves the machine</th><th>Typical model</th><th>Daily check</th><th>Cost per run</th></tr></thead>
-      <tbody>
-        <tr><td><b>Ollama</b> <span class="tag local">local</span></td><td>No. Runs on your CPU or GPU.</td><td>gemma3:4b / gemma3:12b</td><td>1–6 min on a 4-core laptop CPU</td><td>electricity</td></tr>
-        <tr><td><b>Claude API</b> <span class="tag cloud">cloud</span></td><td>Yes, to Anthropic, over the official SDK.</td><td>claude-opus-5-5 / sonnet-5-5</td><td>about 20 s</td><td>2–5 cents</td></tr>
-        <tr><td><b>OpenRouter</b> <span class="tag cloud">cloud</span></td><td>Yes, to the provider you pick.</td><td>anything, e.g. deepseek-v4.1-flash</td><td>about 7 s</td><td>0.2 cents and up</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="grid" style="margin-top:1.5rem">
-    <div class="card"><p class="eyebrow">Before anything is sent</p><pre><code><span class="prompt">$</span> wristpull coach daily --dry-run
-  dry run: prompt written to
-  ~/Health/wristpull/coach/dryrun/20261101T162623Z_daily.md (~950 tokens)</code></pre><p class="dim">Read the exact prompt. Then decide.</p></div>
-    <div class="card"><p class="eyebrow">What the model is told</p><p>Use only the numbers in the package and list them at the end. Missing is not zero. Be conservative when the flags say so. No diagnoses. Answer with these headings, in this order. The parser enforces the headings; the number check enforces the rest.</p></div>
-    <div class="card"><p class="eyebrow">Memory stays local too</p><p><code>coach_runs</code> and <code>coach_feedback</code> live in the same SQLite file as your heart rate. Delete the file and the coach forgets everything. No account to close.</p></div>
-  </div>
-</section>
-
-<section id="screens">
-  <div class="stack">
-    <p class="eyebrow">Screens</p>
-    <h2>The terminal UI</h2>
-    <p class="measure">All screenshots are rendered headlessly from the synthetic test fixtures. The numbers, dates and the athlete are invented; the layout is the real thing.</p>
-  </div>
-  <div class="shots" style="margin-top:2rem">
-    <figure class="wide"><img src="screenshots/01-overview.svg" alt="Overview screen with device status, data store, 7-day KPIs with sparklines, recent activities and notes" loading="lazy"><figcaption><b>1 Overview</b> — device state, last import per source, seven-day KPIs with sparklines and week-over-week deltas, recent activities, notes about unverified mappings.</figcaption></figure>
-    <figure><img src="screenshots/02-sync.svg" alt="Devices and sync screen with import and pull forms and a live job log" loading="lazy"><figcaption><b>2 Devices &amp; Sync</b> — forms for the USB import and the phone pull, live log, last result and the equivalent CLI command to copy into cron.</figcaption></figure>
-    <figure><img src="screenshots/03-days.svg" alt="Days screen with a table of daily summaries and a detail pane" loading="lazy"><figcaption><b>3 Days</b> — one row per day from the merged Garmin data and the strap, detail pane side by side.</figcaption></figure>
-    <figure><img src="screenshots/04-activities.svg" alt="Activities screen with list, HR zones, HR curve and laps" loading="lazy"><figcaption><b>4 Activities</b> — filterable list, time in heart-rate zones, the HR curve as a sparkline, laps.</figcaption></figure>
-    <figure><img src="screenshots/05-sleep.svg" alt="Sleep screen with nights of every source and a stage bar" loading="lazy"><figcaption><b>5 Sleep</b> — nights of every source, stage bar across the night, HRV, SpO2, breathing and heart rate inside the sleep window.</figcaption></figure>
-    <figure><img src="screenshots/06-files.svg" alt="Files screen with the raw archive tree and FIT inspection" loading="lazy"><figcaption><b>6 Files</b> — the raw archive as a tree, metadata of the archived file and the FIT message types inside it.</figcaption></figure>
-    <figure><img src="screenshots/07-export.svg" alt="Export and report screen with form, result list and Markdown preview" loading="lazy"><figcaption><b>7 Export &amp; Report</b> — pick a period and a kind, get the files and a Markdown preview.</figcaption></figure>
-    <figure><img src="screenshots/08-settings.svg" alt="Settings screen editing storage, Garmin, phone, interface and coach options" loading="lazy"><figcaption><b>8 Settings</b> — every config value including the coach backend, validated before it is written.</figcaption></figure>
-    <figure class="wide"><img src="screenshots/09-coach.svg" alt="Coach screen with a table of runs and the answer of the daily check" loading="lazy"><figcaption><b>9 Coach</b> — runs with tokens, cost and your rating; the answer beside it; goal wizard and profile editor one key away.</figcaption></figure>
-    <figure class="wide"><img src="screenshots/10-workouts.svg" alt="Workouts screen with a table of workout files and the preview of one workout's steps and Markdown" loading="lazy"><figcaption><b>0 Workouts</b> — one Markdown file per workout with its status, the steps as the watch will show them, push and verify against the watch one key away.</figcaption></figure>
-  </div>
-</section>
-
-<section id="honest">
-  <div class="stack">
-    <p class="eyebrow">What it is not</p>
-    <h2>Read this before you trust a number</h2>
-  </div>
-  <div class="grid" style="margin-top:2rem">
-    <div class="note"><h3>Not a medical device</h3><p>The coach is told to refuse diagnoses and to send you to a doctor when values look pathological. Treat it as a training partner with a good memory, not as a clinician.</p></div>
-    <div class="note"><h3>Early and opinionated</h3><p>Verified on one Garmin fenix 6X Pro and one Amazfit Helio Strap, worn together, over a handful of nights, because that is what the project owner has on the wrist. Other watches will need parser work and real files to test against. Field mappings that are still unconfirmed are listed in the README and shown in the UI.</p></div>
-    <div class="note"><h3>Sync is a race</h3><p>A Garmin watch deletes monitoring files once any app has fetched them. If Garmin Connect syncs first, those hours are gone for everyone else. wristpull documents the order that keeps your data complete, but it cannot win a race you let the vendor app start.</p></div>
-  </div>
-</section>
-
-<section id="roadmap">
-  <div class="stack">
-    <p class="eyebrow">Roadmap</p>
-    <h2>Where this is going</h2>
-    <p class="measure">The CLI, the terminal UI and the coach exist and are used every morning. The next steps widen who can use the data and where, without touching the principle: the SQLite file on your machine stays the single source of truth.</p>
-  </div>
-  <div class="grid" style="margin-top:2rem">
-    <div class="card"><p class="eyebrow">next</p><h3>Dashboard on a home server</h3><p>The web dashboard is in (Today, Trends, Activities, Sleep, Coach, Workouts; Docker + Caddy). Next it moves to a small home server as the only database: the laptop keeps pulling watch and phone and ships the raw files over SSH, the server imports them. No synced database, no second copy that can drift.</p></div>
-    <div class="card"><p class="eyebrow">planned</p><h3>Android app</h3><p>Pull the Gadgetbridge export on the phone itself and sync the database to your computer over your own network, so the laptop and the cable become optional. Same tables, same files, same coach; the phone is a courier, not a cloud.</p></div>
-    <div class="card"><p class="eyebrow">in progress</p><h3>Workouts and automation</h3><p>Structured workouts from the coach's plan onto the watch are in, interval blocks included; confirming the schedule file (the date in the watch calendar) is next. udev and systemd templates for the import, the phone pull and the morning check ship in <code>contrib/</code>.</p></div>
-    <div class="card"><p class="eyebrow">done</p><h3>Your whole history from Garmin Connect</h3><p>The account export Garmin hands out on request (every FIT file ever uploaded, daily summaries, nights with sleep scores, activity names, VO2max) imports with one command, byte-identical files are skipped, live sources keep priority. Ten years of data arrive in about a quarter of an hour, and the coach's baselines are right from day one.</p></div>
-    <div class="card"><p class="eyebrow">on request</p><h3>Features you need</h3><p>More devices, another source such as nutrition or a scale, a different LLM backend, a metric the coach should track: open an issue and describe the use case. Small, well-scoped requests from people who run the tool shape the roadmap more than any plan.</p></div>
-  </div>
-</section>
-
-<section id="support">
-  <div class="stack">
-    <p class="eyebrow">Why support projects like this</p>
-    <h2>Small tools keep big platforms honest</h2>
-    <p class="measure">Every wearable vendor ships the same bargain: a good sensor, a mandatory cloud, a monthly fee for the analysis layer. Projects such as Gadgetbridge made the sensors readable. wristpull builds the analysis layer on top, locally, with an LLM of your choice. It only stays viable if people use it, break it and report what they find.</p>
-  </div>
-  <div class="support" style="margin-top:2rem">
-    <div class="card"><h3>Run it on your devices</h3><p>Another Garmin model, a different Zepp band, a Polar or Coros export via Gadgetbridge: every new device teaches the parsers something. Open an issue with <code>wristpull inspect</code> output of a file that parsed wrong.</p></div>
-    <div class="card"><h3>Add a source</h3><p>Nutrition, scales, a manual journal: the <code>source</code> column is the extension point. The merge rule and the coach package are built to grow.</p></div>
-    <div class="card"><h3>Improve a prompt, keep the numbers</h3><p>Coach prompts, goal fragments and the German catalog are plain text. Better wording helps every user; the number check keeps the honesty.</p></div>
-    <div class="card"><h3>Star, fork, talk about it</h3><p>Visibility is the currency that lets a side project survive its first winter. If you share the same fatigue with subscriptions, say so where the next person will read it.</p></div>
-  </div>
-  <div class="ctas" style="margin-top:2rem">
-    <a class="cta primary" href="https://github.com/one7two99/wristpull">github.com/one7two99/wristpull</a>
-    <a class="cta ghost" href="https://codeberg.org/Freeyourgadget/Gadgetbridge">Gadgetbridge, the project that makes the phone side possible</a>
   </div>
 </section>
 
 <footer>
-  <div style="display:flex;align-items:center;gap:0.6rem"><svg class="mark" style="width:1.3rem;height:1.3rem" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><circle cx="14" cy="16" r="3.6" fill="var(--accent)"/><path d="M14 16H24" fill="none" stroke="var(--accent)" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="10"/><path d="M23 10L30 16L23 22Z" fill="var(--accent)"/></svg>wristpull · MIT licence · Python 3.14 · built for people who read their own logs</div>
-  <div class="mono">no cookies · no analytics · no cloud</div>
+  <div class="row">
+    <span><b>wristpull</b> · free &amp; open source (MIT) · the Hub makes it effortless</span>
+    <span>built in Germany · wristpull.de</span>
+  </div>
+  <div class="row">
+    <span>No cookies. No analytics. No cloud. That's the whole point.</span>
+    <span><a href="https://github.com/one7two99/wristpull">GitHub</a> · <a href="roadmap.html">Roadmap</a> · <a href="mailto:bethechange@wristpull.de">bethechange@wristpull.de</a></span>
+  </div>
 </footer>
 
 </div>

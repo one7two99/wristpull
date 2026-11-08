@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What wristpull can do</title>
+<meta name="description" content="Collect from watch and band, look at ten years of trends, understand them with a transparent AI coach, train with workouts pushed back to the watch, and keep everything — locally.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M20.72%209.28A9.5%209.5%200%201%200%2020.72%2022.72%22%20fill%3D%22none%22%20stroke%3D%22%23242b33%22%20stroke-width%3D%224.2%22/%3E%3Ccircle%20cx%3D%2214%22%20cy%3D%2216%22%20r%3D%223.6%22%20fill%3D%22%23ce3a32%22/%3E%3Cpath%20d%3D%22M14%2016H24%22%20stroke%3D%22%23ce3a32%22%20stroke-width%3D%224.2%22/%3E%3Cpath%20d%3D%22M23%2010L30%2016L23%2022Z%22%20fill%3D%22%23ce3a32%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="wristpull.css">
+<style>
+.benefit{display:grid;gap:1.6rem}
+.benefit+.benefit{border-top:1px solid var(--line)}
+ul.feat{list-style:none;margin:0;padding:0;display:grid;gap:.55rem 2rem}
+@media(min-width:760px){ul.feat{grid-template-columns:1fr 1fr}}
+ul.feat li{font-size:.95rem;color:var(--ink-2);padding-left:1.05rem;position:relative;line-height:1.5}
+ul.feat li::before{content:"✓";position:absolute;left:0;top:0;color:var(--green);font-weight:700}
+ul.feat b{color:var(--ink);font-weight:600}
+.bhead{display:flex;gap:.9rem;align-items:center}
+.devices{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="topbar">
+  <a class="brand" href="index.html" aria-label="wristpull home"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M20.72 9.28A9.5 9.5 0 1 0 20.72 22.72" fill="none" stroke="currentColor" stroke-width="4.2"/><circle cx="14" cy="16" r="3.6" fill="var(--red)"/><path d="M14 16H24" stroke="var(--red)" stroke-width="4.2"/><path d="M23 10L30 16L23 22Z" fill="var(--red)"/></svg>wristpull</a>
+  <nav aria-label="Main">
+    <a href="features.html" aria-current="page">Features</a><a href="hub.html">The Hub</a><a href="install.html">Install</a><a href="roadmap.html">Roadmap</a><a href="https://github.com/one7two99/wristpull">GitHub</a>
+  </nav>
+</header>
+
+<div class="phero">
+  <p class="kicker">What it can do</p>
+  <h1>One system, five jobs</h1>
+  <p class="lede">wristpull collects your data, shows it to you, helps you understand it, turns it into training — and makes sure you keep it forever. Everything below ships today and runs <b>every morning on real hardware</b>.</p>
+</div>
+
+<section class="benefit" id="collect">
+  <div class="bhead"><div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v3h16v-3"/></svg></div><h2>Collect — without a vendor in the loop</h2></div>
+  <ul class="feat">
+    <li><b>Garmin watch over USB.</b> Plug in the cable; every new file is copied, archived and parsed. Nothing on the watch is ever deleted or modified.</li>
+    <li><b>Fitness band over Bluetooth — no phone needed.</b> wristpull speaks the band's own protocol and pulls activity, sleep, stress, HRV, SpO2, even workouts with GPS, straight to your machine.</li>
+    <li><b>Gadgetbridge supported too.</b> Already syncing with the open-source app? wristpull pulls its export over ADB and imports years of its history on day one.</li>
+    <li><b>Your whole Garmin history.</b> Request your account export from Garmin, hand wristpull the zip: ten years — roughly 15,000 files — import in about 25 minutes, including activity names, VO2max and weight history.</li>
+    <li><b>Plug in and forget.</b> On the full setup, connecting the watch starts the import automatically; a guided morning routine walks through watch, band and coach in one go.</li>
+  </ul>
+</section>
+
+<section class="benefit" id="look">
+  <div class="bhead"><div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 17l5-6 4 3 5-8 4 5"/><path d="M3 21h18"/></svg></div><h2>Look — today and ten years back</h2></div>
+  <ul class="feat">
+    <li><b>Dashboard on your phone.</b> Today's recovery against your 28-day baseline, trends from four weeks to ten years, activities with heart-rate curves and laps, nights with sleep stages — served over HTTPS from your own network, password-protected.</li>
+    <li><b>Watch and band side by side.</b> Two devices on one body rarely agree; wristpull shows both honestly instead of averaging the difference away.</li>
+    <li><b>A terminal UI for terminal people.</b> Ten screens, keyboard-first, German and English — the same numbers as the dashboard.</li>
+    <li><b>Reports and exports.</b> Weekly and monthly Markdown reports with charts, plus a compact export you can paste into any AI chat for a second opinion.</li>
+  </ul>
+</section>
+
+<section class="benefit" id="understand">
+  <div class="bhead"><div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg></div><h2>Understand — an AI coach you can audit</h2></div>
+  <ul class="feat">
+    <li><b>Morning check &amp; weekly review.</b> Recovery status, a suggestion for today, and on Sundays a plan for next week — built on your sleep, load and heart-rate baselines.</li>
+    <li><b>The model you choose.</b> A local model on your own machine (nothing leaves the house), or a cloud model when you want sharper answers — your choice, per run.</li>
+    <li><b>A tiny, visible extract.</b> The coach receives a few hundred words of daily aggregates. Never raw samples, never GPS, never serial numbers.</li>
+    <li><b>Dry run before trust.</b> One flag writes the exact prompt to disk before anything is sent — read it, then decide.</li>
+    <li><b>No hallucinated numbers.</b> All statistics are computed in Python first; every number in the answer is checked against the data, and anything the model invented is flagged.</li>
+    <li><b>It remembers and learns.</b> Rate every answer, keep a one-line journal; the coach sees both next time and scores how well the week followed its own plan.</li>
+  </ul>
+</section>
+
+<section class="benefit" id="train">
+  <div class="bhead"><div class="ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 12h6m4 0h6M10 12a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/><path d="M7 5v14M17 5v14"/></svg></div><h2>Train — the plan lands on your wrist</h2></div>
+  <ul class="feat">
+    <li><b>Workouts as simple text files.</b> Warm-up, main part, cool-down, interval repeats — each step with a heart-rate target.</li>
+    <li><b>Pushed to the watch over the same cable.</b> No Garmin Connect account: unplug, and the watch guides every step of the session.</li>
+    <li><b>From the coach's plan.</b> One command turns the weekly plan into draft workouts; verify reads the watch back to confirm what it accepted.</li>
+    <li><b>Knows the watch's quirks.</b> Warns before the watch's workout limit silently swallows files, and guards against duplicate names.</li>
+  </ul>
+</section>
+
+<section class="benefit" id="keep">
+  <div class="bhead"><div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 10.5 12 4l9 6.5"/><path d="M5.5 9.5V20h13V9.5"/></svg></div><h2>Keep — yours in ten years, too</h2></div>
+  <ul class="feat">
+    <li><b>Raw files are sacred.</b> Everything is archived byte-identical and checksummed before it is parsed; interpretations can be redone anytime, originals never change.</li>
+    <li><b>One open database.</b> Twenty documented SQLite tables — run your own SQL, point any analysis tool at it, or just copy one file to back up a decade.</li>
+    <li><b>Whole-state backup &amp; move.</b> One command packs data, config and secrets into a single archive; one command restores it on a new machine in minutes.</li>
+    <li><b>If wristpull disappeared tomorrow</b> you'd still hold your FIT files and a plain SQLite database that dozens of independent tools can read. That's the design, not an accident.</li>
+  </ul>
+</section>
+
+<section class="benefit">
+  <div class="sec-head" style="margin-bottom:0">
+    <p class="kicker">Honest limits</p>
+    <h2>Read this before you trust a number</h2>
+  </div>
+  <div class="devices">
+    <div class="note"><h3>Not a medical device</h3><p class="dim" style="font-size:.93rem">The coach refuses diagnoses and points you to a doctor when values look off. Treat it as a training partner with a good memory, not a clinician.</p></div>
+    <div class="note"><h3>Verified on real wrists — two of them</h3><p class="dim" style="font-size:.93rem">Daily drivers are a Garmin fēnix 6X Pro and an Amazfit Helio Strap, cross-checked value by value. Other Garmin watches and Gadgetbridge-supported bands should work; some need small parser additions — that's what the issues tab is for.</p></div>
+    <div class="note"><h3>Sync is a race</h3><p class="dim" style="font-size:.93rem">A Garmin watch deletes monitoring files once any app has fetched them. If the vendor app syncs first, those hours are gone for everyone else. wristpull documents the order that keeps your archive complete.</p></div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="softer" style="display:grid;gap:1rem;justify-items:start">
+    <h2>See it in action</h2>
+    <p class="dim" style="max-width:56ch">The screenshots and charts on this site are rendered from synthetic test data — real health data never leaves the machines it belongs to, not even ours.</p>
+    <div class="ctas">
+      <a class="btn primary" href="install.html">Install it yourself</a>
+      <a class="btn ghost" href="hub.html">Or wait for the Hub</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="row">
+    <span><b>wristpull</b> · free &amp; open source (MIT) · the Hub makes it effortless</span>
+    <span>built in Germany · wristpull.de</span>
+  </div>
+  <div class="row">
+    <span>No cookies. No analytics. No cloud. That's the whole point.</span>
+    <span><a href="https://github.com/one7two99/wristpull">GitHub</a> · <a href="roadmap.html">Roadmap</a> · <a href="mailto:bethechange@wristpull.de">bethechange@wristpull.de</a></span>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>
