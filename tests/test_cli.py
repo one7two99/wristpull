@@ -288,3 +288,45 @@ def test_strap_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
     assert "rejected the auth key" in capsys.readouterr().err
     monkeypatch.setenv("WRISTPULL_STRAP_AUTHKEY", "11" * 16)
     assert main(["--config", str(cfg_file), "pull", "strap"]) == 1
+
+
+def test_backup_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
+    data = tmp_path / "Health"
+    assert main(["--config", str(cfg_file), "status"]) == 0  # creates the database
+    (data / "coach").mkdir()
+    (data / "coach" / "goals.md").write_text("# goals\n", "utf-8")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    (checkout / "compose.yaml").write_text("services: {}\n", "utf-8")
+    (checkout / ".env").write_text("UID=1\nGID=1\nWRISTPULL_DATA=/old\nWRISTPULL_CONFIG=/old.toml\nWRISTPULL_WEB_SECRET=s\n", "utf-8")
+    monkeypatch.chdir(checkout)
+    out = tmp_path / "backups"
+    assert main(["--config", str(cfg_file), "backup", "create", "--out", str(out)]) == 0
+    text = capsys.readouterr().out
+    assert "backup written: " in text and "contains .env" in text
+    archive = next(out.glob("wristpull-backup-*.tar.gz"))
+    assert main(["backup", "show", str(archive)]) == 0
+    text = capsys.readouterr().out
+    assert "env:       included (secrets!)" in text and "data dir:  /old" in text
+    # restore into a second checkout and data directory
+    new_checkout = tmp_path / "new"
+    new_checkout.mkdir()
+    (new_checkout / "compose.yaml").write_text("services: {}\n", "utf-8")
+    monkeypatch.chdir(new_checkout)
+    new_cfg = tmp_path / "new.toml"
+    assert main(["--config", str(new_cfg), "backup", "restore", str(archive), "--data-dir", str(tmp_path / "new-data"), "--uid", "7", "--gid", "8"]) == 0
+    text = capsys.readouterr().out
+    assert f"restored into {tmp_path / 'new-data'}" in text and "next: check WRISTPULL_SITE" in text
+    assert (tmp_path / "new-data" / "coach" / "goals.md").read_text("utf-8") == "# goals\n"
+    assert f'data_dir = "{tmp_path / "new-data"}"' in new_cfg.read_text("utf-8")
+    env_text = (new_checkout / ".env").read_text("utf-8")
+    assert "UID=7\nGID=8\n" in env_text and f"WRISTPULL_CONFIG={new_cfg}\n" in env_text and "WRISTPULL_WEB_SECRET=s" in env_text
+    assert main(["--config", str(new_cfg), "status"]) == 0
+    # a second restore refuses to touch the occupied targets
+    assert main(["--config", str(new_cfg), "backup", "restore", str(archive), "--data-dir", str(tmp_path / "new-data")]) == 1
+    assert "--force" in capsys.readouterr().err
+    # without a checkout around, create says that .env is missing
+    monkeypatch.chdir(tmp_path)
+    assert main(["--config", str(new_cfg), "backup", "create", "--out", str(tmp_path / "second.tar.gz")]) == 0
+    assert "no .env included" in capsys.readouterr().out
+    assert main(["backup", "show", str(tmp_path / "nope.tar.gz")]) == 1

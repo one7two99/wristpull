@@ -87,3 +87,10 @@
   never in config or repo. Tests inject
   `FakeTransport` (`tests/fake_band.py`, plays the band behind the real codec) and synthetic buffers
   (`tests/zepp_buffers.py`); an autouse fixture blocks bleak. Never put real fetch buffers into the repository.
+- Backup/restore (`src/wristpull/backup.py`, `wristpull backup create|show|restore`): one tar.gz (`wristpull-backup/` with
+  `MANIFEST.json`, `env`, `config.toml`, `data/…`, `SHA256SUMS`) of the data directory (no `staging/`, database as a
+  SQLite online-backup copy), the config file and `.env`. Restore extracts with `filter="data"`, keeps the archived modes
+  (raw files stay 0444), verifies the checksums, rewrites only UID/GID and the two paths in `.env` and `[storage] data_dir`,
+  deletes nothing (`--force` overwrites). Host side: `contrib/bin/wristpull-backup` (cli service, `.env` mounted read-only)
+  and `contrib/bin/wristpull-restore` (plain `docker run` on a fresh clone, builds the image, writes `.env`). Tests build
+  synthetic state in `tests/test_backup.py`; never put a real archive into the repo (`.gitignore` guards the name).

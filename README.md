@@ -59,6 +59,7 @@ form.
 | `coach` | training coach: daily check, weekly review, questions, ratings via an LLM |
 | `workout` | structured workouts as Markdown, pushed to the watch as FIT files |
 | `reparse` | re-parse archived raw files after a parser change |
+| `backup create\|show\|restore` | the whole state (data, config, `.env`) as one tar.gz, and back onto a new machine |
 | `tui` | the terminal UI over all of the above |
 | `serve` | the web dashboard for phone and browser (also as a Docker container) |
 
@@ -471,6 +472,40 @@ wristpull reparse --kind sleep                 # all Garmin sleep files
 wristpull reparse --errors                     # retry what failed last time
 ```
 
+#### `wristpull backup create|show|restore`
+
+Everything wristpull knows is the data directory, the config file and the `.env` next to
+`compose.yaml`. `backup create` packs the three into one `wristpull-backup-<date>.tar.gz`
+(`MANIFEST.json`, `env`, `config.toml`, `data/…`, `SHA256SUMS`): `staging/` is left out, the
+database goes in as a consistent copy made with SQLite's backup API, so the dashboard may keep
+running. The archive contains the secrets and is written with mode 0600; keep it on a disk you
+trust. `backup show` prints the manifest. `backup restore` unpacks into an empty data directory,
+writes the config and `.env`, and rewrites what belongs to the machine: `UID`/`GID`, `WRISTPULL_DATA`
+and `WRISTPULL_CONFIG` in `.env`, `[storage] data_dir` in the config. Secrets, timezone, strap
+address, raw-file modes and everything else are kept; checksums are verified; nothing is deleted
+(`--force` lets the archive overwrite existing files).
+
+| Option | Effect |
+|---|---|
+| `create --out PATH` | directory (default `.`) or a file name ending in `.tar.gz` |
+| `create --env FILE` | the `.env` to include (default `./.env` when `./compose.yaml` exists; otherwise the archive has no secrets) |
+| `restore --data-dir DIR` | where the data goes (default: the configured data directory) |
+| `restore --env FILE` | where `.env` goes (default as above) |
+| `restore --host-data-dir`, `--host-config` | the paths as the host sees them, for runs inside the container |
+| `restore --uid`, `--gid` | for `.env` (default: the current user) |
+| `restore --force` | overwrite existing files |
+
+```sh
+wristpull backup create --out ~/Health/wristpull-backups        # native install, from the checkout
+contrib/bin/wristpull-backup                                   # Docker: same, via the cli service
+contrib/bin/wristpull-restore ~/Health/wristpull-backups/wristpull-backup-2026-11-08-0905.tar.gz
+                                                               # new machine: clone, then this (builds the image, writes .env)
+```
+
+Moving to another machine is therefore: `wristpull-backup` here, copy the archive, `git clone` and
+`wristpull-restore` there, then `docker compose build && docker compose up -d` and steps 4 to 6 of
+[docs/setup.md](docs/setup.md) (udev rule, AppArmor profile, Caddy's new certificate on the phone).
+
 #### `wristpull tui`
 
 A terminal UI over the same library functions (needs the optional extra: `uv sync --extra tui`).
@@ -763,9 +798,11 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
   phone can still be reached over wireless ADB).
 - **Updating:** `git pull && docker compose build` rebuilds the one image for both services;
   `docker compose up -d web` restarts the dashboard.
-- **Moving to another machine or restoring a backup:** the data directory, the config file and
-  `.env` are the whole state; [docs/setup.md](docs/setup.md) step 10 lists what to copy, what to
-  adjust and what Caddy regenerates.
+- **Moving to another machine or restoring a backup:** `contrib/bin/wristpull-backup` writes the
+  whole state (data directory, config file, `.env`) as one tar.gz; on the new machine
+  `contrib/bin/wristpull-restore <archive>` right after the clone builds the image, unpacks everything
+  and writes `.env` for that user. [docs/setup.md](docs/setup.md) step 10 has the details and what
+  Caddy regenerates.
 
 ## Automation
 

@@ -123,67 +123,63 @@ Everything wristpull knows lives in three places; nothing is stored inside the c
 | config | `~/.config/wristpull/config.toml` (`WRISTPULL_CONFIG`) | timezone, folders, `[strap] address`, coach and UI settings |
 | `.env` next to `compose.yaml` | the checkout | UID/GID, the two paths above, dashboard secrets, API keys, the band's auth key (`WRISTPULL_STRAP_AUTHKEY`) |
 
-Steps, with the old machine still available:
+`wristpull backup` packs the three into one archive and unpacks it on the other side:
 
 ```sh
-# on the old machine: stop the dashboard so the database is not written while copying
-cd ~/dev/wristpull && docker compose down
-rsync -a --delete ~/Health/wristpull/ newhost:~/Health/wristpull/     # keeps the read-only raw files
-scp ~/.config/wristpull/config.toml newhost:~/.config/wristpull/config.toml
-scp ~/dev/wristpull/.env newhost:~/dev/wristpull/.env                 # contains secrets: scp/rsync only, never mail or chat
+# old machine (the dashboard may keep running)
+cd ~/dev/wristpull && contrib/bin/wristpull-backup          # → ~/Health/wristpull-backups/wristpull-backup-<date>.tar.gz
+# copy the archive over: it holds the secrets, so scp/rsync or a disk, never mail or chat
+scp ~/Health/wristpull-backups/wristpull-backup-*.tar.gz newhost:
+
+# new machine, after step 1 (Docker, groups) and the clone from step 2 – no .env, no config yet
+git clone https://github.com/one7two99/wristpull.git ~/dev/wristpull && cd ~/dev/wristpull
+contrib/bin/wristpull-restore ~/wristpull-backup-<date>.tar.gz          # builds the image, unpacks, writes .env
+docker compose build && docker compose up -d                            # dashboard
+docker compose run --rm cli wristpull status                            # same counts as on the old machine
 ```
 
-On the new machine, after steps 1 to 5 of this guide (packages, checkout, build, udev rule,
-AppArmor profile):
+`wristpull-restore` takes the data directory and the config file as optional second and third
+arguments (defaults `~/Health/wristpull`, `~/.config/wristpull/config.toml`) and refuses to touch
+targets that already hold something (`--force` as fourth argument lets the archive overwrite files;
+nothing is ever deleted). It rewrites `UID`/`GID`, `WRISTPULL_DATA` and `WRISTPULL_CONFIG` in `.env`
+and `[storage] data_dir` in the config for the new machine; everything else travels unchanged.
+Then:
 
-- `.env`: adjust `UID`/`GID` (`id -u`, `id -g`) and the two paths if the user or home differ;
-  `WRISTPULL_SITE` to the new LAN address. Keep `WRISTPULL_WEB_SECRET` to stay logged in on the phone.
-- `config.toml`: `[storage] data_dir` must be the host path of the copied data directory; everything
-  else (timezone, `[strap] address`, coach backend) stays as it was.
-- The data directory must be owned by the new user (`chown -R $USER:$USER ~/Health/wristpull`
-  if the UID changed); the files under `raw/` stay read-only.
-- `docker compose run --rm cli wristpull status` shows the same tables and raw-file counts as on
-  the old machine; `wristpull strap info` the same sync state, so the next `pull strap` only brings
-  what the band recorded since. The band's auth key travels in `.env` and works on every host, but
-  the band holds one connection: the old machine (or the phone) must not be talking to it.
+- `.env`: set `WRISTPULL_SITE` to the new LAN address and check `WRISTPULL_USB_GID`
+  (`getent group plugdev`). `WRISTPULL_WEB_SECRET` is kept, so the phone stays logged in.
+- Steps 4 and 5 (udev rule, AppArmor profile) are host installs and must be repeated.
+- `wristpull strap info` shows the same sync state, so the next `pull strap` only brings what the
+  band recorded since. The band holds one connection: the old machine (or the phone) must not be
+  talking to it.
 - The phone keeps trusting the copied adb keys (`adb/`); without them it asks once for a new
   authorisation.
-- Caddy's certificate authority is **not** copied (it lives in the Docker volume `caddy_data`): the
-  new machine mints a new one, so install the new `wristpull-root.crt` on the phone (step 6) and
-  remove the old one.
+- Caddy's certificate authority is **not** in the archive (it lives in the Docker volume
+  `caddy_data`): the new machine mints a new one, so install the new `wristpull-root.crt` on the
+  phone (step 6) and remove the old one.
 - Optional on the old machine afterwards: `docker compose down -v` removes its containers and the
   Caddy volume; the data directory can stay as a backup.
 
-Without the old machine (restoring from a backup): the same files from the backup, then the same
-checks. A backup therefore means the data directory plus the config file plus `.env`; the repository
-is on GitHub.
+By hand instead of the archive: `rsync -a` the data directory, copy the config file and `.env`, and
+adjust the same values yourself (`chown -R $USER:$USER` the data directory if the UID changed; the
+files under `raw/` stay read-only).
 
 ### Backups
 
-A snapshot is a copy of the data directory next to it, plus a note how to restore it. Stop the
-dashboard first and make sure no `cli` command runs: with no writer, copying the database together
-with its `-wal`/`-shm` files is consistent.
+`contrib/bin/wristpull-backup [DIR | FILE.tar.gz]` is the backup: one `wristpull-backup-<date>.tar.gz`
+with the data directory (without `staging/`, the database as a consistent copy made with SQLite's
+backup API, so nothing has to be stopped), the config file and `.env`, plus `MANIFEST.json` and
+`SHA256SUMS` (`wristpull backup show <archive>` prints the manifest). The archive holds the secrets
+and is written with mode 0600: keep it on an external disk or another machine, never in mail or chat.
+Restoring is `contrib/bin/wristpull-restore <archive>` into empty targets (or `--force` over the
+existing ones; nothing is deleted). The database schema migrates itself on the first connect, so an
+older archive opens fine, but whatever was imported after it has to be imported again
+(`import garmin-export`, `pull strap`, `import garmin`: device files are re-fetched only where the
+device still has them, which is why the raw files are the part worth keeping).
 
-```sh
-cd ~/dev/wristpull && docker compose stop web
-d=~/Health/wristpull-backup-$(date +%F)
-rsync -a --exclude staging/ ~/Health/wristpull/ "$d"/
-cp ~/.config/wristpull/config.toml "$d"/config.toml && cp .env "$d"/env     # the other two parts of the state
-(cd "$d" && find . -type f ! -name SHA256SUMS -exec sha256sum {} + > SHA256SUMS)
-tar czf "$d.tar.gz" -C ~/Health "$(basename "$d")"                           # optional, for an external disk
-docker compose start web
-```
-
-Restoring is the reverse (stop `web`, `rsync -a --delete` the snapshot over the data directory,
-start `web`); `wristpull status` then shows the snapshot's counts. The database schema migrates
-itself on the first connect, so an older snapshot opens fine, but whatever was imported after it has
-to be imported again (`import garmin-export`, `pull strap`, `import garmin`: the device files are
-re-fetched only where the device still has them, which is why the raw files are the part worth
-keeping).
-
-Existing snapshot on this laptop:
+Archives on this laptop (the older two were made by hand, before the command existed: a copy of the
+data directory next to it, plus a note how to restore it):
 
 | Snapshot | Taken | Holds | Restore |
 |---|---|---|---|
-| `~/Health/wristpull-backup-2026-11-07/` (35 MB) and `~/Health/wristpull-backup-2026-11-07.tar.gz` | 2026-11-07 morning, before the Garmin Connect export import, schema version 3 | raw files, workouts, coach, exports, reports, adb keys, a consistent `wristpull.sqlite`, `SHA256SUMS` | its `RESTORE.md`; afterwards re-run `import garmin-export exports/<zip>` and `pull strap` (the strap over Bluetooth did not exist yet, nor the `.env` key) |
+| `~/Health/wristpull-backup-2026-11-07/` (35 MB) and `~/Health/wristpull-backup-2026-11-07.tar.gz` | 2026-11-07 morning, before the Garmin Connect export import, schema version 3 | raw files, workouts, coach, exports, reports, adb keys, a consistent `wristpull.sqlite`, `SHA256SUMS` | its `RESTORE.md` (`rsync` the folder over the data directory); afterwards re-run `import garmin-export exports/<zip>` and `pull strap` (the strap over Bluetooth did not exist yet, nor the `.env` key) |
 | `~/Health/wristpull.tar` (7.6 MB, 75 files) | 2026-10-31 evening, the first day | an early copy of the data directory (reports, first raw files) | superseded by the snapshot above; keep or delete |

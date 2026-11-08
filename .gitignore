@@ -31,3 +31,6 @@ INIT-PROMPT.md
 
 # Secrets for docker compose (copy from .env.example)
 .env
+
+# Backups written into the checkout by mistake (they hold .env and health data)
+wristpull-backup-*.tar.gz*

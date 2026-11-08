@@ -1,0 +1,36 @@
+#!/bin/sh
+# wristpull-backup [DIR | FILE.tar.gz]: the whole state (data directory, config file, .env) as one
+# tar.gz, written by `wristpull backup create` inside the Docker `cli` service. The dashboard may keep
+# running (the database is copied with SQLite's backup API). Default target:
+#   <parent of WRISTPULL_DATA>/wristpull-backups/wristpull-backup-<date>.tar.gz
+# The archive contains .env (secrets, API keys, the band's auth key) and is written with mode 0600:
+# keep it on a disk you trust. Restore on another machine: contrib/bin/wristpull-restore.
+# Finds the compose.yaml two directories above itself, else ~/dev/wristpull (WRISTPULL_COMPOSE overrides).
+set -eu
+here="$(cd "$(dirname "$0")" && pwd -P)"
+compose="${WRISTPULL_COMPOSE:-$here/../../compose.yaml}"
+[ -f "$compose" ] || compose="$HOME/dev/wristpull/compose.yaml"
+checkout="$(cd "$(dirname "$compose")" && pwd -P)"
+envfile="$checkout/.env"
+if [ ! -f "$envfile" ]; then
+    echo "wristpull-backup: no .env next to $compose" >&2
+    exit 2
+fi
+data="$(sed -n 's/^WRISTPULL_DATA=//p' "$envfile" | tail -n 1 | sed 's/^"\(.*\)"$/\1/')"
+if [ -z "$data" ]; then
+    echo "wristpull-backup: WRISTPULL_DATA is not set in $envfile" >&2
+    exit 2
+fi
+target="${1:-$(dirname "$data")/wristpull-backups}"
+case "$target" in
+    *.tar.gz) dir="$(dirname "$target")"; out="/backup/$(basename "$target")" ;;
+    *)        dir="$target"; out="/backup" ;;
+esac
+mkdir -p "$dir"
+dir="$(cd "$dir" && pwd -P)"
+docker compose -f "$compose" run --rm -T \
+    -v "$envfile:/checkout/.env:ro" -v "$dir:/backup" \
+    cli wristpull backup create --env /checkout/.env --out "$out"
+newest="$(ls -t "$dir"/wristpull-backup-*.tar.gz 2>/dev/null | head -n 1)"
+[ -n "$newest" ] && echo "on the host: $newest"
+# what an archive holds: docker compose run --rm -v "$newest:/b.tar.gz:ro" cli wristpull backup show /b.tar.gz

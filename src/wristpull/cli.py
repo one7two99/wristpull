@@ -169,6 +169,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_wplan = workout_sub.add_parser("from-plan", help="draft one workout per session of the coach's last weekly plan")
     p_wplan.add_argument("--week", help="Monday of the week to plan (default: the week the plan was written for)")
 
+    p_backup = sub.add_parser("backup", help="the whole state (data directory, config, .env) as one tar.gz, and restoring it on another machine")
+    backup_sub = p_backup.add_subparsers(dest="backup_cmd", required=True)
+    p_bcreate = backup_sub.add_parser("create", help="write wristpull-backup-<date>.tar.gz (the dashboard may keep running)")
+    p_bcreate.add_argument("--out", type=Path, default=Path("."), help="directory, or a file name ending in .tar.gz (default: current directory)")
+    p_bcreate.add_argument("--env", type=Path, help="the .env next to compose.yaml to include (default: ./.env when ./compose.yaml exists)")
+    p_bshow = backup_sub.add_parser("show", help="print what an archive holds")
+    p_bshow.add_argument("archive", type=Path)
+    p_brestore = backup_sub.add_parser("restore", help="unpack an archive into the data directory, the config file and .env (UID/GID and paths are rewritten for this machine)")
+    p_brestore.add_argument("archive", type=Path)
+    p_brestore.add_argument("--data-dir", type=Path, help="where the data goes (default: the configured data directory)")
+    p_brestore.add_argument("--env", type=Path, help="where .env goes (default: ./.env when ./compose.yaml exists)")
+    p_brestore.add_argument("--host-data-dir", type=Path, help="the data directory as the host sees it, written into .env and the config (container runs)")
+    p_brestore.add_argument("--host-config", type=Path, help="the config file as the host sees it, written into .env (container runs)")
+    p_brestore.add_argument("--uid", type=int, help="UID for .env (default: the current user)")
+    p_brestore.add_argument("--gid", type=int, help="GID for .env (default: the current group)")
+    p_brestore.add_argument("--force", action="store_true", help="let the archive overwrite existing files (nothing else is deleted)")
     p_reparse = sub.add_parser("reparse", help="re-parse archived raw files after a parser change (rows are replaced)")
     p_reparse.add_argument("--id", type=int, action="append", dest="ids", help="raw_files.id (repeatable)")
     p_reparse.add_argument("--source", help="only this source, e.g. gadgetbridge or garmin_usb")
@@ -460,6 +476,62 @@ def cmd_config(args: argparse.Namespace, config: Config) -> int:
         return 0
     print(f"# config file: {path} ({'exists' if config_file_present(path) else 'missing, showing defaults'})")
     print(config.render(), end="")
+    return 0
+
+
+def _compose_env(explicit: Path | None) -> Path | None:
+    """The .env to back up or restore: the given one, else ./.env when run from a checkout."""
+    if explicit:
+        return explicit
+    return Path(".env") if Path("compose.yaml").is_file() else None
+
+
+def cmd_backup(args: argparse.Namespace, config: Config) -> int:
+    from . import backup
+    from .runtime import host_path
+
+    config_path = args.config or default_config_path()
+    log = (lambda msg: None) if args.quiet else print
+    try:
+        if args.backup_cmd == "create":
+            env_path = _compose_env(args.env)
+            if env_path is None or not env_path.is_file():
+                print("note: no .env included (pass --env <file> or run from the checkout); secrets and the strap key are not in the archive")
+            stats = backup.create_backup(config.data_dir, config_path, env_path, args.out, log=log)
+            print(f"backup written: {host_path(stats.path)}")
+            if stats.manifest.has_env:
+                print("it contains .env (secrets, API keys, the band's auth key): keep it on a disk you trust, never in mail or chat")
+            return 0
+        if args.backup_cmd == "show":
+            manifest = backup.read_manifest(args.archive)
+            print(f"# {args.archive}")
+            for line in backup.describe(manifest):
+                print(line)
+            return 0
+        env_path = _compose_env(args.env)
+        stats = backup.restore_backup(
+            args.archive,
+            data_dir=args.data_dir or config.data_dir,
+            config_path=config_path,
+            env_path=env_path,
+            host_data_dir=args.host_data_dir,
+            host_config=args.host_config,
+            uid=args.uid,
+            gid=args.gid,
+            force=args.force,
+            log=log,
+        )
+    except backup.BackupError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    for note in stats.notes:
+        print(f"note: {note}")
+    if stats.manifest.has_env and not stats.env_path:
+        print("note: the archive's .env was not written (pass --env <file> or run from the checkout)")
+    shown_config = args.host_config or stats.config_path
+    print(f"restored into {host_path(stats.data_dir)}" + (f", config {shown_config}" if stats.config_path else "") + (f", {stats.env_path}" if stats.env_path else ""))
+    print("next: check WRISTPULL_SITE and WRISTPULL_USB_GID in .env; docker compose build && docker compose up -d;")
+    print("      udev rule and AppArmor profile as in docs/setup.md steps 4 and 5; the phone must trust Caddy's new certificate")
     return 0
 
 
@@ -849,6 +921,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_serve(args, config)
     if args.command == "reparse":
         return cmd_reparse(args, config)
+    if args.command == "backup":
+        return cmd_backup(args, config)
     if args.command == "coach":
         return cmd_coach(args, config)
     if args.command == "workout":
