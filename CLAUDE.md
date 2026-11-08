@@ -66,6 +66,9 @@
   Inside the container `WRISTPULL_IN_CONTAINER=1`, `WRISTPULL_DATA_DIR=/data` (overrides `[storage] data_dir`,
   `Config.file_data_dir` keeps the file's value), `WRISTPULL_CONFIG_FILE` names the mounted config; helpers in
   `runtime.py`. adb keys live in `<data_dir>/adb`. Host-side files (udev, units, wrapper) go under `contrib/`.
+  The Docker stack on Linux is the primary way to run wristpull; the native uv install is for development and for
+  macOS/Windows (`docs/platforms.md`). There are no native systemd units or udev rules any more, only the Docker ones.
+  `docs/history/` holds the original German work orders, unmaintained.
 - Watch over MTP (`src/wristpull/mtp.py`): libmtp CLI tools behind the `Mtp` protocol (`MtpTools`; exit codes mean
   nothing, stdout/stderr markers decide, fixtures in `tests/fixtures/mtp/`). `[garmin] access = auto | gvfs | mtp`
   (`mtp.resolve_access`). Import goes through `<data_dir>/staging/` (`importers.garmin.import_garmin_mtp`, name+size
@@ -82,9 +85,9 @@
   `strap_sync` (activity from the local midnight of the last synced day: steps are cumulative per day), archives every
   answer as `raw/zepp_ble/<year>/zepp_<kind>/…` and keeps the data on the band; workouts come one per request (summary
   0x05, then details 0x06 for that start, `WORKOUT_ROUNDS` per pull) and are archived together (`pack_workout`). Merge `STRAP_PRIORITY = ("zepp_ble",
-  "gadgetbridge_zepp")`. The auth key comes from `WRISTPULL_STRAP_AUTHKEY` (`.env` for Docker, like the API keys;
-  `runtime.STRAP_AUTHKEY_ENV`), the file `<data_dir>/strap/authkey` (0600, `strap pair --to-file`) is only the native fallback;
-  never in config or repo. Tests inject
+  "gadgetbridge_zepp")`. The auth key comes only from `WRISTPULL_STRAP_AUTHKEY` (`.env` for Docker, the shell natively, like
+  the API keys; `runtime.STRAP_AUTHKEY_ENV`; tests set it with `monkeypatch.setenv`), never in the config, a file or the
+  repo. Tests inject
   `FakeTransport` (`tests/fake_band.py`, plays the band behind the real codec) and synthetic buffers
   (`tests/zepp_buffers.py`); an autouse fixture blocks bleak. Never put real fetch buffers into the repository.
 - Backup/restore (`src/wristpull/backup.py`, `wristpull backup create|show|restore`): one tar.gz (`wristpull-backup/` with

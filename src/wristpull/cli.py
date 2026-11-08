@@ -62,17 +62,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_pull.add_argument("--since-days", type=int, help="strap: how far back the first pull asks the band (default [strap] since_days)")
     p_pull.add_argument("--delete", action="store_true", help="strap: let the band delete what it sent (default: keep_on_band from the config)")
     p_pull.add_argument("--dry-run", action="store_true", help="show what would be pulled (strap: ask the band how much it holds)")
-    p_strap = sub.add_parser("strap", help="the Zepp OS band over Bluetooth: scan for it, store its auth key, show the sync state")
+    p_strap = sub.add_parser("strap", help="the Zepp OS band over Bluetooth: scan for it, check its auth key, show the sync state")
     strap_sub = p_strap.add_subparsers(dest="strap_cmd", required=True)
     p_sscan = strap_sub.add_parser("scan", help="list advertising bands (needs the 'ble' extra)")
     p_sscan.add_argument("--seconds", type=float, default=8.0, help="how long to listen (default 8)")
     p_sscan.add_argument("--all", action="store_true", help="every BLE device, not only bands")
-    p_spair = strap_sub.add_parser("pair", help="store the band's auth key (and address) and check them against the band")
+    p_spair = strap_sub.add_parser("pair", help="check the band's auth key against the band and store its address")
     p_spair.add_argument("--authkey", required=True, help="32 hex digits, from Gadgetbridge's device settings or huami-token")
     p_spair.add_argument("--address", help="Bluetooth address AA:BB:CC:DD:EE:FF; written to [strap] address in the config")
     p_spair.add_argument("--no-probe", action="store_true", help="do not connect to the band")
-    p_spair.add_argument("--to-file", action="store_true", help="native install: write the key to [strap] authkey_file instead of printing the .env line")
-    strap_sub.add_parser("info", help="address, key file and where every fetch kind left off")
+    strap_sub.add_parser("info", help="address, where the key comes from and where every fetch kind left off")
     p_export = sub.add_parser("export", help="export a compact Markdown summary plus CSVs for a date range")
     p_export.add_argument("--for-claude", action="store_true", help="compact Markdown + CSV attachments (the only format so far)")
     p_export.add_argument("--from", dest="date_from", required=True, help="first local date, YYYY-MM-DD")
@@ -292,7 +291,7 @@ def cmd_pull_strap(args: argparse.Namespace, config: Config) -> int:
 def cmd_strap(args: argparse.Namespace, config: Config) -> int:
     import asyncio
 
-    from .importers.strap import auth_key_source
+    from .importers.strap import has_auth_key
     from .zeppos.band import Band, BandError
     from .zeppos.protocol import parse_auth_key
     from .zeppos.store import all_sync, clear_sync
@@ -326,17 +325,9 @@ def cmd_strap(args: argparse.Namespace, config: Config) -> int:
         conn = _open(config)
         cleared = clear_sync(conn, ZEPP_SOURCE)
         conn.commit()
-        if args.to_file:
-            path = config.strap_authkey_path
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.touch(mode=0o600, exist_ok=True)
-            path.chmod(0o600)
-            path.write_text("0x" + key.hex() + "\n")
-            stored = f"auth key stored in {path}"
-        else:
-            stored = f"put this line into .env (Docker) or export it in the shell:\n{STRAP_AUTHKEY_ENV}=0x{key.hex()}"
-            if os.environ.get(STRAP_AUTHKEY_ENV, "").strip().lower().removeprefix("0x") == key.hex():
-                stored = f"{STRAP_AUTHKEY_ENV} is already set to this key"
+        stored = f"put this line into .env (Docker) or export it in the shell:\n{STRAP_AUTHKEY_ENV}=0x{key.hex()}"
+        if os.environ.get(STRAP_AUTHKEY_ENV, "").strip().lower().removeprefix("0x") == key.hex():
+            stored = f"{STRAP_AUTHKEY_ENV} is already set to this key"
         print(stored + (f"\naddress {config.strap_address} written to {config.path}" if args.address else "") + (f"\nsync state of {cleared} kinds reset" if cleared else ""))
         if args.no_probe:
             return 0
@@ -363,8 +354,7 @@ def cmd_strap(args: argparse.Namespace, config: Config) -> int:
         return 0
     # info
     print(f"address:   {config.strap_address or '(not configured)'}")
-    source = auth_key_source(config.strap_authkey_path)
-    print("auth key:  " + {"env": f"from the environment ({STRAP_AUTHKEY_ENV})", "file": f"from the file {config.strap_authkey_path}"}.get(source or "", f"missing (set {STRAP_AUTHKEY_ENV}, or `strap pair --to-file` for a native install)"))
+    print("auth key:  " + (f"from the environment ({STRAP_AUTHKEY_ENV})" if has_auth_key() else f"missing (set {STRAP_AUTHKEY_ENV} in .env for Docker, or export it in the shell)"))
     conn = _open(config)
     synced = all_sync(conn, ZEPP_SOURCE)
     if not synced:

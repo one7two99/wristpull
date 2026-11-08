@@ -143,7 +143,7 @@ A Raspberry Pi running the Linux Docker stack, with the watch docked on its USB 
 Bluetooth range: imports run on a schedule on the hub, the dashboard is served to every device in
 the house, backups go to a disk or another machine with `wristpull backup`. Then no laptop or phone
 needs device access any more, whatever it runs, which is why the Docker stack stays the reference
-and the native installs are the bridge until then. Concept: `workorders/Helio-Strap-BLE-Konzept.md`,
+and the native installs are the bridge until then. Concept: `docs/history/Helio-Strap-BLE-Konzept.md`,
 phase 3; it is a separate project.
 
 ## 8. Summary

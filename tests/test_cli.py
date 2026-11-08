@@ -249,18 +249,13 @@ def test_strap_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert f"WRISTPULL_STRAP_AUTHKEY=0x{FAKE_KEY.hex()}" in out and "put this line into .env" in out
     config = load_config(cfg_file)
-    assert config.strap_address == FAKE_ADDRESS and not config.strap_authkey_path.exists()
+    assert config.strap_address == FAKE_ADDRESS
     assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", "nope", "--no-probe"]) == 1
     assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", FAKE_KEY.hex(), "--address", "not-an-address", "--no-probe"]) == 1
     # without the key the pull explains what to set
     assert main(["--config", str(cfg_file), "pull", "strap"]) == 1
     assert "WRISTPULL_STRAP_AUTHKEY" in capsys.readouterr().err
-    # the native way: --to-file writes the key file (0600)
-    assert main(["--config", str(cfg_file), "strap", "pair", "--authkey", FAKE_KEY.hex(), "--no-probe", "--to-file"]) == 0
-    assert "auth key stored in" in capsys.readouterr().out
-    assert config.strap_authkey_path.read_text().strip() == "0x" + FAKE_KEY.hex() and oct(config.strap_authkey_path.stat().st_mode & 0o777) == "0o600"
-    config.strap_authkey_path.unlink()
-    # the Docker way: the key in the environment
+    # the key lives in the environment (.env for Docker, the shell for a native install)
     monkeypatch.setenv("WRISTPULL_STRAP_AUTHKEY", "0x" + FAKE_KEY.hex())
     assert main(["--config", str(cfg_file), "status"]) == 0
     assert f"Strap:      {FAKE_ADDRESS} over Bluetooth, key from the environment, last pull never" in capsys.readouterr().out

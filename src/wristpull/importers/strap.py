@@ -15,7 +15,6 @@ import sqlite3
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from ..archive import RawArchive
 from ..config import Config
@@ -54,23 +53,18 @@ class StrapStats:
 AUTHKEY_HINT = f"set {STRAP_AUTHKEY_ENV} (in .env for Docker, or the shell) to the band's 16-byte key; `wristpull strap pair --authkey <hex>` checks it against the band"
 
 
-def auth_key_source(path: Path, env: Mapping[str, str] | None = None) -> str | None:
-    """Where the key comes from: "env", "file" or None."""
+def has_auth_key(env: Mapping[str, str] | None = None) -> bool:
+    """Whether ``WRISTPULL_STRAP_AUTHKEY`` is set (the only place the key lives)."""
     env = os.environ if env is None else env
-    if env.get(STRAP_AUTHKEY_ENV, "").strip():
-        return "env"
-    return "file" if path.is_file() else None
+    return bool(env.get(STRAP_AUTHKEY_ENV, "").strip())
 
 
-def read_auth_key(path: Path, env: Mapping[str, str] | None = None) -> bytes:
-    """``WRISTPULL_STRAP_AUTHKEY`` wins; the file (``[strap] authkey_file``) is the fallback for native installs."""
+def read_auth_key(env: Mapping[str, str] | None = None) -> bytes:
+    """The key from ``WRISTPULL_STRAP_AUTHKEY`` (``.env`` for Docker, the shell for a native install)."""
     env = os.environ if env is None else env
     text = env.get(STRAP_AUTHKEY_ENV, "").strip()
     if not text:
-        try:
-            text = path.read_text("utf-8")
-        except FileNotFoundError as exc:
-            raise BandError(f"no auth key: {AUTHKEY_HINT}") from exc
+        raise BandError(f"no auth key: {AUTHKEY_HINT}")
     return parse_auth_key(text)
 
 
@@ -232,7 +226,7 @@ def pull_strap(
     stats = StrapStats(address=config.strap_address or None)
     if not config.strap_address:
         raise BandError("no band configured: set [strap] address (wristpull strap scan shows the candidates)")
-    auth_key = read_auth_key(config.strap_authkey_path)
+    auth_key = read_auth_key()
     if transport_factory is None:
         from ..zeppos.transport import open_transport
 

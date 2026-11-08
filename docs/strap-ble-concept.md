@@ -2,7 +2,7 @@
 
 wristpull reads the Amazfit Helio Strap directly over Bluetooth Low Energy, without Gadgetbridge
 and without a phone. The German planning document with the full reasoning is
-`workorders/Helio-Strap-BLE-Konzept.md`; this page keeps the protocol facts, the spike results and
+`history/Helio-Strap-BLE-Konzept.md`; this page keeps the protocol facts, the spike results and
 the design that was built on them. Status: phases 1 and 2 built 2026-11-07 (library, `pull strap`, TUI,
 status, archive, reparse, workouts, PAI, maximum heart rate); phase 3 (the Raspberry Pi box) is open.
 
@@ -46,7 +46,7 @@ Fetch kinds and record layouts (verified byte-identical against Gadgetbridge's t
 - `src/wristpull/zeppos/`: `ecdh`, `aes`, `chunked` (codec), `protocol` (pure builders/parsers), `band` (the async client over a `Transport` protocol), `transport` (bleak; the only Bluetooth code), `fetch` (kinds, container file, parsers reusing `gadgetbridge.py`), `store` (SQL: `strap_sync`, replaced nights).
 - `importers/strap.py`: `pull_strap` connects, authenticates, sets the time, asks every kind for data since `strap_sync` (first run: `[strap] since_days`), archives each answer as an immutable `WPZB` container under `raw/zepp_ble/<year>/zepp_<kind>/`, parses it and rebuilds the daily summaries. Activity is always asked from the local midnight of the last synced day because its step counts are cumulative per day (`replace_tables`). A newer sleep report replaces an older one that overlaps.
 - Merge: `STRAP_PRIORITY = ("zepp_ble", "gadgetbridge_zepp")`, de-duplicated like the Garmin sources; the strap stays a separate device from the watch.
-- The auth key comes from the environment (`WRISTPULL_STRAP_AUTHKEY`, in `.env` for Docker, like the coach API keys); a native install may keep it in `<data_dir>/strap/authkey` (0600) instead. Never in the config or the repository. `wristpull strap pair` checks it against the band and writes the address, `strap scan` finds the band, `strap info` shows where the key comes from and the sync state.
+- The auth key comes from the environment (`WRISTPULL_STRAP_AUTHKEY`, in `.env` for Docker, like the coach API keys, exported in the shell for a native install). Never in the config, a file or the repository. `wristpull strap pair` checks it against the band and writes the address, `strap scan` finds the band, `strap info` shows where the key comes from and the sync state.
 - Tests: `tests/fake_band.py` plays the band behind the same codec (ECDH + AES included); conftest blocks bleak. Buffers are synthetic (`tests/zepp_buffers.py`).
 
 ## Open

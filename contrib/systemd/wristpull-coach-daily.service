@@ -1,9 +1,0 @@
-[Unit]
-Description=wristpull: daily coach check
-After=wristpull-pull.service
-
-[Service]
-Type=oneshot
-WorkingDirectory=/home/alice/dev/wristpull
-# Cloud backends read the key from the environment; put it in ~/.config/environment.d/ or a drop-in.
-ExecStart=/usr/bin/env uv run wristpull -q coach daily

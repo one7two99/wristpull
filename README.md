@@ -19,32 +19,36 @@ The code repository never contains health data. Everything lands in `~/Health/wr
 
 ## Install
 
-Requires Python 3.14 and [uv](https://docs.astral.sh/uv/).
+The primary way is the Docker stack on Linux: one image runs the web dashboard and every command,
+including the watch over USB, the phone over ADB and the strap over Bluetooth, so the host needs
+neither Python nor uv. On a fresh machine `contrib/bin/wristpull-setup` walks through the whole
+setup and asks only for what is missing (or restores a backup); [docs/setup.md](docs/setup.md) is
+the same checklist by hand, the details are under "Running everything in Docker".
+
+```sh
+git clone https://github.com/one7two99/wristpull.git ~/dev/wristpull && cd ~/dev/wristpull
+contrib/bin/wristpull-setup        # Docker, .env, image, dashboard, keys, udev rule, AppArmor profile
+contrib/bin/wristpull status       # every command through the container
+```
+
+The native installation (Python 3.14 and [uv](https://docs.astral.sh/uv/)) runs the same package
+with the same commands. It is the way for development, and for macOS and Windows, where Docker
+cannot reach the devices. [docs/platforms.md](docs/platforms.md) says which way fits which machine
+(Linux, macOS, Windows, Android, iPhone), what each path imports and what it needs.
 
 ```sh
 cd ~/dev/wristpull
-uv sync
+uv sync --extra tui --extra coach --extra web --extra ble   # terminal UI, Claude backend, web dashboard, strap over Bluetooth
 uv run wristpull config --init     # writes ~/.config/wristpull/config.toml
 uv run wristpull status
-uv sync --extra tui                # optional: the terminal UI (Textual)
-uv run wristpull tui
-uv sync --extra coach              # optional: Claude API backend for the training coach (anthropic SDK)
-uv sync --extra web                # optional: the web dashboard (Starlette); see "Web dashboard"
 ```
-
-The second, equivalent way is Docker: one image runs the web dashboard and every command,
-including the watch over USB, the phone over ADB and the strap over Bluetooth, so the host needs
-neither Python nor uv (Linux only). On a fresh machine `contrib/bin/wristpull-setup` walks through
-the whole setup and asks only for what is missing (or restores a backup); [docs/setup.md](docs/setup.md)
-is the same checklist by hand, the details are under "Running everything in Docker".
-[docs/platforms.md](docs/platforms.md) says which way fits which machine (Linux, macOS, Windows,
-Android, iPhone), what each path imports and what it needs.
 
 ## Usage
 
-Run every command as `uv run wristpull ...` from the repository, or install the script once with
-`uv tool install --editable .` and call `wristpull ...` directly. The examples below use the short
-form.
+With the Docker stack every command runs as `docker compose run --rm cli wristpull ...` from the
+checkout, or shorter through the wrapper `contrib/bin/wristpull ...`; in a native installation it
+is `uv run wristpull ...` (or once `uv tool install --editable .`, then `wristpull ...`). The
+examples below use the short form.
 
 | Command | Purpose |
 |---|---|
@@ -207,9 +211,7 @@ wristpull strap info                                   # address, where the key 
 The auth key is the one Gadgetbridge uses (device settings → *Auth key*; it is also in a Gadgetbridge
 backup under `preferences/device_<MAC>.json`) or comes from the Zepp account with `huami-token`. Like
 the coach API keys it lives in the environment, never in the config file: `WRISTPULL_STRAP_AUTHKEY`
-in `.env` for Docker (`strap pair` prints the line), or exported in the shell. A native install may
-keep it in `<data_dir>/strap/authkey` instead (`strap pair --to-file`, mode 0600, `[strap]
-authkey_file`); the environment wins when both exist.
+in `.env` for Docker (`strap pair` prints the line), or exported in the shell of a native install.
 
 #### `wristpull import gadgetbridge`
 
@@ -774,9 +776,10 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
 - **USB access:** the service mounts `/dev/bus/usb` with the cgroup rule `c 189:* rmw`, which
   grants access to every USB device (keyboard, sticks, phone); acceptable for a command you
   start, which is why it is never given to `web`. It never uses `privileged`. The device nodes
-  must be readable by your user: the desktop's `uaccess` ACL covers an active session, the
-  contrib udev rule (phase C) sets `GROUP="plugdev"` for timers without one; `WRISTPULL_USB_GID`
-  in `.env` names that group (default 46).
+  must be readable by your user: the desktop's `uaccess` ACL covers an active session, the udev
+  rule `contrib/udev/91-wristpull-garmin-docker.rules` sets `GROUP="plugdev"` for runs without one
+  (and keeps the desktop away from the watch); `WRISTPULL_USB_GID` in `.env` names that group
+  (default 46).
 - **Strap (Bluetooth):** bleak talks to the host's `bluetoothd` over the system D-Bus, so `cli`
   mounts `/run/dbus/system_bus_socket`. Docker's default AppArmor profile denies D-Bus calls
   (`org.freedesktop.DBus.Error.AccessDenied … AppArmor policy`), so `cli` runs under
@@ -799,8 +802,9 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
   `device_mtime_utc` stays empty for these files. `wristpull mount` only reports the device;
   `status` says "connected over MTP". Measured values and the full spike are in
   [docs/docker-concept.md](docs/docker-concept.md).
-- **Limits:** Linux only (Docker Desktop on macOS and Windows does not pass USB through; the
-  phone can still be reached over wireless ADB).
+- **Limits:** Linux only: Docker Desktop on macOS and Windows passes neither USB nor Bluetooth
+  into containers; there the native installation reaches the devices
+  ([docs/platforms.md](docs/platforms.md)).
 - **Updating:** `git pull && docker compose build` rebuilds the one image for both services;
   `docker compose up -d web` restarts the dashboard.
 - **Moving to another machine or restoring a backup:** `contrib/bin/wristpull-backup` writes the
@@ -818,13 +822,12 @@ and can be run on its own (`wristpull-morning strap`). The Gadgetbridge way (syn
 phone in, `pull phone`) is still there as the `phone` step for anyone who keeps the app.
 
 
-`contrib/systemd/` has user units and timers for the morning routine (`pull phone` at 06:45, `coach
-daily` at 07:00) and a oneshot import service, each in a native variant (`uv run` in the checkout) and
-a Docker variant (`docker compose run --rm -T cli …`, suffix `-docker`); `contrib/udev/` has the rule
-that starts that import when the watch is plugged in (`90-…` for the native mount, `91-…-docker` for
-the container: it also makes the device readable for `plugdev` and hides the watch from the desktop's
-MTP handling). Both READMEs explain installation; `loginctl enable-linger` lets everything run without
-a logged-in session. Keep the order the watch dictates:
+`contrib/systemd/` has user units for anyone who wants timers anyway (`pull phone` at 06:45, `coach
+daily` at 07:00, each `docker compose run --rm -T cli …`) and the oneshot import service that
+`contrib/udev/91-wristpull-garmin-docker.rules` starts when the watch is plugged in; the rule also
+makes the device readable for `plugdev` and hides the watch from the desktop's MTP handling, and the
+setup script installs it. Both READMEs explain installation; `loginctl enable-linger` lets everything
+run without a logged-in session. Keep the order the watch dictates:
 USB import before any phone app syncs, because Garmin deletes monitoring files once they were fetched.
 While the watch is on the cable anyway, `wristpull workout push --upcoming` copies the planned
 workouts over; the import service template shows where that step belongs.

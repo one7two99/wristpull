@@ -1,2 +1,0 @@
-# Garmin watch (vendor 091e) plugged in over USB -> run the user's wristpull import service
-ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="091e", TAG+="systemd", ENV{SYSTEMD_USER_WANTS}="wristpull-import.service"

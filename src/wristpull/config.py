@@ -47,9 +47,8 @@ export_dir = "/sdcard/Gadgetbridge"
 address = "{strap_address}"
 # Bluetooth adapter (empty: the default one).
 adapter = "{strap_adapter}"
-# The band's 16-byte auth key comes from the environment variable WRISTPULL_STRAP_AUTHKEY (.env for Docker),
-# like the coach API keys; this file is only the fallback for a native install (empty: <data_dir>/strap/authkey).
-authkey_file = "{strap_authkey_file}"
+# The band's 16-byte auth key is not in this file: it comes from the environment variable WRISTPULL_STRAP_AUTHKEY
+# (.env for Docker, exported in the shell for a native install), like the coach API keys.
 # How far back the first pull asks the band for data.
 since_days = {strap_since_days}
 # Leave the data on the band after fetching (false: the band may delete what it sent).
@@ -175,7 +174,6 @@ class Config:
     phone_export_dir: str = "/sdcard/Gadgetbridge"
     strap_address: str = ""
     strap_adapter: str = ""
-    strap_authkey_file: str = ""  # empty: <data_dir>/strap/authkey
     strap_since_days: int = 30
     strap_keep_on_band: bool = True
     ui_language: str | None = None  # None: follow the system locale
@@ -196,10 +194,6 @@ class Config:
     def raw_dir(self) -> Path:
         return self.data_dir / "raw"
 
-    @property
-    def strap_authkey_path(self) -> Path:
-        return Path(self.strap_authkey_file).expanduser() if self.strap_authkey_file else self.data_dir / "strap" / "authkey"
-
     def render(self) -> str:
         folders = "[" + ", ".join(f'"{f}"' for f in self.garmin_folders) + "]"
         hints = "[" + ", ".join(f'"{str(h).replace(str(Path.home()), "~", 1)}"' for h in self.garmin_mount_hints) + "]"
@@ -212,7 +206,6 @@ class Config:
             phone_serial=self.phone_serial or "",
             strap_address=self.strap_address,
             strap_adapter=self.strap_adapter,
-            strap_authkey_file=self.strap_authkey_file,
             strap_since_days=self.strap_since_days,
             strap_keep_on_band="true" if self.strap_keep_on_band else "false",
             ui_language=self.ui_language or "",
@@ -290,7 +283,6 @@ def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = Non
     strap = data.get("strap", {})
     cfg.strap_address = str(strap.get("address", "") or "").strip()
     cfg.strap_adapter = str(strap.get("adapter", "") or "").strip()
-    cfg.strap_authkey_file = str(strap.get("authkey_file", "") or "").strip()
     if strap.get("since_days") is not None:
         cfg.strap_since_days = int(strap["since_days"])
     if strap.get("keep_on_band") is not None:

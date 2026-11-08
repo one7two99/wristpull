@@ -119,7 +119,7 @@ contrib/bin/wristpull-morning            # watch → strap → coach, each step 
 contrib/bin/wristpull-morning strap      # one step only
 ```
 
-`contrib/systemd/` has optional timers and the plug-in import service in Docker variants; the
+`contrib/systemd/` has optional timers and the plug-in import service for the `cli` service; the
 coach's cloud backends take their API keys from `.env`.
 
 ## 9. Updating

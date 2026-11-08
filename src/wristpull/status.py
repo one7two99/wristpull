@@ -12,7 +12,7 @@ from .garmin_usb import candidate_roots, find_garmin_root, gio_garmin_mtp_urls, 
 from .mtp import MtpDeviceInfo, MtpTools, probe_mtp, resolve_access
 from .timeutil import iso_utc
 from .zeppos import SOURCE as ZEPP_SOURCE
-from .importers.strap import auth_key_source
+from .importers.strap import has_auth_key
 from .zeppos.store import all_sync
 
 MtpProbe = Callable[[], tuple[MtpDeviceInfo | None, str]]
@@ -83,7 +83,7 @@ def collect_status(
         tables[table] = {"count": count, "first": rng[0], "last": rng[1]}
     strap = {
         "address": config.strap_address or None,
-        "key_source": auth_key_source(config.strap_authkey_path) if config.strap_address else None,
+        "has_key": has_auth_key() if config.strap_address else None,
         "sync": {kind: iso_utc(when) for kind, when in all_sync(conn, ZEPP_SOURCE).items()},
     }
     access = access or resolve_access(config)
@@ -149,8 +149,7 @@ def render_status(status: dict[str, object]) -> str:
     if not strap.get("address"):
         lines.append("Strap:      not configured (set [strap] address; `wristpull strap scan` lists bands in range)")
     else:
-        source = strap.get("key_source")
-        key = {"env": "key from the environment", "file": "key from the file"}.get(source or "", "NO auth key (set WRISTPULL_STRAP_AUTHKEY)")
+        key = "key from the environment" if strap.get("has_key") else "NO auth key (set WRISTPULL_STRAP_AUTHKEY)"
         sync = strap.get("sync") or {}
         last = max(sync.values()) if sync else None
         lines.append(f"Strap:      {strap['address']} over Bluetooth, {key}, last pull {last or 'never'} (checked when pulling)")

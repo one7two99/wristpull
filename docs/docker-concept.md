@@ -13,7 +13,8 @@ Today only the web dashboard runs in a container. Importing from the watch (USB/
 the phone (ADB), the TUI, export, report, coach and workouts need Python 3.14 and uv on the
 host. The goal is **one image, two services**: the laptop and the later home server use the
 same image, the host needs only Docker, and a published image (a separate follow-up) becomes
-possible. The native uv installation stays a fully supported second way.
+possible. The native uv installation stays for development and for macOS and Windows, where Docker
+cannot reach the devices (`platforms.md`).
 
 Decisions taken with the user (2026-11-07):
 

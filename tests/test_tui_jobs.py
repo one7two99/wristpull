@@ -150,7 +150,7 @@ def test_describe_result_variants():
     assert describe_result(JobRecord(spec, result=object()))[0] == "✓ done"
 
 
-def test_strap_pull_job_runs_against_a_fake_band(config: Config, tmp_path: Path):
+def test_strap_pull_job_runs_against_a_fake_band(config: Config, tmp_path: Path, monkeypatch):
     from datetime import UTC, datetime
 
     from fake_band import FAKE_ADDRESS, FAKE_KEY, FakeBandState, FakeTransport
@@ -158,8 +158,7 @@ def test_strap_pull_job_runs_against_a_fake_band(config: Config, tmp_path: Path)
     from wristpull.tui.jobs import strap_pull_job
 
     config.strap_address = FAKE_ADDRESS
-    config.strap_authkey_path.parent.mkdir(parents=True, exist_ok=True)
-    config.strap_authkey_path.write_text(FAKE_KEY.hex())  # the native fallback; Docker sets WRISTPULL_STRAP_AUTHKEY
+    monkeypatch.setenv("WRISTPULL_STRAP_AUTHKEY", FAKE_KEY.hex())
     state = FakeBandState()
     state.minutes["stress"] = (datetime(2026, 11, 6, 23, 0, tzinfo=UTC), stress_minutes([20, None, 35]))
     deps = make_deps(tmp_path)
@@ -173,15 +172,14 @@ def test_strap_pull_job_runs_against_a_fake_band(config: Config, tmp_path: Path)
     assert stats.files_new == 1 and stats.rows == {"stress": 2} and any("stress: 3 samples" in line for line in lines)
 
 
-def test_sync_screen_pull_strap_key(config: Config, tmp_path: Path):
+def test_sync_screen_pull_strap_key(config: Config, tmp_path: Path, monkeypatch):
     from datetime import UTC, datetime
 
     from fake_band import FAKE_ADDRESS, FAKE_KEY, FakeBandState, FakeTransport
     from zepp_buffers import stress_minutes
 
     config.strap_address = FAKE_ADDRESS
-    config.strap_authkey_path.parent.mkdir(parents=True, exist_ok=True)
-    config.strap_authkey_path.write_text(FAKE_KEY.hex())
+    monkeypatch.setenv("WRISTPULL_STRAP_AUTHKEY", FAKE_KEY.hex())
     state = FakeBandState()
     state.minutes["stress"] = (datetime(2026, 11, 6, 23, 0, tzinfo=UTC), stress_minutes([20, None, 35]))
     deps = make_deps(tmp_path)
