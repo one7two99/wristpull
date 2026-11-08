@@ -214,6 +214,11 @@ backup under `preferences/device_<MAC>.json`) or comes from the Zepp account wit
 the coach API keys it lives in the environment, never in the config file: `WRISTPULL_STRAP_AUTHKEY`
 in `.env` for Docker (`strap pair` prints the line), or exported in the shell of a native install.
 
+When `strap scan` sees the band but `pull strap` reports it as not found or times out, the host's
+adapter is usually stuck in a scan that nothing can stop (`bluetoothctl show` says `Discovering: yes`
+although no scanner is running). `bluetoothctl power off && bluetoothctl power on` resets it; the
+morning script says so when it sees that state.
+
 #### `wristpull import gadgetbridge`
 
 Imports an export that was copied by other means (e.g. `adb pull` by hand, or a backup).

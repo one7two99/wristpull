@@ -15,10 +15,18 @@ DBUS_HINT = (
 )
 
 
+ADAPTER_HINT = (
+    "if `wristpull strap scan` sees the band, the host's adapter may be stuck in a scan (`bluetoothctl show` says "
+    "Discovering: yes): `bluetoothctl power off && bluetoothctl power on` resets it"
+)
+
+
 def ble_error(exc: Exception, what: str) -> BandError:
-    """A BandError with a hint for the usual BlueZ failures (D-Bus denied, no adapter)."""
+    """A BandError with a hint for the usual BlueZ failures (D-Bus denied, no adapter, a stuck adapter)."""
     text = str(exc) or type(exc).__name__
     lowered = text.lower()
+    if isinstance(exc, TimeoutError) or "timeout" in lowered:
+        return BandError(f"{what}: timed out ({text}); {ADAPTER_HINT}")
     if "accessdenied" in lowered or "apparmor" in lowered or "not authorized" in lowered or "permission" in lowered:
         return BandError(f"{what}: {DBUS_HINT} ({text})")
     if "no powered bluetooth" in lowered or ("adapter" in lowered and "not found" in lowered):
@@ -106,7 +114,7 @@ class BleakTransport:
             except Exception as exc:  # noqa: BLE001 - bleak raises backend-specific errors
                 raise ble_error(exc, f"cannot look for {self.address}") from exc
             if device is None:
-                raise NoBandError(f"band {self.address} not found: out of range, asleep, or connected to the phone (disconnect it in Gadgetbridge)")
+                raise NoBandError(f"band {self.address} not found: out of range, asleep, or connected to the phone (disconnect it in Gadgetbridge); {ADAPTER_HINT}")
             client = bleak.BleakClient(device, timeout=self.timeout, **kwargs)
             await client.connect()
             return client

@@ -132,3 +132,5 @@ def test_ble_error_hints():
     assert str(denied).startswith("scan failed: " + DBUS_HINT[:20]) and "AppArmor" in str(denied)
     assert "no powered Bluetooth adapter" in str(ble_error(RuntimeError("No powered Bluetooth adapters found"), "x"))
     assert str(ble_error(RuntimeError(""), "could not connect")) == "could not connect: RuntimeError"
+    stuck = str(ble_error(TimeoutError(), "could not connect"))
+    assert stuck.startswith("could not connect: timed out") and "bluetoothctl power off" in stuck

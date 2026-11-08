@@ -27,7 +27,7 @@ wristpull() {
     fi
 }
 say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
-ask()  { printf '%s [y/N] ' "$*"; read -r answer; [ "${answer,,}" = y ] || [ "${answer,,}" = j ]; }
+ask()  { printf '%s [y/N] ' "$*"; read -r answer; answer=$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]'); [ "$answer" = y ] || [ "$answer" = j ]; }
 attached() { lsusb -d "$1:" >/dev/null 2>&1; }
 wait_for() {  # wait_for <vendor> <attached|gone> <waiting message> <done message>
     local vendor=$1 state=$2 message=$3 done=$4 shown=0
@@ -38,7 +38,10 @@ wait_for() {  # wait_for <vendor> <attached|gone> <waiting message> <done messag
     done
     [ $shown = 1 ] && printf ' '; echo "$done"
 }
-unit_running() { systemctl --user is-active --quiet "$import_unit" 2>/dev/null; }
+unit_running() {  # active, or still in its ExecStartPre sleep (activating): the udev-started import is working on the watch
+    case "$(systemctl --user show -p ActiveState --value "$import_unit" 2>/dev/null)" in active|activating|deactivating) return 0 ;; *) return 1 ;; esac
+}
+adapter_scanning() { bluetoothctl show 2>/dev/null | grep -q 'Discovering: yes'; }
 
 steps=("$@"); [ ${#steps[@]} = 0 ] && steps=(watch strap coach)
 has() { local s; for s in "${steps[@]}"; do [ "$s" = "$1" ] && return 0; done; return 1; }
@@ -47,10 +50,13 @@ failed=()
 if has watch; then
     say "1/3  Watch: plug the Garmin watch in over USB."
     wait_for "$watch_vendor" attached "    waiting for the watch" "    watch found."
+    printf '    giving the watch a moment (it enumerates itself twice) '; for _ in 1 2 3 4 5; do printf '.'; sleep 2; done; echo
     if unit_running; then printf '    the plug-in import service is running, waiting for it '; while unit_running; do printf '.'; sleep 2; done; echo; fi
-    sleep 3  # the fenix enumerates itself twice right after plugging in
     say "    importing FIT files from the watch …"
-    wristpull import garmin || failed+=("import garmin")
+    if ! wristpull import garmin; then
+        echo "    no luck yet, trying once more in 5 s …"; sleep 5
+        wristpull import garmin || failed+=("import garmin")
+    fi
     if ask "    push the planned workouts to the watch (workout push --upcoming)?"; then
         wristpull workout push --upcoming || failed+=("workout push")
     fi
@@ -60,6 +66,10 @@ fi
 
 if has strap; then
     say "2/3  Strap: pulling the band over Bluetooth (it must be in range and not connected to the phone) …"
+    if adapter_scanning; then
+        echo "    note: the Bluetooth adapter reports a running scan; if the band cannot be reached, reset it:"
+        echo "          bluetoothctl power off && bluetoothctl power on"
+    fi
     wristpull pull strap || failed+=("pull strap")
 fi
 
