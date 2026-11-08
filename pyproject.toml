@@ -8,6 +8,7 @@ license = "MIT"
 dependencies = [
     "fitdecode>=0.11.0",
     "polars>=2.1.0",
+    "tzdata; sys_platform == 'win32'",  # Windows has no system zoneinfo database
 ]
 
 [project.scripts]

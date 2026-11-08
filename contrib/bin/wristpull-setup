@@ -54,7 +54,8 @@ ok()    { printf '  %s✓%s %s\n' "$green" "$reset" "$*"; }
 todo()  { printf '  %s•%s %s\n' "$yellow" "$reset" "$*"; }
 warn()  { printf '  %s!%s %s\n' "$red" "$reset" "$*"; }
 note()  { printf '    %s%s%s\n' "$dim" "$*" "$reset"; }
-ask()   { printf '  %s? %s [y/N]%s ' "$bold" "$*" "$reset"; read -r answer; [ "${answer,,}" = y ] || [ "${answer,,}" = j ]; }
+ask()   { printf '  %s? %s [y/N]%s ' "$bold" "$*" "$reset"; read -r answer; answer=$(lower "$answer"); [ "$answer" = y ] || [ "$answer" = j ]; }
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }   # no ${x,,}: macOS ships bash 3.2
 ask_value() {  # ask_value <prompt> <default> -> reply in $value (Enter keeps the default)
     printf '  %s? %s%s [%s] ' "$bold" "$1" "$reset" "$2"; read -r value; value="${value:-$2}"
 }
@@ -194,7 +195,7 @@ step_keys() {
     if [ -n "$(env_get WRISTPULL_STRAP_AUTHKEY)" ]; then ok "WRISTPULL_STRAP_AUTHKEY is set"; return 0; fi
     ask_secret "auth key of the Helio Strap (32 hex digits)"
     [ -z "$value" ] && { todo "no strap key: pull strap stays off until it is set"; return 0; }
-    value="${value,,}"; value="${value#0x}"
+    value=$(lower "$value"); value="${value#0x}"
     [[ $value =~ ^[0-9a-f]{32}$ ]] || { warn "that is not 32 hex digits; skipped"; return 0; }
     env_set WRISTPULL_STRAP_AUTHKEY "0x$value" secret
 }
