@@ -164,7 +164,8 @@ step_env() {
     if [ -f "$config_file" ]; then ok "config file exists (may be empty)"; else run mkdir -p "$(dirname "$config_file")"; run touch "$config_file"; fi
     local gid; gid="$(getent group plugdev | cut -d: -f3)"
     if [ "$(env_get WRISTPULL_USB_GID)" = "${gid:-46}" ]; then ok "WRISTPULL_USB_GID = ${gid:-46} (plugdev)"; else env_set WRISTPULL_USB_GID "${gid:-46}"; fi
-    local ip; ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    local ip; ip="$(hostname -I 2>/dev/null | awk '{print $1}')"   # Linux; macOS has no -I
+    [ -n "$ip" ] || ip="$(ipconfig getifaddr en0 2>/dev/null)"
     env_ensure WRISTPULL_SITE "https://${ip:-192.168.1.10}:8443, https://localhost:8443" "addresses Caddy serves (LAN address for the phone, localhost for here)"
 }
 

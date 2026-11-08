@@ -437,10 +437,16 @@ def restore_backup(
     return stats
 
 
+def _host_id(name: str) -> int:
+    """``os.getuid``/``os.getgid``, or 1000 where they do not exist (Windows)."""
+    getter = getattr(os, name, None)
+    return int(getter()) if getter else 1000
+
+
 def _write_env(path: Path, raw: bytes, host_data_dir: Path, host_config: Path | None, uid: int | None, gid: int | None) -> None:
     updates = {
-        "UID": str(os.getuid() if uid is None else uid),
-        "GID": str(os.getgid() if gid is None else gid),
+        "UID": str(_host_id("getuid") if uid is None else uid),
+        "GID": str(_host_id("getgid") if gid is None else gid),
         ENV_DATA_KEY: str(host_data_dir),
     }
     if host_config:

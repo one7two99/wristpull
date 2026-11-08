@@ -187,7 +187,7 @@ class Config:
     def render(self) -> str:
         folders = "[" + ", ".join(f'"{f}"' for f in self.garmin_folders) + "]"
         return EXAMPLE_CONFIG.format(
-            data_dir=str(self.file_data_dir or self.data_dir).replace(str(Path.home()), "~", 1),
+            data_dir=toml_path(self.file_data_dir or self.data_dir),
             timezone=self.timezone,
             folders=folders,
             phone_serial=self.phone_serial or "",
@@ -226,6 +226,15 @@ class Config:
 
 def _expand(value: str) -> Path:
     return Path(os.path.expanduser(value))
+
+
+def toml_path(path: Path) -> str:
+    """A path for a TOML string: ``~`` for the home directory, forward slashes (no backslash escapes)."""
+    text = str(path)
+    home = str(Path.home())
+    if text == home or text.startswith(home + os.sep):
+        text = "~" + text[len(home):]
+    return text.replace("\\", "/")
 
 
 def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = None) -> Config:

@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="the host scripts are POSIX shell, not for Windows")
+
 REPO = Path(__file__).resolve().parent.parent
 SCRIPTS = ["wristpull", "wristpull-morning", "wristpull-backup", "wristpull-restore", "wristpull-setup"]
 FAKE_KEY = "00112233445566778899AABBCCDDEEFF"
@@ -57,6 +59,7 @@ case "$1" in -nG) echo "docker plugdev bluetooth" ;; *) exec /usr/bin/id "$@" ;;
 """,
         "sleep": "#!/bin/sh\nexit 0\n",
         "lsusb": "#!/bin/sh\nexit 0\n",
+        "hostname": "#!/bin/sh\necho 10.0.0.5\n",   # the LAN address the site default is built from
         "bluetoothd": "#!/bin/sh\nexit 0\n",
     }
     for name, body in stubs.items():

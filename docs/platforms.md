@@ -115,9 +115,12 @@ uv sync --extra tui --extra coach --extra web --extra ble
 | Workout push | `workout push --dry-run` writes the FIT files to `<data_dir>/workouts/out/`; copy them into `GARMIN\NewFiles` in Explorer | expected |
 | TUI, dashboard, coach, export, backup | native (Windows Terminal for the TUI); Docker Desktop with WSL 2 optional for the dashboard | expected |
 
-Known rough edges to expect: file modes (the archive marks raw files read-only, which maps to the
-read-only attribute), path separators in messages, and the host scripts under `contrib/bin/` are
-shell scripts for Linux (WSL runs them, PowerShell does not).
+Known rough edges, confirmed by the Windows job of the CI matrix (informational, it does not block
+a merge yet): file modes (the archive marks raw files read-only, which maps to the read-only
+attribute; tests that check `0600` fail), test fixtures with `:` in file names (the sysfs and
+Gadgetbridge trees), and the host scripts under `contrib/bin/` are shell scripts for Linux and macOS
+(WSL runs them, PowerShell does not). The config file is written with forward slashes so TOML stays
+valid on Windows.
 
 ## 6. Phones
 
