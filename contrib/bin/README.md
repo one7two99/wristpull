@@ -1,5 +1,20 @@
 # contrib/bin
 
+`wristpull-setup` – the one place to start on a new machine (or to check an existing one):
+
+```sh
+contrib/bin/wristpull-setup              # 11 steps: host checks, optional restore, .env, image, dashboard
+                                         # password, keys, config, udev rule, AppArmor profile, start, status
+contrib/bin/wristpull-setup --dry-run    # show every command, write nothing
+```
+
+Plain bash, one function per step, every change goes through `run()` (shown, skipped in a dry run)
+or `sudo_run()` (shown and confirmed). Secrets are typed without echo and land only in `.env`
+(mode 0600). Values already in `.env` are not asked again (a value copied unchanged from
+`.env.example` counts as missing). `tests/test_contrib_scripts.py` runs it with a fake `docker` and
+`sudo` on the PATH; `WRISTPULL_UDEV_DIR` and `WRISTPULL_APPARMOR_DIR` point the two installs at a
+temp dir there.
+
 `wristpull` – a shell wrapper that runs the CLI from the Docker image:
 
 ```sh

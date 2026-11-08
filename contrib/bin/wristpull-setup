@@ -1,0 +1,271 @@
+#!/bin/bash
+# wristpull-setup: the one place to start. Walks a new (or existing) machine through the Docker
+# setup of wristpull, step by step, and asks only for what is missing. Safe to run again: every
+# step first looks at what is there and reports "ok" when nothing is left to do.
+#
+#   contrib/bin/wristpull-setup              run through all steps
+#   contrib/bin/wristpull-setup --dry-run    show every command instead of running it (writes nothing)
+#
+# Steps (one function each, listed again in main() at the bottom):
+#   1 host        Docker, Compose, groups (docker, plugdev, bluetooth), lsusb, bluetoothd
+#   2 backup      optional: restore an archive made with wristpull-backup (contrib/bin/wristpull-restore)
+#   3 env         .env from .env.example: UID/GID, data directory, config file, plugdev GID, LAN address
+#   4 image       docker compose build
+#   5 dashboard   session secret and password hash for the web dashboard
+#   6 keys        optional API keys for the coach and the band's auth key (hidden input)
+#   7 config      config --init, open the config file in the editor
+#   8 watch       udev rule for the watch (sudo)
+#   9 strap       AppArmor profile for Bluetooth (sudo), find and pair the band
+#  10 start       docker compose up -d, Caddy's root certificate for the phone
+#  11 check       wristpull status
+#
+# Every command that changes something goes through run() or sudo_run(), so --dry-run shows exactly
+# what would happen, and every sudo command is shown and confirmed before it runs. Secrets are typed
+# without echo and land only in .env (mode 0600). Nothing here is clever on purpose: read it top to bottom.
+set -u
+
+# --- where things are ---------------------------------------------------------------------------
+here="$(cd "$(dirname "$0")" && pwd -P)"
+checkout="$(cd "$here/../.." && pwd -P)"                    # the git checkout (compose.yaml lives here)
+env_file="$checkout/.env"
+data_dir_default="$HOME/Health/wristpull"
+config_default="${XDG_CONFIG_HOME:-$HOME/.config}/wristpull/config.toml"
+udev_dir="${WRISTPULL_UDEV_DIR:-/etc/udev/rules.d}"             # the tests point these two at a temp dir
+apparmor_dir="${WRISTPULL_APPARMOR_DIR:-/etc/apparmor.d}"
+dry_run=0
+case "${1:-}" in
+    --dry-run) dry_run=1 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    "") ;;
+    *) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
+esac
+[ -f "$checkout/compose.yaml" ] || { echo "compose.yaml not found in $checkout: run this from the checkout (contrib/bin/wristpull-setup)" >&2; exit 2; }
+cd "$checkout" || exit 2
+
+# --- output helpers -----------------------------------------------------------------------------
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    bold=$'\e[1m'; dim=$'\e[2m'; green=$'\e[32m'; yellow=$'\e[33m'; red=$'\e[31m'; blue=$'\e[34m'; reset=$'\e[0m'
+else
+    bold=""; dim=""; green=""; yellow=""; red=""; blue=""; reset=""
+fi
+step_no=0; step_total=11
+step()  { step_no=$((step_no + 1)); printf '\n%s%s━━ Step %d/%d  %s%s\n' "$bold" "$blue" "$step_no" "$step_total" "$*" "$reset"; }
+ok()    { printf '  %s✓%s %s\n' "$green" "$reset" "$*"; }
+todo()  { printf '  %s•%s %s\n' "$yellow" "$reset" "$*"; }
+warn()  { printf '  %s!%s %s\n' "$red" "$reset" "$*"; }
+note()  { printf '    %s%s%s\n' "$dim" "$*" "$reset"; }
+ask()   { printf '  %s? %s [y/N]%s ' "$bold" "$*" "$reset"; read -r answer; [ "${answer,,}" = y ] || [ "${answer,,}" = j ]; }
+ask_value() {  # ask_value <prompt> <default> -> reply in $value (Enter keeps the default)
+    printf '  %s? %s%s [%s] ' "$bold" "$1" "$reset" "$2"; read -r value; value="${value:-$2}"
+}
+ask_secret() {  # ask_secret <prompt> -> reply in $value, typed without echo, empty to skip
+    printf '  %s? %s%s (hidden, Enter to skip) ' "$bold" "$1" "$reset"; read -rs value; echo
+}
+
+# --- running commands ---------------------------------------------------------------------------
+run() {  # run <command...>: show it, then run it (not in --dry-run)
+    printf '    %s$ %s%s\n' "$dim" "$*" "$reset"
+    [ "$dry_run" = 1 ] && return 0
+    "$@"
+}
+sudo_run() {  # sudo_run <command...>: root is needed; shown and confirmed first, never silent
+    printf '    %s# %s%s\n' "$dim" "$*" "$reset"
+    [ "$dry_run" = 1 ] && return 0
+    ask "run this with sudo?" || return 1
+    sudo "$@"
+}
+compose() { run docker compose "$@"; }
+cli() { compose run --rm cli wristpull "$@"; }   # a wristpull command inside the container
+in_group() { id -nG | tr ' ' '\n' | grep -qx "$1"; }
+
+# --- .env helpers: one KEY=VALUE per line, comments kept ------------------------------------------
+env_get() {  # env_get KEY -> value of the last uncommented KEY= line, or empty
+    [ -f "$env_file" ] || return 0
+    sed -n "s/^${1}=//p" "$env_file" | tail -n 1 | sed 's/^"\(.*\)"$/\1/'
+}
+env_set() {  # env_set KEY VALUE [secret]: replace the uncommented KEY= line, or append; line by line, no sed escaping games
+    local key=$1 val=$2 kind=${3:-plain} line found=0 tmp
+    if [ "$kind" = secret ]; then printf '    %s%s=…%s\n' "$dim" "$key" "$reset"; else printf '    %s%s=%s%s\n' "$dim" "$key" "$val" "$reset"; fi
+    [ "$dry_run" = 1 ] && return 0
+    tmp="$(mktemp "$checkout/.env.XXXXXX")"
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [ "${line%%=*}" = "$key" ] && [ $found = 0 ]; then
+            printf '%s=%s\n' "$key" "$val" >>"$tmp"; found=1
+        else
+            printf '%s\n' "$line" >>"$tmp"
+        fi
+    done <"$env_file"
+    [ $found = 0 ] && printf '%s=%s\n' "$key" "$val" >>"$tmp"
+    chmod 600 "$tmp" && mv "$tmp" "$env_file"
+}
+env_is_set() {  # env_is_set KEY: has a value in .env that is not just the placeholder copied from .env.example
+    local val; val="$(env_get "$1")"
+    [ -n "$val" ] && [ "$val" != "$(sed -n "s/^${1}=//p" .env.example | tail -n 1)" ]
+}
+env_ensure() {  # env_ensure KEY DEFAULT PROMPT [secret]: ask only when the key is empty (or a placeholder) in .env
+    local key=$1 default=$2 prompt=$3 kind=${4:-plain}
+    if env_is_set "$key"; then ok "$key is set"; return 0; fi
+    if [ "$kind" = secret ]; then ask_secret "$prompt"; else ask_value "$prompt" "$default"; fi
+    [ -z "$value" ] && { todo "$key left empty"; return 0; }
+    env_set "$key" "$value" "$kind"
+}
+
+# =================================================================================================
+step_host() {
+    step "Host: Docker, groups, tools"
+    if command -v docker >/dev/null 2>&1; then ok "docker: $(docker --version 2>/dev/null | sed 's/,.*//')"; else
+        warn "docker is not installed: https://docs.docker.com/engine/install/ (Engine with the compose plugin), then run this again"; exit 1; fi
+    if docker compose version >/dev/null 2>&1; then ok "docker compose: $(docker compose version --short 2>/dev/null)"; else
+        warn "the compose plugin is missing (docker-compose-plugin)"; exit 1; fi
+    local g
+    for g in docker plugdev bluetooth; do
+        if in_group "$g"; then ok "you are in group $g"; else
+            todo "you are not in group $g ($( case $g in docker) echo "needed to run containers";; plugdev) echo "device nodes of watch and phone";; bluetooth) echo "the strap over BlueZ, unless a desktop session is logged in";; esac ))"
+            getent group "$g" >/dev/null || sudo_run groupadd "$g"
+            sudo_run usermod -aG "$g" "$USER" && relogin=1
+        fi
+    done
+    if command -v lsusb >/dev/null; then ok "lsusb (usbutils) present"; else
+        todo "lsusb missing: the morning script waits for the watch with it"; sudo_run apt install -y usbutils; fi
+    if command -v bluetoothd >/dev/null; then ok "bluetoothd (bluez) present"; else
+        todo "bluez missing: needed for the strap"; sudo_run apt install -y bluez; fi
+}
+
+step_backup() {
+    step "Backup: start from an archive?"
+    if [ -f "$env_file" ] && [ -d "$(env_get WRISTPULL_DATA)" ]; then ok ".env and the data directory exist, nothing to restore"; return 0; fi
+    note "an archive made with contrib/bin/wristpull-backup holds data, config and .env of another machine"
+    ask "restore from such an archive?" || { ok "starting fresh"; return 0; }
+    ask_value "archive (path to wristpull-backup-<date>.tar.gz)" ""
+    [ -f "$value" ] || { warn "not found: $value"; return 1; }
+    local archive=$value
+    ask_value "data directory" "$data_dir_default"; local data=$value
+    ask_value "config file" "$config_default"; local config=$value
+    if run "$here/wristpull-restore" "$archive" "$data" "$config"; then ok "restored; .env, config and data are in place"; else warn "restore failed, see above"; fi
+}
+
+step_env() {
+    step ".env: who, where"
+    if [ -f "$env_file" ]; then ok ".env exists ($env_file)"; else
+        todo "creating .env from .env.example"; run cp .env.example "$env_file"; [ "$dry_run" = 1 ] || chmod 600 "$env_file"; fi
+    [ "$dry_run" = 1 ] && [ ! -f "$env_file" ] && note "(dry run: the values below would be asked and written)"
+    if [ "$(env_get UID)" = "$(id -u)" ] && [ "$(env_get GID)" = "$(id -g)" ]; then ok "UID/GID match this user"; else env_set UID "$(id -u)"; env_set GID "$(id -g)"; fi
+    local current
+    current="$data_dir_default"; env_is_set WRISTPULL_DATA && current="$(env_get WRISTPULL_DATA)"
+    ask_value "data directory on this machine" "$current"
+    if [ "$value" = "$(env_get WRISTPULL_DATA)" ]; then ok "WRISTPULL_DATA is set"; else env_set WRISTPULL_DATA "$value"; fi
+    data_dir=$value
+    current="$config_default"; env_is_set WRISTPULL_CONFIG && current="$(env_get WRISTPULL_CONFIG)"
+    ask_value "config file" "$current"
+    if [ "$value" = "$(env_get WRISTPULL_CONFIG)" ]; then ok "WRISTPULL_CONFIG is set"; else env_set WRISTPULL_CONFIG "$value"; fi
+    config_file=$value
+    if [ -d "$data_dir" ]; then ok "data directory exists"; else run mkdir -p "$data_dir"; fi
+    if [ -f "$config_file" ]; then ok "config file exists (may be empty)"; else run mkdir -p "$(dirname "$config_file")"; run touch "$config_file"; fi
+    local gid; gid="$(getent group plugdev | cut -d: -f3)"
+    if [ "$(env_get WRISTPULL_USB_GID)" = "${gid:-46}" ]; then ok "WRISTPULL_USB_GID = ${gid:-46} (plugdev)"; else env_set WRISTPULL_USB_GID "${gid:-46}"; fi
+    local ip; ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    env_ensure WRISTPULL_SITE "https://${ip:-192.168.1.10}:8443, https://localhost:8443" "addresses Caddy serves (LAN address for the phone, localhost for here)"
+}
+
+step_image() {
+    step "Image: docker compose build"
+    if docker image inspect wristpull:latest >/dev/null 2>&1 && ! ask "the image exists; rebuild it (after git pull)?"; then ok "wristpull:latest present"; return 0; fi
+    compose build || warn "build failed"
+}
+
+step_dashboard() {
+    step "Dashboard: session secret and password"
+    if [ -n "$(env_get WRISTPULL_WEB_SECRET)" ]; then ok "WRISTPULL_WEB_SECRET is set"; else
+        env_set WRISTPULL_WEB_SECRET "$(head -c 32 /dev/urandom | base64 | tr -d '\n=/+')" secret; note "generated; it keeps you logged in across restarts"; fi
+    if [ -n "$(env_get WRISTPULL_WEB_PASSWORD_HASH)" ]; then ok "WRISTPULL_WEB_PASSWORD_HASH is set"; return 0; fi
+    note "the dashboard password is hashed inside the container; only the hash is stored"
+    ask "set the dashboard password now?" || { todo "no password yet: the dashboard refuses to start until WRISTPULL_WEB_PASSWORD_HASH is set"; return 0; }
+    [ "$dry_run" = 1 ] && { cli serve --hash-password; return 0; }
+    local line; line="$(docker compose run --rm cli wristpull serve --hash-password | grep '^WRISTPULL_WEB_PASSWORD_HASH=')"
+    if [ -n "$line" ]; then env_set WRISTPULL_WEB_PASSWORD_HASH "${line#*=}" secret; else warn "no hash produced (passwords differed?); run again later"; fi
+}
+
+step_keys() {
+    step "Keys: coach API and the band (optional)"
+    note "coach backends: Ollama needs no key; OpenRouter and Claude take theirs from .env"
+    env_ensure OPENROUTER_API_KEY "" "OpenRouter API key" secret
+    env_ensure ANTHROPIC_API_KEY "" "Anthropic API key" secret
+    note "the band's auth key: Gadgetbridge → band settings → Auth key, or huami-token from the Zepp account"
+    if [ -n "$(env_get WRISTPULL_STRAP_AUTHKEY)" ]; then ok "WRISTPULL_STRAP_AUTHKEY is set"; return 0; fi
+    ask_secret "auth key of the Helio Strap (32 hex digits)"
+    [ -z "$value" ] && { todo "no strap key: pull strap stays off until it is set"; return 0; }
+    value="${value,,}"; value="${value#0x}"
+    [[ $value =~ ^[0-9a-f]{32}$ ]] || { warn "that is not 32 hex digits; skipped"; return 0; }
+    env_set WRISTPULL_STRAP_AUTHKEY "0x$value" secret
+}
+
+step_config() {
+    step "Config: config.toml"
+    if [ -s "$config_file" ]; then ok "config has content ($config_file)"; else
+        todo "filling the empty config with the defaults"; cli config --init; fi
+    note "worth checking: [time] timezone, [storage] data_dir = $data_dir (the host path), later [strap] address"
+    ask "open it in ${EDITOR:-nano} now?" && run "${EDITOR:-nano}" "$config_file"
+}
+
+step_watch() {
+    step "Watch over USB: udev rule"
+    local rule=contrib/udev/91-wristpull-garmin-docker.rules target="$udev_dir/91-wristpull-garmin-docker.rules"
+    if cmp -s "$rule" "$target" 2>/dev/null; then ok "udev rule installed ($target)"; return 0; fi
+    note "the rule gives the watch's device node to group plugdev and hides it from the desktop's MTP handling"
+    sudo_run cp "$rule" "$target" && sudo_run udevadm control --reload-rules && ok "installed; plug the watch in and run: contrib/bin/wristpull import garmin"
+}
+
+step_strap() {
+    step "Strap over Bluetooth: AppArmor profile, pairing"
+    local profile=contrib/apparmor/wristpull-cli target="$apparmor_dir/wristpull-cli"
+    if cmp -s "$profile" "$target" 2>/dev/null; then ok "AppArmor profile installed ($target)"; else
+        note "Docker's default profile denies the D-Bus calls Bluetooth needs; this is that profile plus the system-bus rule"
+        sudo_run install -m 0644 "$profile" "$target" && sudo_run apparmor_parser -r -W "$target" && ok "profile loaded"
+    fi
+    [ -z "$(env_get WRISTPULL_STRAP_AUTHKEY)" ] && { todo "no auth key in .env, skipping the pairing"; return 0; }
+    if grep -Eq '^\s*address\s*=\s*"[0-9A-Fa-f:]{17}"' "$config_file" 2>/dev/null; then ok "[strap] address is set in the config"; return 0; fi
+    ask "find the band now (it must be in range and not connected to a phone)?" || return 0
+    cli strap scan
+    ask_value "Bluetooth address of the band (AA:BB:CC:DD:EE:FF)" ""
+    [ -n "$value" ] && cli strap pair --authkey "$(env_get WRISTPULL_STRAP_AUTHKEY)" --address "$value"
+}
+
+step_start() {
+    step "Dashboard: start and trust its certificate"
+    [ -z "$(env_get WRISTPULL_WEB_PASSWORD_HASH)" ] && { todo "no password hash, not starting the dashboard (step 5)"; return 0; }
+    compose up -d || { warn "start failed"; return 1; }
+    note "Caddy mints a local certificate authority; the phone must trust it once"
+    [ "$dry_run" = 1 ] || sleep 3
+    compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./wristpull-root.crt && ok "root certificate: $checkout/wristpull-root.crt → install it on the phone (README, Web dashboard)"
+    ok "dashboard: $(env_get WRISTPULL_SITE)"
+}
+
+step_check() {
+    step "Check"
+    cli status
+    printf '\n%s%s━━ Done%s\n' "$bold" "$green" "$reset"
+    [ "${relogin:-0}" = 1 ] && warn "group changes apply after you log out and in again"
+    note "daily:   contrib/bin/wristpull-morning      (watch → strap → coach)"
+    note "anytime: contrib/bin/wristpull <command>     (status, tui, pull strap, …)"
+    note "backup:  contrib/bin/wristpull-backup         (data, config, .env as one archive)"
+    note "docs:    docs/setup.md, README.md"
+}
+
+# =================================================================================================
+main() {
+    printf '%s%swristpull setup%s  %s(%s)%s\n' "$bold" "$blue" "$reset" "$dim" "$checkout" "$reset"
+    [ "$dry_run" = 1 ] && note "dry run: commands are shown, nothing is written"
+    data_dir="$data_dir_default"; config_file="$config_default"; relogin=0
+    step_host
+    step_backup
+    step_env
+    step_image
+    step_dashboard
+    step_keys
+    step_config
+    step_watch
+    step_strap
+    step_start
+    step_check
+}
+main

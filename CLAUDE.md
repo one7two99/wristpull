@@ -94,3 +94,8 @@
   deletes nothing (`--force` overwrites). Host side: `contrib/bin/wristpull-backup` (cli service, `.env` mounted read-only)
   and `contrib/bin/wristpull-restore` (plain `docker run` on a fresh clone, builds the image, writes `.env`). Tests build
   synthetic state in `tests/test_backup.py`; never put a real archive into the repo (`.gitignore` guards the name).
+- Host scripts (`contrib/bin/`, POSIX sh or bash, shellcheck-clean): `wristpull` (wrapper), `wristpull-morning`,
+  `wristpull-backup`/`wristpull-restore`, `wristpull-setup` (the guided first-run script: one function per step, all
+  changes through `run()`/`sudo_run()`, `--dry-run`). `tests/test_contrib_scripts.py` checks syntax and drives the
+  setup script with fake `docker`/`sudo`/`id` stubs on the PATH and `WRISTPULL_UDEV_DIR`/`WRISTPULL_APPARMOR_DIR`
+  pointing at temp dirs; never let a test reach the real docker or sudo.

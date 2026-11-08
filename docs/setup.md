@@ -4,6 +4,23 @@ The whole stack runs from the Docker image: dashboard, CLI, TUI, the watch over 
 ADB, the strap over Bluetooth. The host needs neither Python nor uv. Everything below is Linux
 (USB and Bluetooth pass-through); tested on Ubuntu 26.04 with Docker 29 and Compose v5.
 
+## 0. The short way: `contrib/bin/wristpull-setup`
+
+```sh
+git clone https://github.com/one7two99/wristpull.git ~/dev/wristpull && cd ~/dev/wristpull
+contrib/bin/wristpull-setup              # walks through steps 1 to 6 below and asks only for what is missing
+contrib/bin/wristpull-setup --dry-run    # shows every command instead of running it
+```
+
+The script is the one place to start on a new machine: it checks Docker and the groups, offers to
+restore an archive made with `wristpull-backup`, writes `.env` (UID/GID, paths, LAN address, a
+generated session secret, the dashboard password hashed in the container, API keys and the band's
+auth key typed without echo), builds the image, fills the config, installs the udev rule and the
+AppArmor profile (each `sudo` command is shown and confirmed), starts the dashboard, exports Caddy's
+root certificate and ends with `wristpull status`. It is safe to run again: every step reports "ok"
+for what is already done. It is plain bash, one function per step, written to be read.
+The sections below are the same steps by hand, and the reference for what the script does.
+
 ## 1. Host packages and groups
 
 ```sh
