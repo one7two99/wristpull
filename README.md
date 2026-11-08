@@ -2,6 +2,8 @@
 
 Project page: <https://one7two99.github.io/wristpull/>
 
+[![CI](https://github.com/one7two99/wristpull/actions/workflows/ci.yml/badge.svg)](https://github.com/one7two99/wristpull/actions/workflows/ci.yml) tests on Linux, macOS and Windows (hardware-free; see [docs/platforms.md](docs/platforms.md))
+
 # wristpull
 
 Collects health and training data from wearables **without any vendor cloud**, stores the raw
