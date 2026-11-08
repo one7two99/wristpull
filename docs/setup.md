@@ -194,10 +194,9 @@ older archive opens fine, but whatever was imported after it has to be imported 
 (`import garmin-export`, `pull strap`, `import garmin`: device files are re-fetched only where the
 device still has them, which is why the raw files are the part worth keeping).
 
-Archives on this laptop (the older two were made by hand, before the command existed: a copy of the
-data directory next to it, plus a note how to restore it):
+Archives on this laptop, all under `~/Health/wristpull-backups/`:
 
-| Snapshot | Taken | Holds | Restore |
+| Archive | Taken | Holds | Restore |
 |---|---|---|---|
-| `~/Health/wristpull-backup-2026-11-07/` (35 MB) and `~/Health/wristpull-backup-2026-11-07.tar.gz` | 2026-11-07 morning, before the Garmin Connect export import, schema version 3 | raw files, workouts, coach, exports, reports, adb keys, a consistent `wristpull.sqlite`, `SHA256SUMS` | its `RESTORE.md` (`rsync` the folder over the data directory); afterwards re-run `import garmin-export exports/<zip>` and `pull strap` (the strap over Bluetooth did not exist yet, nor the `.env` key) |
-| `~/Health/wristpull.tar` (7.6 MB, 75 files) | 2026-10-31 evening, the first day | an early copy of the data directory (reports, first raw files) | superseded by the snapshot above; keep or delete |
+| `wristpull-backup-2026-11-08-0821.tar.gz` (111 MB, 15,507 files) | 2026-11-08 morning, with `contrib/bin/wristpull-backup` | data directory, config, `.env` (strap key, API keys), schema version 6 | `contrib/bin/wristpull-restore <archive>`; verified the same day on a scratch clone |
+| `wristpull-backup-2026-11-07.tar.gz` (5.4 MB, 230 files) | 2026-11-07 morning by hand, before the Garmin Connect export import, schema version 3 | raw files, workouts, coach, exports, reports, adb keys, a consistent `wristpull.sqlite`, `SHA256SUMS` | unpack, then its `RESTORE.md` (`rsync` over the data directory); afterwards re-run `import garmin-export` and `pull strap` (the strap over Bluetooth did not exist yet, nor the `.env` key) |
