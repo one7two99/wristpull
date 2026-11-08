@@ -118,9 +118,10 @@ uv sync --extra tui --extra coach --extra web --extra ble
 Known rough edges, confirmed by the Windows job of the CI matrix (informational, it does not block
 a merge yet): file modes (the archive marks raw files read-only, which maps to the read-only
 attribute; tests that check `0600` fail), test fixtures with `:` in file names (the sysfs and
-Gadgetbridge trees), and the host scripts under `contrib/bin/` are shell scripts for Linux and macOS
-(WSL runs them, PowerShell does not). The config file is written with forward slashes so TOML stays
-valid on Windows.
+Gadgetbridge trees), the backup's rewriting of `.env` and the host-path notice in the container
+(POSIX paths), and the host scripts under `contrib/bin/` are shell scripts for Linux and macOS (WSL
+runs them, PowerShell does not). The config file is written with forward slashes so TOML stays valid
+on Windows. State on 2026-11-08: 309 of the 324 tests pass on `windows-latest`.
 
 ## 6. Phones
 
