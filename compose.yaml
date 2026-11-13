@@ -1,8 +1,8 @@
-# wristpull in Docker: the web dashboard (web + caddy, always on) and the `cli` service for everything else
-# (import from the watch, pull from the phone, TUI, export, report, coach, workouts) started on demand:
+# wristpull in Docker: the web dashboard (web + caddy, always on), the device agent (agent, always on: runs the
+# watch, phone and band jobs the dashboard enqueues) and the `cli` service for everything else on demand:
 #   docker compose run --rm cli wristpull tui          (or the wrapper contrib/bin/wristpull)
 # 1. cp .env.example .env and fill it in (UID/GID, paths; secret and password hash for the dashboard)
-# 2. docker compose up -d --build                      (dashboard)   docker compose build   (cli only)
+# 2. docker compose up -d --build                      (dashboard + agent)   docker compose build   (cli only)
 # 3. open https://<laptop-ip>:8443 (install Caddy's root certificate on the phone once, see README)
 name: wristpull
 
@@ -49,8 +49,53 @@ services:
       - caddy_data:/data
       - caddy_config:/config
 
+  agent:
+    # The device agent: `wristpull agent` polls the job queue in the database (agent_jobs) that the dashboard
+    # fills and runs each job with the rights of `cli` (USB, host network, Bluetooth over D-Bus). It is the only
+    # way the browser reaches the devices; `web` itself stays without them. No ports, nothing listens
+    # (the adb server inside binds 127.0.0.1:5037 on the host network, as for `cli`). Linux only, like `cli`.
+    # Needs the AppArmor profile from contrib/apparmor (the setup script installs it); without it only this
+    # service fails to start and the dashboard shows "device agent offline".
+    build: .
+    image: wristpull:latest
+    restart: unless-stopped
+    user: "${UID:?set UID in .env}:${GID:?set GID in .env}"
+    group_add:
+      - "${WRISTPULL_USB_GID:-46}"
+    network_mode: host
+    healthcheck:
+      disable: true
+    env_file: .env
+    environment:
+      WRISTPULL_IN_CONTAINER: "1"
+      WRISTPULL_DATA_DIR: /data
+      WRISTPULL_HOST_DATA_DIR: ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}
+      WRISTPULL_CONFIG_FILE: /config/config.toml
+      HOME: /home/wristpull
+      LANG: C.UTF-8
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      WRISTPULL_STRAP_AUTHKEY: ${WRISTPULL_STRAP_AUTHKEY:-}
+    volumes:
+      - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}:/data
+      # Read-only here: the agent reloads the config for every job but never writes it.
+      - ${WRISTPULL_CONFIG:?set WRISTPULL_CONFIG in .env}:/config/config.toml:ro
+      - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}/adb:/home/wristpull/.android
+      - /dev/bus/usb:/dev/bus/usb
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      - /etc/localtime:/etc/localtime:ro
+    device_cgroup_rules:
+      - "c 189:* rmw"
+    security_opt:
+      - "apparmor:wristpull-cli"
+    # A running job finishes its current file before the container stops (stop_grace_period covers an MTP transfer).
+    stop_grace_period: 30s
+    command: ["wristpull", "--config", "/config/config.toml", "agent"]
+
   cli:
     # Short-lived commands with USB access: docker compose run --rm cli wristpull <command>
+    # The `agent` service above runs the same commands for the dashboard; both may open the watch, and the one
+    # that comes second gets the "device busy" message (as the udev import unit and the morning script do today).
     # The cgroup rule grants access to EVERY USB device (c 189:*), acceptable for a command the user
     # starts, never for `web`. Linux only: Docker Desktop on macOS/Windows does not pass USB through.
     profiles: ["cli"]

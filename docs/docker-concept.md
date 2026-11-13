@@ -42,6 +42,9 @@ services:
          profile "cli", TTY, network_mode: host, USB pass-through (/dev/bus/usb +
          device_cgroup_rules "c 189:* rmw"), data rw, config rw (the TUI settings screen
          writes it), adb keys from <data_dir>/adb
+  agent: since 2026-11-13: long-running `wristpull agent` with the rights of cli (no TTY, config
+         read-only, no ports); runs the device jobs the dashboard enqueues in the database
+         (dashboard-concept.md, "Parity with the TUI")
 ```
 
 The image carries the extras `web`, `coach`, `tui` plus the Debian packages `adb`, `mtp-tools`

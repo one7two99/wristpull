@@ -11,7 +11,7 @@ import json
 from collections.abc import Callable
 from contextlib import closing
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -27,9 +27,10 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
+from ..agent import queue
 from ..config import Config
 from ..db import connect
-from . import pages
+from . import jobview, pages
 from .auth import RateLimiter, SessionCodec, new_session, verify_password
 from .i18n import pick_language, translations
 from .jobs import JobRegistry
@@ -44,6 +45,7 @@ class WebDeps:
     """Side effects the tests replace: the clock, the login limiter, the coach backend, the job runner."""
 
     today: Callable[[], date] | None = None  # None: today in the configured time zone
+    now: Callable[[], datetime] | None = None  # None: the clock (UTC); tests fix it to judge the agent's heartbeat
     limiter: RateLimiter = field(default_factory=RateLimiter)
     coach_backend: Callable[[Config, str], Any] | None = None  # None: make_backend from the config
     jobs: JobRegistry | None = None  # None: a threaded registry on the configured database
@@ -141,6 +143,13 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
     def today() -> date:
         return deps.today() if deps.today else datetime.now(tz).date()
 
+    def now() -> datetime:
+        return deps.now() if deps.now else datetime.now(UTC)
+
+    def gettext_of(request: Request):
+        gt = translations(pick_language(config.ui_language, request.headers.get("accept-language")))
+        return gt.gettext, gt.ngettext
+
     def session_of(request: Request) -> dict[str, Any] | None:
         return codec.loads(request.cookies.get(COOKIE))
 
@@ -217,7 +226,11 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
             tile["mean_text"] = format_value(tile["mean_28d"], tile["kind"], lang)
         imports = {source: local_time(stamp, tz) for source, stamp in data["imports"].items()}
         coach_time = local_time(data["coach"]["created_at_utc"], tz) if data["coach"] else None
-        return render(request, "today.html", session, {"page": "today", "d": data, "imports": imports, "coach_time": coach_time, "today": today(), "source_labels": pages.SOURCE_LABELS})
+        with closing(connect(config.db_path)) as conn:
+            devices = pages.devices_data(conn, config, now=now())
+            devices["agent"]["last_seen"] = local_time(devices["agent"]["last_seen"], tz) if devices["agent"]["last_seen"] else None
+            devices["job"] = agent_view(conn, devices["job"], request) if devices["job"] else None
+        return render(request, "today.html", session, {"page": "today", "d": data, "imports": imports, "coach_time": coach_time, "today": today(), "source_labels": pages.SOURCE_LABELS, "devices": devices})
 
     def trends_page(request: Request) -> Response:
         session = require_user(request)
@@ -299,10 +312,80 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
         return request.headers.get("hx-request") == "true"
 
     def job_partial(request: Request, session: dict[str, Any], *, refresh: bool = False, busy: bool = False) -> Response:
-        response = render(request, "_job.html", session, {"job": jobs.current(), "busy": busy})
+        """The coach run of this process (polled at /coach/job)."""
+        current = jobs.current()
+        view = jobview.from_web(current) if current else None
+        response = render(request, "_job.html", session, {"job": view, "busy": busy, "poll_url": "/coach/job", "show_log": False, "offline": False})
         if refresh:
             response.headers["HX-Refresh"] = "true"
         return response
+
+    def agent_view(conn: Any, job: queue.AgentJob, request: Request, *, with_log: bool = True) -> jobview.JobView:
+        gettext, ngettext = gettext_of(request)
+        return jobview.from_agent(job, log=queue.log_lines(conn, job.id) if with_log else None, gettext=gettext, ngettext=ngettext, now=now())
+
+    def agent_partial(request: Request, session: dict[str, Any], *, refresh: bool = False, busy: bool = False, error: str | None = None) -> Response:
+        """The device agent's current job (polled at /sync/job)."""
+        with closing(connect(config.db_path)) as conn:
+            job = queue.current(conn)
+            view = agent_view(conn, job, request) if job else None
+            online = queue.device_state(conn, now=now())["online"]
+        context = {"job": view, "busy": busy, "poll_url": "/sync/job", "show_log": True, "offline": bool(view and view.active and not online), "error": error}
+        response = render(request, "_job.html", session, context)
+        if refresh:
+            response.headers["HX-Refresh"] = "true"
+        return response
+
+    def sync_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        with closing(connect(config.db_path)) as conn:
+            data = pages.sync_data(conn, config, now=now(), tz=tz)
+            data["agent"]["last_seen"] = local_time(data["agent"]["last_seen"], tz) if data["agent"]["last_seen"] else None
+            view = agent_view(conn, data["job"], request) if data["job"] else None
+        return render(request, "sync.html", session, {"page": "sync", "d": data, "job": view, "busy": False, "error": request.query_params.get("error")})
+
+    async def sync_run(request: Request) -> Response:
+        """Enqueue a device job for the agent; the browser polls /sync/job."""
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        kind = str(form.get("kind") or "")
+        params = {key: form.getlist(key) if key in ("names", "keys") else str(form.get(key)) for key in form.keys() if key not in ("csrf", "kind")}
+        try:
+            with closing(connect(config.db_path)) as conn:
+                job = queue.enqueue(conn, kind, params, now=now())
+        except ValueError as exc:
+            return PlainTextResponse(str(exc), status_code=400)
+        if is_htmx(request):
+            return agent_partial(request, session, busy=job is None)
+        return RedirectResponse("/sync", status_code=303)
+
+    def sync_job(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        with closing(connect(config.db_path)) as conn:
+            job = queue.current(conn)
+        # The page polls while a job is queued or running; the first answer after it finished reloads the page once.
+        return agent_partial(request, session, refresh=bool(request.query_params.get("poll") and job and not job.active))
+
+    async def sync_stop(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        try:
+            job_id = int(str(form.get("job_id")))
+        except ValueError:
+            return PlainTextResponse("bad job id", status_code=400)
+        with closing(connect(config.db_path)) as conn:
+            queue.request_stop(conn, job_id)
+        if is_htmx(request):
+            return agent_partial(request, session)
+        return RedirectResponse("/sync", status_code=303)
 
     def coach_page(request: Request) -> Response:
         session = require_user(request)
@@ -310,7 +393,9 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
             return session
         with closing(connect(config.db_path)) as conn:
             data = pages.coach_data(conn, tz)
-        return render(request, "coach.html", session, {"page": "coach", "d": data, "job": jobs.current(), "busy": False, "today": today().isoformat(),
+        current = jobs.current()
+        return render(request, "coach.html", session, {"page": "coach", "d": data, "job": jobview.from_web(current) if current else None, "busy": False,
+                                                       "poll_url": "/coach/job", "show_log": False, "offline": False, "today": today().isoformat(),
                                                        "saved": request.query_params.get("saved")})
 
     async def coach_run(request: Request) -> Response:
@@ -478,6 +563,10 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
             Route("/activities/{activity_id:int}", activity_page),
             Route("/sleep", sleep_page),
             Route("/sleep/{sleep_id:int}", night_page),
+            Route("/sync", sync_page),
+            Route("/sync/run", sync_run, methods=["POST"]),
+            Route("/sync/job", sync_job),
+            Route("/sync/stop", sync_stop, methods=["POST"]),
             Route("/coach", coach_page),
             Route("/coach/run", coach_run, methods=["POST"]),
             Route("/coach/job", coach_job),

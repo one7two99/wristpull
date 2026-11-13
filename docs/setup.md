@@ -1,7 +1,7 @@
 # Setting up wristpull on a new machine (Docker only)
 
-The whole stack runs from the Docker image: dashboard, CLI, TUI, the watch over USB, the phone over
-ADB, the strap over Bluetooth. The host needs neither Python nor uv. Everything below is Linux
+The whole stack runs from the Docker image: dashboard, device agent, CLI, TUI, the watch over USB,
+the phone over ADB, the strap over Bluetooth. The host needs neither Python nor uv. Everything below is Linux
 (USB and Bluetooth pass-through); tested on Ubuntu 26.04 with Docker 29 and Compose v5.
 Other operating systems and the phones: [platforms.md](platforms.md).
 
@@ -96,12 +96,15 @@ from the Zepp account with [huami-token](https://codeberg.org/argrento/huami-tok
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"           # -> WRISTPULL_WEB_SECRET in .env
 docker compose run --rm cli wristpull serve --hash-password              # -> WRISTPULL_WEB_PASSWORD_HASH in .env
 # WRISTPULL_SITE in .env: the LAN address Caddy serves, e.g. https://192.168.1.10:8443, https://localhost:8443
-docker compose up -d
+docker compose up -d                                                     # web, caddy and the device agent
 docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./wristpull-root.crt   # install on the phone once
 ```
 
 Keep the `caddy_data` volume across rebuilds: it holds that certificate authority. Details and the
-Ollama notes are in the README, "Web dashboard".
+Ollama notes are in the README, "Web dashboard". `docker compose up -d` also starts the **device
+agent** (`agent`), which runs the import and pull jobs the dashboard's Sync page starts; it needs
+steps 4 and 5 (udev rule, AppArmor profile) like `cli`. Today shows "device agent online" when it
+runs; `docker compose run --rm cli wristpull agent --status` prints the same from the terminal.
 
 ## 7. Phone over ADB (only if Gadgetbridge stays in use)
 
@@ -119,13 +122,16 @@ contrib/bin/wristpull-morning            # watch → strap → coach, each step 
 contrib/bin/wristpull-morning strap      # one step only
 ```
 
+Or from the browser: the dashboard's Sync page starts the same jobs on the device agent, with a
+live log and the stop button.
+
 `contrib/systemd/` has optional timers and the plug-in import service for the `cli` service; the
 coach's cloud backends take their API keys from `.env`.
 
 ## 9. Updating
 
 ```sh
-git pull && docker compose build && docker compose up -d web
+git pull && docker compose build && docker compose up -d web agent
 ```
 
 After a Docker upgrade that changes its default AppArmor profile, compare

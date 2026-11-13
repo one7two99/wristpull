@@ -20,3 +20,7 @@ the rule only sets the permissions and keeps the desktop away from the watch.
 With the rule the desktop no longer offers the watch as a drive; that is intended (nothing else may
 hold the device while the container opens it). To use the watch on the desktop again, remove the
 rule and reload.
+
+The dashboard's device agent (Compose service `agent`) opens the watch the same way when a job is
+started from the browser. The udev import unit and the agent may meet at the watch: whichever comes
+second gets libmtp's "device busy" message and can simply be run again, nothing is lost.

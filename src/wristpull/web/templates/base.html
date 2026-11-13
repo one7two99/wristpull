@@ -28,6 +28,9 @@
 <a href="/sleep" {% if page == "sleep" %}aria-current="page"{% endif %}>
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
 <span>{{ _("Sleep") }}</span></a>
+<a href="/sync" {% if page == "sync" %}aria-current="page"{% endif %}>
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg>
+<span>{{ _("Sync") }}</span></a>
 <a href="/coach" {% if page == "coach" %}aria-current="page"{% endif %}>
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>
 <span>Coach</span></a>
@@ -49,5 +52,6 @@
 {% block public %}{% endblock %}
 {% endif %}
 {% block scripts %}{% endblock %}
+<script src="/static/app.js" defer></script>
 </body>
 </html>

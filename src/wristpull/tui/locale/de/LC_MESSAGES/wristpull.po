@@ -1302,17 +1302,125 @@ msgid_plural "{n} activities"
 msgstr[0] "{n} Aktivität"
 msgstr[1] "{n} Aktivitäten"
 
-msgid "Another run is still in progress."
-msgstr "Ein anderer Lauf ist noch nicht fertig."
+msgid "Another job is still running."
+msgstr "Ein anderer Job läuft noch."
 
-msgid "Coach run ({kind}) in progress … {s} s"
-msgstr "Coach-Lauf ({kind}) läuft … {s} s"
+msgid "{title} queued … {s} s"
+msgstr "{title} wartet … {s} s"
 
-msgid "Coach run ({kind}) failed: {error}"
-msgstr "Coach-Lauf ({kind}) fehlgeschlagen: {error}"
+msgid "{title} running … {s} s"
+msgstr "{title} läuft … {s} s"
 
-msgid "Coach run ({kind}) finished in {s} s."
-msgstr "Coach-Lauf ({kind}) fertig nach {s} s."
+msgid "{title} failed: {error}"
+msgstr "{title} fehlgeschlagen: {error}"
+
+msgid "{title} stopped after {s} s."
+msgstr "{title} nach {s} s gestoppt."
+
+msgid "{title} finished in {s} s."
+msgstr "{title} fertig nach {s} s."
+
+msgid "The device agent is offline: the job waits until it is back."
+msgstr "Der Geräte-Agent ist offline: der Job wartet, bis er wieder da ist."
+
+msgid "Stop after the current file"
+msgstr "Nach der aktuellen Datei stoppen"
+
+msgid "Job log"
+msgstr "Job-Protokoll"
+
+msgid "Copy"
+msgstr "Kopieren"
+
+msgid "Sync"
+msgstr "Abgleich"
+
+msgid "The device agent runs these jobs next to the dashboard; one at a time, with the same commands as on the terminal."
+msgstr "Der Geräte-Agent führt diese Jobs neben dem Dashboard aus; einen nach dem anderen, mit denselben Befehlen wie im Terminal."
+
+msgid "Device agent"
+msgstr "Geräte-Agent"
+
+msgid "online"
+msgstr "erreichbar"
+
+msgid "offline"
+msgstr "nicht erreichbar"
+
+msgid "last seen {when}"
+msgstr "zuletzt gesehen {when}"
+
+msgid "Phone (ADB)"
+msgstr "Handy (ADB)"
+
+msgid "attached"
+msgstr "angesteckt"
+
+msgid "not attached"
+msgstr "nicht angesteckt"
+
+msgid "configured"
+msgstr "eingerichtet"
+
+msgid "key from the environment"
+msgstr "Schlüssel aus der Umgebung"
+
+msgid "no auth key (WRISTPULL_STRAP_AUTHKEY)"
+msgstr "kein Auth-Key (WRISTPULL_STRAP_AUTHKEY)"
+
+msgid "Import from the watch"
+msgstr "Von der Uhr importieren"
+
+msgid "Pull the phone"
+msgstr "Handy abholen"
+
+msgid "Pull the strap"
+msgstr "Strap abholen"
+
+msgid "Dry run"
+msgstr "Probelauf"
+
+msgid "Serial"
+msgstr "Seriennummer"
+
+msgid "serial (optional)"
+msgstr "Seriennummer (optional)"
+
+msgid "Trigger the export"
+msgstr "Export auslösen"
+
+msgid "Sync the device first"
+msgstr "Gerät zuerst synchronisieren"
+
+msgid "Wait"
+msgstr "Warten"
+
+msgid "Since days"
+msgstr "Seit Tagen"
+
+msgid "config"
+msgstr "Konfiguration"
+
+msgid "Set [strap] address first (wristpull strap scan)."
+msgstr "Zuerst [strap] address setzen (wristpull strap scan)."
+
+msgid "Recent jobs"
+msgstr "Letzte Jobs"
+
+msgid "No device jobs yet."
+msgstr "Noch keine Geräte-Jobs."
+
+msgid "Last device job: {title}, {status}"
+msgstr "Letzter Geräte-Job: {title}, {status}"
+
+msgid "queued"
+msgstr "wartet"
+
+msgid "stopped"
+msgstr "gestoppt"
+
+msgid "error"
+msgstr "Fehler"
 
 msgid "Helpful"
 msgstr "Hilfreich"

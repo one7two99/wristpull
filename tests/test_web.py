@@ -467,3 +467,70 @@ def test_web_strings_have_german_translations():
     missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"
+
+
+# ---- devices & sync: jobs for the device agent (parity W1) ------------------------------------
+
+
+def test_sync_page_enqueues_for_the_agent_and_polls_until_done(seeded: Config, password_hash: str, tmp_path: Path, garmin_tree: Path):
+    from datetime import UTC, datetime
+
+    from fake_adb import FakeAdb
+    from fake_mtp import FakeMtp
+    from wristpull.agent import queue
+    from wristpull.agent.deps import AgentDeps
+    from wristpull.agent.runner import AgentRunner
+    from wristpull.db import connect
+
+    now = [datetime(2026, 10, 7, 6, 0, tzinfo=UTC)]
+    client = client_for(seeded, password_hash, now=lambda: now[0])
+    login(client)
+    page = client.get("/sync", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "Geräte-Agent" in page.text and "nicht erreichbar" in page.text and "Noch keine Geräte-Jobs" in page.text
+    assert 'name="kind" value="pull_strap"' in page.text and "disabled" in page.text  # no band configured
+    today = client.get("/")
+    assert "Devices" in today.text and 'href="/sync"' in today.text and "offline" in today.text
+    token = csrf_of(page.text)
+    assert client.post("/sync/run", data={"kind": "import_garmin"}).status_code == 403  # no CSRF token
+    assert client.post("/sync/run", data={"csrf": token, "kind": "mount"}).status_code == 400
+    assert client.post("/sync/run", data={"csrf": token, "kind": "pull_phone", "wait": "abc"}).status_code == 400
+    queued = client.post("/sync/run", data={"csrf": token, "kind": "import_garmin", "dry_run": "1"}, headers={"hx-request": "true"})
+    assert queued.status_code == 200 and "queued" in queued.text and 'hx-get="/sync/job?poll=1"' in queued.text
+    assert "agent is offline" in queued.text and "Stop after the current file" in queued.text
+    with connect(seeded.db_path) as conn:
+        job = queue.current(conn)
+        assert job.kind == "import_garmin" and job.params == {"dry_run": True} and job.cli == "wristpull import garmin --dry-run"
+    busy = client.post("/sync/run", data={"csrf": token, "kind": "pull_strap"}, headers={"hx-request": "true"})
+    assert "Another job is still running" in busy.text
+    plain = client.post("/sync/run", data={"csrf": token, "kind": "pull_strap"})
+    assert plain.status_code == 303 and plain.headers["location"] == "/sync"
+    # the agent runs it (one cycle with the fake watch) and the next poll reloads the page once
+    deps = AgentDeps(adb_factory=lambda: FakeAdb(tmp_path / "phone", devices=[]), mtp_factory=lambda: FakeMtp(garmin_tree.parent), sleep=lambda _s: None,
+                     today=lambda: TODAY, now=lambda: now[0], sysfs=tmp_path / "no-sysfs")
+    runner = AgentRunner(None, deps, load=lambda _p: seeded)
+    done = runner.run_once()
+    assert done.status == "done"
+    poll = client.get("/sync/job?poll=1", headers={"accept-language": "de"})
+    assert poll.headers.get("hx-refresh") == "true" and "hx-get" not in poll.text
+    assert "Garmin importieren fertig nach" in poll.text and "10 FIT-Dateien, 0 neu, 10 bereits archiviert" in poll.text  # the seeded files are archived already
+    assert "▶ Import Garmin" in poll.text and "$ wristpull import garmin --dry-run" in poll.text and 'data-copy="wristpull import garmin --dry-run"' in poll.text
+    page = client.get("/sync")
+    assert "online" in page.text and "Recent jobs" in page.text and 'class="chip state-done"' in page.text and "not attached" in page.text
+    today = client.get("/", headers={"accept-language": "de"})
+    assert "Letzter Geräte-Job: Garmin importieren, fertig" in today.text or "Letzter Geräte-Job" in today.text
+    # stop: flags the active job; the partial then hides the stop button
+    with connect(seeded.db_path) as conn:
+        job = queue.enqueue(conn, "import_garmin", {}, now=now[0])
+    stopped = client.post("/sync/stop", data={"csrf": token, "job_id": str(job.id)}, headers={"hx-request": "true"})
+    assert stopped.status_code == 200 and "Stop after the current file" not in stopped.text
+    with connect(seeded.db_path) as conn:
+        assert queue.get(conn, job.id).stop_requested
+    assert client.post("/sync/stop", data={"csrf": token, "job_id": "x"}).status_code == 400
+    assert runner.run_once().status == "stopped"
+    assert "stopped after" in client.get("/sync/job").text
+    # the agent's heartbeat ages out: offline again
+    now[0] = now[0].replace(hour=8)
+    assert "offline" in client.get("/").text
+    assert client.get("/sync/job").status_code == 200
+    anonymous = TestClient(client.app, base_url="https://testserver", follow_redirects=False)
+    assert anonymous.get("/sync").status_code == 303 and anonymous.get("/sync/job").status_code == 303

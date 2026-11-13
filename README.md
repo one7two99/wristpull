@@ -665,9 +665,15 @@ the journal. **Workouts** lists the workout files, creates new ones from the tim
 interval template, drafts the week from the coach's plan, and edits a file as Markdown with a live
 check (the steps as the watch will show them, name clashes in the same week). It shows the same
 numbers as CLI and TUI because it calls the same library functions
-([concept](docs/dashboard-concept.md)). Importing from the watch and the phone and pushing workouts
-to the watch are not part of the dashboard: they run on the laptop, natively or through the `cli`
-service (see "Running everything in Docker").
+([concept](docs/dashboard-concept.md)). **Sync** starts the device jobs from the browser: import
+from the watch, pull the phone, pull the strap (each with the options of the command line, a live
+log, a stop button and the equivalent command to copy), and shows whether the watch or the phone is
+attached. Those jobs do not run in the web container, which has no device access: the **device
+agent** (Compose service `agent`, `wristpull agent`) runs next to it with the rights of the `cli`
+service, takes the jobs from a queue in the database and writes log and result back; Today shows
+whether it is online. The goal is every TUI function in the browser; the remaining pages (days,
+files, export and reports, settings, the coach's wizard and profile, workouts on the watch) follow
+wave by wave ([concept](docs/dashboard-concept.md), "Parity with the TUI").
 
 **Docker (recommended, reachable from the phone over HTTPS):**
 
@@ -719,10 +725,19 @@ Keep the `caddy_data` volume: it holds that CA, and a new one would have to be i
 `--data-dir` (overrides `[storage] data_dir`), `--behind-proxy` (trust `X-Forwarded-For`, only
 when a proxy is the sole way in).
 
-**Updating** after `git pull`: `docker compose build web && docker compose up -d web`. Only the app
-container is recreated; Caddy and its certificate authority stay, and you stay logged in as long as
+**Updating** after `git pull`: `docker compose build && docker compose up -d web agent`. Only the app
+and agent containers are recreated; Caddy and its certificate authority stay, and you stay logged in as long as
 `WRISTPULL_WEB_SECRET` is unchanged. While the container runs it writes to the data directory:
 coach runs, ratings, journal notes and edited workout files.
+
+- **Device agent:** `agent` starts with `docker compose up -d` and needs the same host preparation
+  as `cli` (udev rule, AppArmor profile, `WRISTPULL_USB_GID`, the strap key in `.env`): the setup
+  script does all of it. Without the AppArmor profile only this service fails to start and the
+  dashboard says "device agent offline"; the jobs then wait in the queue until it is back. The agent
+  has no ports and listens on nothing. `wristpull agent --status` (through `cli`) prints its
+  heartbeat and the current job, `wristpull agent --once` runs one cycle by hand. When the agent and
+  `cli` (or the udev import unit) open the watch at the same time, the second one gets the usual
+  "device busy" message and can simply be repeated.
 
 ## Running everything in Docker
 
@@ -730,7 +745,8 @@ The same image also runs every other command through the `cli` service of `compo
 ([concept](docs/docker-concept.md)): the TUI, export, report, coach, workouts, `pull phone`
 over ADB, `pull strap` over Bluetooth and `import garmin` over MTP. `web` stays as it is: reachable from the
 network, no USB. `cli` is started per command, has USB pass-through and the host network, and runs
-as your user so files in the data directory keep their owner.
+as your user so files in the data directory keep their owner. The `agent` service is a long-running
+`cli`: it executes the device jobs the dashboard enqueues (see "Web dashboard").
 
 ```sh
 contrib/bin/wristpull-setup                # guided: does everything below and asks only for what is missing
@@ -791,8 +807,8 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
 - **Limits:** Linux only: Docker Desktop on macOS and Windows passes neither USB nor Bluetooth
   into containers; there the native installation reaches the devices
   ([docs/platforms.md](docs/platforms.md)).
-- **Updating:** `git pull && docker compose build` rebuilds the one image for both services;
-  `docker compose up -d web` restarts the dashboard.
+- **Updating:** `git pull && docker compose build` rebuilds the one image for all three services;
+  `docker compose up -d web agent` restarts the dashboard and the agent.
 - **Moving to another machine or restoring a backup:** `contrib/bin/wristpull-backup` writes the
   whole state (data directory, config file, `.env`) as one tar.gz; on the new machine
   `contrib/bin/wristpull-restore <archive>` right after the clone builds the image, unpacks everything

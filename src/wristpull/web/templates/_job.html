@@ -1,14 +1,29 @@
-<div id="job" class="job"{% if job and job.running %} hx-get="/coach/job?poll=1" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %} aria-live="polite">
-{% if busy %}<p class="note warn-text">{{ _("Another run is still in progress.") }}</p>{% endif %}
+<div id="job" class="job"{% if job and job.active %} hx-get="{{ poll_url }}?poll=1" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %} aria-live="polite">
+{% if busy %}<p class="note warn-text">{{ _("Another job is still running.") }}</p>{% endif %}
+{% if offline %}<p class="note warn-text">{{ _("The device agent is offline: the job waits until it is back.") }} <code>docker compose up -d agent</code></p>{% endif %}
 {% if job %}
-{% if job.running %}
-<p class="note info"><span class="spinner" aria-hidden="true"></span> {{ _("Coach run ({kind}) in progress … {s} s").format(kind=_(job.title), s=job.seconds) }}</p>
-{% if job.log %}<p class="muted small">{{ job.log[-1] }}</p>{% endif %}
+{% if job.status == "queued" %}
+<p class="note info"><span class="spinner" aria-hidden="true"></span> {{ _("{title} queued … {s} s").format(title=_(job.title), s=job.seconds) }}</p>
+{% elif job.running %}
+<p class="note info"><span class="spinner" aria-hidden="true"></span> {{ _("{title} running … {s} s").format(title=_(job.title), s=job.seconds) }}</p>
 {% elif job.status == "error" %}
-<p class="note error-box">{{ _("Coach run ({kind}) failed: {error}").format(kind=_(job.title), error=job.error) }}</p>
+<p class="note error-box">{{ _("{title} failed: {error}").format(title=_(job.title), error=job.error) }}</p>
+{% elif job.status == "stopped" %}
+<p class="note warn-text">{{ _("{title} stopped after {s} s.").format(title=_(job.title), s=job.seconds) }}</p>
 {% else %}
-<p class="note ok">{{ _("Coach run ({kind}) finished in {s} s.").format(kind=_(job.title), s=job.seconds) }}</p>
-{% if job.result and job.result.warnings %}<ul class="muted small">{% for w in job.result.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+<p class="note ok">{{ _("{title} finished in {s} s.").format(title=_(job.title), s=job.seconds) }}</p>
 {% endif %}
+{% if job.active and job.log %}<p class="muted small mono">{{ job.log[-1] }}</p>{% endif %}
+{% if job.finished and job.lines %}<ul class="joblines">{% for line in job.lines %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
+{% if job.can_stop %}
+<form method="post" action="/sync/stop" hx-post="/sync/stop" hx-target="#job" hx-swap="outerHTML" class="stop">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="job_id" value="{{ job.id }}">
+<button type="submit" class="secondary">{{ _("Stop after the current file") }}</button>
+</form>
+{% endif %}
+{% if show_log and job.log %}<pre class="joblog" aria-label="{{ _('Job log') }}">{% for line in job.log %}{{ line }}
+{% endfor %}</pre>{% endif %}
+{% if job.cli %}<p class="muted small cli"><code>$ {{ job.cli }}</code> <button type="button" class="copy" data-copy="{{ job.cli }}">{{ _("Copy") }}</button></p>{% endif %}
 {% endif %}
 </div>

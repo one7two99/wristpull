@@ -87,6 +87,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("tui", help="open the terminal UI (requires the 'tui' extra: uv sync --extra tui)")
 
+    p_agent = sub.add_parser("agent", help="run the device agent: executes the watch, phone and band jobs the web dashboard enqueues (Compose service `agent`)")
+    p_agent.add_argument("--once", action="store_true", help="one cycle (heartbeat, then the oldest queued job) and exit")
+    p_agent.add_argument("--poll", type=float, default=1.0, help="seconds between cycles (default 1)")
+    p_agent.add_argument("--status", action="store_true", help="print the heartbeat, the attached devices and the current job")
+
     p_serve = sub.add_parser("serve", help="run the web dashboard (requires the 'web' extra: uv sync --extra web)")
     p_serve.add_argument("--host", default="127.0.0.1", help="address to listen on (default 127.0.0.1; the Docker image uses 0.0.0.0 behind Caddy)")
     p_serve.add_argument("--port", type=int, default=8765, help="port (default 8765)")
@@ -837,6 +842,27 @@ def cmd_tui(args: argparse.Namespace, config: Config) -> int:
     return run_tui(config)
 
 
+def cmd_agent(args: argparse.Namespace, config: Config) -> int:
+    from .agent.runner import AgentRunner, status_lines
+
+    if args.status:
+        conn = _open(config)
+        print("\n".join(status_lines(conn)))
+        return 0
+    runner = AgentRunner(args.config)
+    if args.once:
+        stale = runner.start()
+        for job_id in stale:
+            print(f"job #{job_id}: marked as failed (left running by an earlier agent)", file=sys.stderr)
+        job = runner.run_once()
+        if job is None:
+            print("agent: heartbeat written, no queued job")
+            return 0
+        print(f"job #{job.id} {job.kind}: {job.status}" + (f" ({job.error})" if job.error else ""))
+        return 0 if job.status != "error" else 1
+    return runner.serve(args.poll)
+
+
 def cmd_serve(args: argparse.Namespace, config: Config) -> int:
     if args.hash_password:
         from .web.server import PASSWORD_ENV, prompt_hash
@@ -881,6 +907,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_tui(args, config)
     if args.command == "serve":
         return cmd_serve(args, config)
+    if args.command == "agent":
+        return cmd_agent(args, config)
     if args.command == "reparse":
         return cmd_reparse(args, config)
     if args.command == "backup":

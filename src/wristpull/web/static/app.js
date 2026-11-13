@@ -1,3 +1,17 @@
+// Copy buttons (the command line of a job, paths): the clipboard needs a user gesture and a secure context,
+// which Caddy's HTTPS provides; without it the button just shows the text selected.
+(function () {
+  "use strict";
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-copy]");
+    if (!button) return;
+    const text = button.getAttribute("data-copy");
+    const done = () => { const label = button.textContent; button.textContent = "✓"; setTimeout(() => { button.textContent = label; }, 1200); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, () => window.prompt("Copy:", text));
+    else window.prompt("Copy:", text);
+  });
+})();
+
 // Draws the trend charts from the JSON block the page carries. Missing days are null: gaps, not zeros.
 (function () {
   "use strict";

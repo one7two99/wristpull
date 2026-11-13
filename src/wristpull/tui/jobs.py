@@ -2,6 +2,8 @@
 
 The runner owns the job state and the log history; screens render from it. The worker
 thread opens its own SQLite connection and reports progress through thread-safe messages.
+``JobSpec``, ``JobRecord``, ``describe_result`` and ``last_days`` live in ``wristpull.jobtext``
+(Textual-free, shared with the web dashboard) and are re-exported here.
 """
 
 from __future__ import annotations
@@ -9,8 +11,8 @@ from __future__ import annotations
 import sqlite3
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
-from datetime import date, timedelta
+from dataclasses import replace
+from datetime import date
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -25,38 +27,18 @@ from ..importers.garmin import ImportStats, import_garmin
 from ..importers.phone import PullStats, pull_phone
 from ..importers.strap import StrapStats, pull_strap
 from ..coach.runner import CoachResult
+from ..jobtext import JobRecord, JobSpec, describe_result, last_days
 from ..report import ReportResult
 from ..workouts.model import Workout
 from ..workouts.push import PushResult, VerifyResult
-from ..workouts.watch import WORKOUT_LIMIT, RemoveResult, WatchListing
+from ..workouts.watch import RemoveResult, WatchListing
 from .deps import TuiDeps
-from .format import fmt_int
-from .i18n import _, ngettext
+from .i18n import _
+
+__all__ = ["JobLine", "JobRecord", "JobRunner", "JobSpec", "describe_result", "last_days"]
 
 Log = Callable[[str], None]
 FINISHED = (WorkerState.SUCCESS, WorkerState.ERROR, WorkerState.CANCELLED)
-
-
-@dataclass
-class JobSpec:
-    key: str
-    title: str
-    cli: str
-    run: Callable[[sqlite3.Connection, Log], Any]
-
-
-@dataclass
-class JobRecord:
-    spec: JobSpec
-    result: Any = None
-    error: BaseException | None = None
-    duration_s: float = 0.0
-    lines: list[str] = field(default_factory=list)
-    cancelled: bool = False
-
-    @property
-    def ok(self) -> bool:
-        return self.error is None
 
 
 class JobLine(Message):
@@ -132,117 +114,6 @@ class JobRunner:
         self.lines.extend(record.lines)
         self.last = record
         return record
-
-
-def describe_result(record: JobRecord) -> list[str]:
-    """Human-readable summary lines for a finished job."""
-    if record.error is not None:
-        return [f"✗ {record.spec.title}: {record.error}"]
-    result = record.result
-    lines: list[str] = []
-    if getattr(result, "stopped", False) or record.cancelled:
-        lines.append("⏹ " + _("stopped on request; files handled so far are kept"))
-    if isinstance(result, ImportStats):
-        if result.root is None:
-            lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
-            if result.device_message:
-                lines.append("  " + result.device_message)
-            return lines
-        lines.append(
-            "✓ "
-            + _("{found} FIT files, {new} new, {skipped} already archived, {errors} errors").format(
-                found=result.found, new=result.new, skipped=result.skipped, errors=result.errors
-            )
-        )
-        for path, err in result.error_files:
-            lines.append(f"  ! {path}: {err}")
-    elif isinstance(result, PullStats):
-        if not result.db_pulled:
-            db_state = _("database not found")
-        elif result.db_new:
-            db_state = _("new database export imported")
-        else:
-            db_state = _("database unchanged")
-        lines.append(
-            "✓ "
-            + _("phone {device}: {db}; {found} Garmin FIT files, {new} new, {skipped} already archived, {errors} errors").format(
-                device=result.device, db=db_state, found=result.fit_found, new=result.fit_new, skipped=result.fit_skipped, errors=result.errors
-            )
-        )
-        for label in result.db_devices:
-            lines.append("  " + _("device: {label}").format(label=label))
-        for message in result.messages:
-            lines.append(f"  ! {message}")
-    elif isinstance(result, StrapStats):
-        fetched = ", ".join(f"{k}={v}" for k, v in result.fetched.items() if v) or _("nothing new")
-        lines.append(
-            "✓ "
-            + _("strap {device}: {fetched}; {new} new buffers, {skipped} already archived, {errors} errors").format(
-                device=result.device or result.address, fetched=fetched, new=result.files_new, skipped=result.files_skipped, errors=result.errors
-            )
-        )
-        for message in result.messages:
-            lines.append(f"  ! {message}")
-    elif isinstance(result, ExportResult):
-        lines.append("✓ " + ngettext("wrote {n} file to {dir}", "wrote {n} files to {dir}", len(result.files)).format(n=len(result.files), dir=result.directory))
-    elif isinstance(result, ReportResult):
-        lines.append("✓ " + ngettext("wrote {n} file to {dir}", "wrote {n} files to {dir}", len(result.files)).format(n=len(result.files), dir=result.directory))
-    elif isinstance(result, CoachResult):
-        if result.status == "dry_run":
-            lines.append("✓ " + _("dry run: prompt written to {path}").format(path=result.dry_run_path))
-        else:
-            tokens = f"{result.input_tokens or '?'} in / {result.output_tokens or '?'} out"
-            cost = f", ${result.cost_usd:.4f}" if result.cost_usd else ""
-            lines.append("✓ " + _("coach {kind} answered in {seconds:.0f} s ({tokens}{cost})").format(kind=result.kind, seconds=result.duration_s, tokens=tokens, cost=cost))
-        for warning in result.warnings:
-            lines.append(f"  ! {warning}")
-    elif isinstance(result, PushResult):
-        if result.root is None and not result.invalid:
-            lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
-            if result.device_message:
-                lines.append("  " + result.device_message)
-            return lines
-        if result.written:
-            prefix = _("dry run: ") if result.dry_run else ""
-            lines.append("✓ " + prefix + ngettext("{n} workout file written to {dir}", "{n} workout files written to {dir}", len(result.written)).format(n=len(result.written), dir=result.target))
-            if not result.dry_run:
-                lines.append("  " + _("Unplug the watch when you are done; it imports the files and lists them under Training > Workouts."))
-        for name, errors in result.invalid:
-            lines.append(f"  ! {name}: " + "; ".join(errors))
-    elif isinstance(result, VerifyResult):
-        if result.root is None:
-            lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
-            if result.device_message:
-                lines.append("  " + result.device_message)
-            return lines
-        lines.append("✓ " + _("{on_watch} workouts on the watch, {verified} newly confirmed, {missing} pushed but not found").format(on_watch=len(result.on_watch), verified=len(result.verified), missing=len(result.missing)))
-        if result.near_limit:
-            lines.append("  ! " + _("The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."))
-            lines += ["  " + line for line in result.message.splitlines()]
-    elif isinstance(result, WatchListing):
-        if result.root is None:
-            lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
-            if result.device_message:
-                lines.append("  " + result.device_message)
-            return lines
-        lines.append("✓ " + _("{active} active, {pending} waiting for unplugging (of ~{limit})").format(active=len(result.active), pending=len(result.pending), limit=WORKOUT_LIMIT))
-        if result.near_limit:
-            lines.append("  ! " + _("The fenix 6 stores 20-25 workouts; above that it drops new files silently. Delete old ones under GARMIN/Workouts first."))
-    elif isinstance(result, RemoveResult):
-        if result.listing is not None and result.listing.root is None:
-            lines.append("✗ " + _("No Garmin device found. Connect the watch (MTP) or set a path."))
-            return lines
-        lines.append("✓ " + ngettext("removed {n} workout from the watch (backup kept)", "removed {n} workouts from the watch (backup kept)", len(result.removed)).format(n=len(result.removed)))
-        for key, error in result.errors:
-            lines.append(f"  ! {key}: {error}")
-    elif isinstance(result, str):
-        lines.append("✓ " + result)
-    else:
-        lines.append("✓ " + _("done"))
-    rows = getattr(result, "rows", None)
-    if rows:
-        lines.append("  " + _("inserted: ") + ", ".join(f"{k} {fmt_int(v)}" for k, v in sorted(rows.items())))
-    return lines
 
 
 # ---- job factories -------------------------------------------------------------------
@@ -326,11 +197,6 @@ def report_job(config: Config, kind: str, day: date, *, charts: bool = True) -> 
 
     title = _("Weekly report") if kind == "week" else _("Monthly report")
     return JobSpec(f"report_{kind}", title, cli, run)
-
-
-def last_days(today: date, days: int) -> tuple[date, date]:
-    """Inclusive date range of the last ``days`` days ending today."""
-    return today - timedelta(days=days - 1), today
 
 
 def coach_job(config: Config, deps: TuiDeps, kind: str, *, today: date, question: str | None = None, dry_run: bool = False, language: str | None = None, force: bool = True) -> JobSpec:

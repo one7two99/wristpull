@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Devices & Sync") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Devices & Sync") }}</h1>
+<p class="muted">{{ _("The device agent runs these jobs next to the dashboard; one at a time, with the same commands as on the terminal.") }}</p>
+</header>
+
+<section class="card devices" aria-label="{{ _('Devices') }}">
+<div><span>{{ _("Device agent") }}</span><strong class="{% if d.agent.online %}good{% else %}bad{% endif %}">{% if d.agent.online %}{{ _("online") }}{% else %}{{ _("offline") }}{% endif %}</strong>{% if d.agent.last_seen %}<span class="muted small">{{ _("last seen {when}").format(when=d.agent.last_seen) }}</span>{% endif %}</div>
+<div><span>{{ _("Watch (USB)") }}</span><strong>{% if d.agent.watch_present %}{{ _("attached") }}{% elif d.agent.online %}{{ _("not attached") }}{% else %}–{% endif %}</strong></div>
+<div><span>{{ _("Phone (ADB)") }}</span><strong>{% if d.agent.phone_present %}{{ _("attached") }}{% elif d.agent.online %}{{ _("not attached") }}{% else %}–{% endif %}</strong>{% if d.phone_serial %}<span class="muted small">{{ d.phone_serial }}</span>{% endif %}</div>
+<div><span>{{ _("Strap (Bluetooth)") }}</span><strong>{% if d.strap_address %}{{ d.strap_address }}{% else %}{{ _("not configured") }}{% endif %}</strong>{% if d.strap_address %}<span class="muted small">{% if d.strap_has_key %}{{ _("key from the environment") }}{% else %}{{ _("no auth key (WRISTPULL_STRAP_AUTHKEY)") }}{% endif %}</span>{% endif %}</div>
+</section>
+
+<section class="card actions">
+<form method="post" action="/sync/run" hx-post="/sync/run" hx-target="#job" hx-swap="outerHTML">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="kind" value="import_garmin">
+<button type="submit" class="primary">{{ _("Import from the watch") }}</button>
+<label class="check-label"><input type="checkbox" name="dry_run" value="1"> {{ _("Dry run") }}</label>
+</form>
+<form method="post" action="/sync/run" hx-post="/sync/run" hx-target="#job" hx-swap="outerHTML" class="wrap">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="kind" value="pull_phone">
+<button type="submit" class="primary">{{ _("Pull the phone") }}</button>
+<input type="text" name="serial" value="{{ d.phone_serial or '' }}" placeholder="{{ _('serial (optional)') }}" aria-label="{{ _('Serial') }}" maxlength="64" class="narrow">
+<label class="check-label"><input type="checkbox" name="trigger" value="1" checked> {{ _("Trigger the export") }}</label>
+<label class="check-label"><input type="checkbox" name="sync" value="1" checked> {{ _("Sync the device first") }}</label>
+<label class="check-label">{{ _("Wait") }} <input type="number" name="wait" value="60" min="0" max="900" class="narrow num"> s</label>
+<label class="check-label"><input type="checkbox" name="dry_run" value="1"> {{ _("Dry run") }}</label>
+</form>
+<form method="post" action="/sync/run" hx-post="/sync/run" hx-target="#job" hx-swap="outerHTML" class="wrap">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="kind" value="pull_strap">
+<button type="submit" class="primary" {% if not d.strap_address %}disabled{% endif %}>{{ _("Pull the strap") }}</button>
+<label class="check-label">{{ _("Since days") }} <input type="number" name="since_days" min="1" max="3650" placeholder="{{ _('config') }}" class="narrow num"></label>
+<label class="check-label"><input type="checkbox" name="dry_run" value="1"> {{ _("Dry run") }}</label>
+{% if not d.strap_address %}<span class="muted small">{{ _("Set [strap] address first (wristpull strap scan).") }}</span>{% endif %}
+</form>
+{% with show_log = True, poll_url = "/sync/job", offline = (job and job.active and not d.agent.online) %}{% include "_job.html" %}{% endwith %}
+</section>
+
+<section class="card">
+<h2>{{ _("Recent jobs") }}</h2>
+<ul class="list jobs">
+{% for j in d.jobs %}
+<li class="row">
+<span class="row-main"><span class="row-title">{{ _(j.title) }}</span><span class="muted small">{{ j.when }}{% if j.seconds %} · {{ j.seconds }} s{% endif %} · <code>{{ j.cli }}</code></span>{% if j.summary %}<span class="small">{{ j.summary }}</span>{% endif %}</span>
+<span class="chip state-{{ j.status }}">{{ _(j.status) }}</span>
+</li>
+{% else %}
+<li class="card muted">{{ _("No device jobs yet.") }}</li>
+{% endfor %}
+</ul>
+</section>
+{% endblock %}

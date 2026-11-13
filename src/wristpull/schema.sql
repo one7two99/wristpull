@@ -418,3 +418,35 @@ CREATE TABLE IF NOT EXISTS strap_sync (
     updated_at_utc  TEXT NOT NULL,
     PRIMARY KEY (source, kind)
 );
+
+-- Jobs the web dashboard hands to the device agent (`wristpull agent`, Compose service `agent`): the only
+-- way the network-reachable `web` container reaches the watch, the phone and the band. One job runs at a
+-- time; `stop_requested` is the cooperative stop flag the running import polls between files.
+CREATE TABLE IF NOT EXISTS agent_jobs (
+    id              INTEGER PRIMARY KEY,
+    kind            TEXT NOT NULL,              -- import_garmin | pull_phone | pull_strap | workout_* | watch_*
+    params          TEXT NOT NULL,              -- JSON, validated against agent.kinds before it is stored
+    title           TEXT NOT NULL,              -- msgid shown by TUI and web
+    cli             TEXT NOT NULL,              -- the equivalent command line
+    status          TEXT NOT NULL,              -- queued | running | done | error | stopped
+    stop_requested  INTEGER NOT NULL DEFAULT 0,
+    requested_utc   TEXT NOT NULL,
+    started_utc     TEXT,
+    finished_utc    TEXT,
+    result          TEXT,                       -- JSON of the result dataclass (jobtext.jsonable)
+    error           TEXT
+);
+
+CREATE TABLE IF NOT EXISTS agent_job_log (
+    job_id          INTEGER NOT NULL REFERENCES agent_jobs(id) ON DELETE CASCADE,
+    seq             INTEGER NOT NULL,
+    line            TEXT NOT NULL,
+    PRIMARY KEY (job_id, seq)
+);
+
+-- What the agent last reported: heartbeat, watch/phone attached (from sysfs), its version.
+CREATE TABLE IF NOT EXISTS agent_state (
+    key             TEXT PRIMARY KEY,
+    value           TEXT NOT NULL,
+    updated_utc     TEXT NOT NULL
+);

@@ -7,7 +7,7 @@ chart series go to ECharts as JSON (missing values stay ``None`` -> ``null``, dr
 from __future__ import annotations
 
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -386,3 +386,44 @@ def new_workout(config: Config, kind: str, day: date) -> Path:
             workout.path = None
             workout.name = f"{base[: MAX_NAME_LEN - 3]} {attempt}"
     raise FileExistsError("no free file name for a new workout")
+
+
+# ---- devices & sync (parity W1): what the device agent reports, the queue, the last jobs -----------
+
+JOB_HISTORY = 20
+
+
+def devices_data(conn: sqlite3.Connection, config: Config, *, now: datetime) -> dict[str, Any]:
+    """Agent heartbeat and USB presence (``agent_state``), the strap's configuration, the current job."""
+    from ..agent.queue import current, device_state
+    from ..importers.strap import has_auth_key
+
+    state = device_state(conn, now=now)
+    job = current(conn)
+    return {
+        "agent": {
+            "online": state["online"],
+            "watch_present": state["watch_present"],
+            "phone_present": state["phone_present"],
+            "last_seen": state["last_seen_utc"],
+            "version": state["version"],
+        },
+        "phone_serial": config.phone_serial or None,
+        "strap_address": config.strap_address or None,
+        "strap_has_key": has_auth_key() if config.strap_address else None,
+        "job": job,
+    }
+
+
+def sync_data(conn: sqlite3.Connection, config: Config, *, now: datetime, tz: ZoneInfo) -> dict[str, Any]:
+    """The sync page: devices plus the last jobs as rows."""
+    from ..agent.queue import recent
+
+    data = devices_data(conn, config, now=now)
+    rows = []
+    for job in recent(conn, JOB_HISTORY):
+        when = parse_iso_utc(job.finished_utc or job.started_utc or job.requested_utc).astimezone(tz).strftime("%d.%m. %H:%M")
+        summary = job.error if job.error else None
+        rows.append({"id": job.id, "title": job.title, "status": job.status, "cli": job.cli, "when": when, "seconds": job.seconds(now) if job.finished_utc else 0, "summary": summary})
+    data["jobs"] = rows
+    return data

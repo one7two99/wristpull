@@ -223,3 +223,31 @@ textarea { width: 100%; padding: 10px 12px; font-family: var(--mono); font-size:
 .check-head { margin: 0 0 4px; font-weight: 600; font-family: inherit; }
 .help pre { font-family: var(--mono); font-size: 0.82rem; overflow-x: auto; margin: 8px 0 0; }
 code { font-family: var(--mono); font-size: 0.88em; }
+
+/* ---- devices & sync (parity W1) */
+.devices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 760px) { .devices { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.devices > div { display: flex; flex-direction: column; gap: 2px; }
+.devices span:first-child { color: var(--muted); font-size: 0.8rem; }
+.devices strong { font-size: 1.05rem; }
+.devices strong.good { color: var(--good); }
+.devices strong.bad { color: var(--bad); }
+.check-label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.85rem; min-height: 44px; }
+.check-label input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+input[type="number"] { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; min-height: 44px; padding: 0 12px; }
+.narrow { width: 11rem; max-width: 100%; }
+.narrow.num { width: 5.5rem; }
+.job { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.job .stop { margin: 0; }
+.joblines { list-style: none; margin: 0; padding: 0; font-size: 0.9rem; display: flex; flex-direction: column; gap: 2px; white-space: pre-wrap; }
+.joblog { font-family: var(--mono); font-size: 0.8rem; line-height: 1.4; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; max-height: 18rem; overflow: auto; margin: 0; white-space: pre-wrap; }
+.mono { font-family: var(--mono); }
+.cli { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
+.copy { min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--muted); font: inherit; font-size: 0.8rem; cursor: pointer; }
+.copy:hover { border-color: var(--accent); color: var(--text); }
+.chip.state-done { border-color: var(--accent); color: var(--text); }
+.chip.state-error { border-color: var(--warn-border); color: var(--bad); }
+.chip.state-stopped { border-color: var(--warn-border); color: var(--warn-text); }
+.chip.state-running, .chip.state-queued { border-color: var(--accent); color: var(--accent); }
+.jobs .row { align-items: flex-start; }
+.jobs code { font-size: 0.8rem; }
