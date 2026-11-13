@@ -125,6 +125,75 @@ def test_connect_attempts_retry_then_raise():
         asyncio.run(attempts(broken, tries=2, delay=0, sleep=nap))
 
 
+def test_transport_power_cycles_a_stuck_adapter_once():
+    import asyncio
+    from types import SimpleNamespace
+
+    import wristpull.zeppos.transport as transport
+
+    seen: list[str] = []
+    answers = [None, "band-device"]  # first scan empty, second (after the reset) finds the band
+
+    class Scanner:
+        @staticmethod
+        async def find_device_by_address(address, timeout, **kwargs):
+            seen.append(f"scan {address} {kwargs}")
+            return answers.pop(0)
+
+    class Client:
+        mtu_size = 247
+
+        def __init__(self, device, timeout, **kwargs):
+            seen.append(f"client {device}")
+
+        async def connect(self):
+            seen.append("connect")
+
+    fake_bleak = SimpleNamespace(BleakScanner=Scanner, BleakClient=Client)
+    original = transport._bleak
+    transport._bleak = lambda: fake_bleak
+    try:
+        async def discovering(adapter):
+            return True
+
+        async def reset(adapter):
+            seen.append(f"reset {adapter}")
+
+        logs: list[str] = []
+        t = transport.BleakTransport("AA:BB:CC:DD:EE:02", adapter="hci1", log=logs.append, discovering=discovering, reset=reset)
+        client = asyncio.run(t.open_client())  # conftest blocks connect(); open_client is the part under test
+        assert seen == ["scan AA:BB:CC:DD:EE:02 {'adapter': 'hci1'}", "reset hci1", "scan AA:BB:CC:DD:EE:02 {'adapter': 'hci1'}", "client band-device", "connect"]
+        assert client.mtu_size == 247 and t.resets == 1 and logs and "power-cycling" in logs[0]
+        # a quiet adapter is not reset: three scans, then the usual error
+        seen.clear()
+        answers[:] = [None, None, None]
+
+        async def quiet(adapter):
+            return False
+
+        async def nap(_s):
+            pass
+
+        t = transport.BleakTransport("AA:BB:CC:DD:EE:02", discovering=quiet, reset=reset, sleep=nap)
+        with pytest.raises(transport.NoBandError, match="not found"):
+            asyncio.run(t.open_client())
+        assert seen == ["scan AA:BB:CC:DD:EE:02 {}"] * 3 and t.resets == 0
+        # a failing reset is logged and the scan error stands
+        seen.clear()
+        answers[:] = [None, None, None]
+
+        async def broken(adapter):
+            raise RuntimeError("polkit says no")
+
+        logs.clear()
+        t = transport.BleakTransport("AA:BB:CC:DD:EE:02", log=logs.append, discovering=discovering, reset=broken, sleep=nap)
+        with pytest.raises(transport.NoBandError):
+            asyncio.run(t.open_client())
+        assert t.resets == 1 and any("reset failed: polkit says no" in line for line in logs)
+    finally:
+        transport._bleak = original
+
+
 def test_ble_error_hints():
     from wristpull.zeppos.transport import DBUS_HINT, ble_error
 

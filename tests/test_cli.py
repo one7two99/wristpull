@@ -261,7 +261,7 @@ def test_strap_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
     from datetime import UTC, datetime
 
     state.minutes["stress"] = (datetime(2026, 11, 6, 23, 0, tzinfo=UTC), stress_minutes([20, None, 35]))
-    monkeypatch.setattr(transport_module, "open_transport", lambda address, adapter=None: FakeTransport(state))
+    monkeypatch.setattr(transport_module, "open_transport", lambda address, adapter=None, log=None: FakeTransport(state))
     assert main(["--config", str(cfg_file), "pull", "strap", "--dry-run"]) == 0
     assert "dry run: strap" in capsys.readouterr().out
     assert main(["--config", str(cfg_file), "pull", "strap"]) == 0

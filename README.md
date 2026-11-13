@@ -216,8 +216,9 @@ in `.env` for Docker (`strap pair` prints the line), or exported in the shell of
 
 When `strap scan` sees the band but `pull strap` reports it as not found or times out, the host's
 adapter is usually stuck in a scan that nothing can stop (`bluetoothctl show` says `Discovering: yes`
-although no scanner is running). `bluetoothctl power off && bluetoothctl power on` resets it; the
-morning script says so when it sees that state.
+although no scanner is running). `pull strap` now notices that state when its scan comes back empty
+and power-cycles the adapter itself over D-Bus before it looks again (the log says so); by hand it is
+`bluetoothctl power off && bluetoothctl power on`, and the morning script says so when it sees that state.
 
 #### `wristpull import gadgetbridge`
 

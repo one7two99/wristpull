@@ -230,7 +230,7 @@ def pull_strap(
     if transport_factory is None:
         from ..zeppos.transport import open_transport
 
-        transport_factory = lambda address: open_transport(address, adapter=config.strap_adapter or None)  # noqa: E731
+        transport_factory = lambda address: open_transport(address, adapter=config.strap_adapter or None, log=log)  # noqa: E731
     band = Band(transport_factory(config.strap_address), auth_key, log=log)
     asyncio.run(
         _pull(
