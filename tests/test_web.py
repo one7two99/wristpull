@@ -51,10 +51,11 @@ def seeded(config: Config, conn, garmin_tree: Path) -> Config:
     return config
 
 
-def client_for(config: Config, password_hash: str, limiter: RateLimiter | None = None, **deps) -> TestClient:
+def client_for(config: Config, password_hash: str | None, limiter: RateLimiter | None = None, **deps) -> TestClient:
     from wristpull.web.jobs import JobRegistry
 
     deps.setdefault("jobs", JobRegistry(config.db_path, threaded=False))
+    deps.setdefault("env", {})  # the settings page shows .env values; tests pass their own
     app = create_app(config, password_hash=password_hash, secret=SECRET, deps=WebDeps(today=lambda: TODAY, limiter=limiter or RateLimiter(), **deps))
     return TestClient(app, base_url="https://testserver", follow_redirects=False)
 
@@ -406,14 +407,20 @@ def test_unauthenticated_posts_go_to_login(config: Config, password_hash: str):
 
 
 def test_serve_requires_hash_runs_one_worker_and_warns_without_secret(config: Config, password_hash: str, tmp_path: Path):
+    from wristpull import secrets as store
+
     calls, warnings = [], []
-    assert serve(config, env={}, run=lambda *a, **k: calls.append(k), warn=warnings.append) == 1
-    assert calls == [] and PASSWORD_ENV in warnings[0]
+    # a malformed hash in the environment still fails loudly; no hash at all means the start password
+    assert serve(config, env={PASSWORD_ENV: "bcrypt:nope"}, run=lambda *a, **k: calls.append(k), warn=warnings.append) == 1
+    assert calls == [] and "malformed" in warnings[0]
+    assert serve(config, env={}, run=lambda app, **k: calls.append((app, k)), warn=warnings.append) == 0
+    assert "start password 'wristpull'" in warnings[-2] and "generated one" in warnings[-1]
+    assert store.load(config)[SECRET_ENV] and oct(store.path(config).stat().st_mode & 0o777) == "0o600"
     env = {PASSWORD_ENV: password_hash}
     assert serve(config, env=env, data_dir=tmp_path / "d", behind_proxy=True, run=lambda app, **k: calls.append((app, k)), warn=warnings.append) == 0
-    app, kwargs = calls[0]
+    app, kwargs = calls[-1]
     assert kwargs["workers"] == 1 and kwargs["proxy_headers"] is True and kwargs["forwarded_allow_ips"] == "*"
-    assert SECRET_ENV in warnings[-1]
+    assert SECRET_ENV in warnings[-1]  # a different data dir: no store there, no env secret -> generated again
     assert serve(config, env={**env, "WRISTPULL_OLLAMA_URL": "http://host.docker.internal:11434"}, run=lambda app, **k: calls.append((app, k)), warn=warnings.append) == 0
     assert calls[-1][0].state.config.coach.ollama_url == "http://host.docker.internal:11434"
     assert resolve_secret({SECRET_ENV: "x" * 20}, warnings.append) == "x" * 20
@@ -433,8 +440,9 @@ def test_cli_serve_hash_password(monkeypatch, capsys, cfg_file: Path):
     assert out.startswith(PASSWORD_ENV + "=scrypt:") and verify_password("secret pw", out.strip().split("=", 1)[1])
     assert main(["--config", str(cfg_file), "serve", "--hash-password"]) == 1  # the two entries differ
     monkeypatch.delenv(PASSWORD_ENV, raising=False)
-    assert main(["--config", str(cfg_file), "serve"]) == 1
-    assert "WRISTPULL_WEB_PASSWORD_HASH is missing" in capsys.readouterr().err
+    monkeypatch.setattr("uvicorn.run", lambda app, **k: None)  # without a hash the server starts with the start password
+    assert main(["--config", str(cfg_file), "serve"]) == 0
+    assert "start password" in capsys.readouterr().err
 
 
 # ---- rules ------------------------------------------------------------------------------
@@ -534,3 +542,90 @@ def test_sync_page_enqueues_for_the_agent_and_polls_until_done(seeded: Config, p
     assert client.get("/sync/job").status_code == 200
     anonymous = TestClient(client.app, base_url="https://testserver", follow_redirects=False)
     assert anonymous.get("/sync").status_code == 303 and anonymous.get("/sync/job").status_code == 303
+
+
+# ---- settings, the secrets store, the start password (parity W3) ---------------------------------
+
+
+def test_first_login_with_the_start_password_forces_a_change(seeded: Config, password_hash: str):
+    from wristpull import secrets as store
+
+    client = client_for(seeded, password_hash=None, env={})
+    page = client.get("/login")
+    assert "start password" in page.text
+    token = csrf_of(page.text)
+    assert client.post("/login", data={"csrf": token, "password": "nope"}).status_code == 401
+    first = client.post("/login", data={"csrf": token, "password": "wristpull"})
+    assert first.status_code == 303 and first.headers["location"] == "/settings/password?first=1"
+    assert client.get("/").headers["location"] == "/settings/password?first=1"  # nothing else until the password is changed
+    assert client.get("/sync").status_code == 303
+    page = client.get("/settings/password?first=1")
+    assert page.status_code == 200 and "logged in with the start password" in page.text
+    token = csrf_of(page.text)
+    assert client.post("/sync/run", data={"csrf": token, "kind": "import_garmin"}).status_code == 303  # POSTs are redirected too
+    weak = client.post("/settings/password", data={"csrf": token, "current": "wristpull", "new": "short", "repeat": "short"})
+    assert weak.status_code == 400 and "Too short" in weak.text
+    wrong = client.post("/settings/password", data={"csrf": token, "current": "wristpull", "new": "longer password", "repeat": "other"})
+    assert wrong.status_code == 400 and "differ" in wrong.text
+    bad_current = client.post("/settings/password", data={"csrf": token, "current": "x", "new": "longer password", "repeat": "longer password"})
+    assert bad_current.status_code == 400 and "current password is wrong" in bad_current.text
+    done = client.post("/settings/password", data={"csrf": token, "current": "wristpull", "new": "longer password", "repeat": "longer password"})
+    assert done.status_code == 303 and done.headers["location"] == "/?saved=password"
+    stored = store.load(seeded)[store.PASSWORD_HASH]
+    assert stored.startswith("scrypt:") and verify_password("longer password", stored)
+    assert client.get("/").status_code == 200  # the forced change is over
+    # the start password no longer works, the new one does, and a hash in the environment is overridden by the store
+    fresh = client_for(seeded, password_hash=password_hash, env={})
+    page = fresh.get("/login")
+    assert "start password" not in page.text
+    assert fresh.post("/login", data={"csrf": csrf_of(page.text), "password": "wristpull"}).status_code == 401
+    assert fresh.post("/login", data={"csrf": csrf_of(page.text), "password": PASSWORD}).status_code == 401  # the env hash lost
+    assert fresh.post("/login", data={"csrf": csrf_of(page.text), "password": "longer password"}).status_code == 303
+    # a logged-in user changes the password again from the settings page
+    page = fresh.get("/settings")
+    assert page.status_code == 200 and "Set on this page" in page.text
+    token = csrf_of(page.text)
+    again = fresh.post("/settings/password", data={"csrf": token, "current": "longer password", "new": "even longer password", "repeat": "even longer password"})
+    assert again.status_code == 303 and again.headers["location"] == "/settings?saved=password"
+    assert verify_password("even longer password", store.load(seeded)[store.PASSWORD_HASH])
+
+
+def test_settings_page_saves_config_and_keys(seeded: Config, password_hash: str, tmp_path: Path):
+    from wristpull import secrets as store
+    from wristpull.config import load_config
+
+    seeded.path = tmp_path / "cfg" / "config.toml"
+    env = {"UID": "1000", "WRISTPULL_DATA": "/home/alice/Health/wristpull", "ANTHROPIC_API_KEY": "env-key"}
+    client = client_for(seeded, password_hash, env=env)
+    login(client)
+    page = client.get("/settings", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "Einstellungen" in page.text and "/home/alice/Health/wristpull" in page.text
+    assert "env-key" not in page.text and "aus der .env" in page.text  # the key's source is shown, never its value
+    token = csrf_of(page.text)
+    bad = client.post("/settings/config", data={"csrf": token, "timezone": "Europe/Berlin", "strap_address": "nope", "strap_since_days": "x", "coach_model": "m"})
+    assert bad.status_code == 400 and "strap address must look like" in bad.text and "whole number" in bad.text and not seeded.path.exists()
+    form = {"csrf": token, "timezone": "Europe/Vienna", "folders": "Activity, Monitor", "phone_serial": "ABC1", "phone_export_dir": "/sdcard/GB",
+            "strap_address": "aa:bb:cc:dd:ee:02", "strap_adapter": "", "strap_since_days": "7", "strap_keep_on_band": "1",
+            "ui_language": "de", "ui_range_days": "14", "coach_backend": "claude", "coach_model": "claude-opus-5-5", "coach_weekly_model": "",
+            "coach_api_key_env": "", "coach_ollama_url": "http://localhost:11434", "coach_num_ctx": "4096", "coach_max_tokens": "2000",
+            "coach_timeout_s": "120", "coach_token_budget": "5000", "coach_effort": "high", "coach_language": "de"}
+    saved = client.post("/settings/config", data=form)  # agent_import_on_plug unchecked -> false
+    assert saved.status_code == 303 and saved.headers["location"] == "/settings?saved=config"
+    written = load_config(seeded.path)
+    assert written.timezone == "Europe/Vienna" and written.garmin_folders == ["Activity", "Monitor"] and written.phone_serial == "ABC1"
+    assert written.strap_address == "AA:BB:CC:DD:EE:02" and written.strap_since_days == 7 and written.strap_keep_on_band and not written.agent_import_on_plug
+    assert written.ui_language == "de" and written.ui_range_days == 14 and written.coach.backend == "claude" and written.coach.effort == "high" and written.coach.timeout_s == 120
+    assert seeded.strap_address == "AA:BB:CC:DD:EE:02" and seeded.coach.backend == "claude"  # the running app follows
+    page = client.get("/settings?saved=config")  # the saved [ui] language = de applies at once
+    assert "Konfiguration nach" in page.text and 'value="Europe/Vienna"' in page.text and "Adresse des Bands unter" not in client.get("/sync").text
+    # keys: write-only, the store wins over .env, "remove" clears
+    keys = client.post("/settings/secrets", data={"csrf": token, "WRISTPULL_STRAP_AUTHKEY": "0x" + "ab" * 16, "ANTHROPIC_API_KEY": "", "ollama_url": "http://host.docker.internal:11434"})
+    assert keys.status_code == 303
+    assert store.load(seeded) == {"WRISTPULL_STRAP_AUTHKEY": "0x" + "ab" * 16, "WRISTPULL_OLLAMA_URL": "http://host.docker.internal:11434"}
+    assert seeded.coach.ollama_url == "http://host.docker.internal:11434"
+    page = client.get("/settings")
+    assert "0xab" not in page.text and "aus den Einstellungen" in page.text and 'value="http://host.docker.internal:11434"' in page.text
+    assert "Schlüssel aus der Umgebung" in client.get("/sync").text  # has_auth_key sees the applied store
+    cleared = client.post("/settings/secrets", data={"csrf": token, "clear_WRISTPULL_STRAP_AUTHKEY": "1", "ollama_url": ""})
+    assert cleared.status_code == 303 and store.load(seeded) == {}
+    assert client.post("/settings/config", data={"timezone": "x"}).status_code == 403  # CSRF

@@ -1341,6 +1341,231 @@ msgstr "Der Geräte-Agent führt diese Jobs neben dem Dashboard aus; einen nach 
 msgid "Device agent"
 msgstr "Geräte-Agent"
 
+msgid "32 hex digits, from Gadgetbridge's device settings or huami-token"
+msgstr "32 Hex-Ziffern, aus den Geräteeinstellungen von Gadgetbridge oder huami-token"
+
+msgid "API key variable"
+msgstr "Variable für den API-Schlüssel"
+
+msgid "Answer language"
+msgstr "Antwortsprache"
+
+msgid "Answer tokens"
+msgstr "Antwort-Tokens"
+
+msgid "Anthropic API key"
+msgstr "Anthropic-API-Schlüssel"
+
+msgid "Backend"
+msgstr "Coach-Backend"
+
+msgid "Band address"
+msgstr "Adresse des Bands"
+
+msgid "Band auth key"
+msgstr "Auth-Key des Bands"
+
+msgid "Bluetooth adapter"
+msgstr "Bluetooth-Adapter"
+
+msgid "Change password"
+msgstr "Passwort ändern"
+
+msgid "Configuration saved to {path}. The agent uses it from the next job on; the time zone takes effect after a restart of the dashboard."
+msgstr "Konfiguration nach {path} gespeichert. Der Agent nutzt sie ab dem nächsten Job; die Zeitzone gilt nach einem Neustart des Dashboards."
+
+msgid "Context window (Ollama)"
+msgstr "Kontextfenster (Ollama)"
+
+msgid "Current job"
+msgstr "Aktueller Job"
+
+msgid "Current password"
+msgstr "Aktuelles Passwort"
+
+msgid "Dashboard password"
+msgstr "Dashboard-Passwort"
+
+msgid "Data directory: {path} (set in .env, WRISTPULL_DATA)."
+msgstr "Datenordner: {path} (in .env gesetzt, WRISTPULL_DATA)."
+
+msgid "Default range (days)"
+msgstr "Standardzeitraum (Tage)"
+
+msgid "Docker needs these before the containers start, so they stay in .env next to compose.yaml."
+msgstr "Docker braucht diese Werte, bevor die Container starten; sie bleiben in der .env neben compose.yaml."
+
+msgid "Effort"
+msgstr "Aufwand"
+
+msgid "Everything wristpull needs, in one place. Secrets go into the data directory (mode 0600) and override .env."
+msgstr "Alles, was wristpull braucht, an einem Ort. Geheimnisse landen im Datenordner (Modus 0600) und überschreiben die .env."
+
+msgid "Fetches everything the band recorded since the last pull. The band must not be connected to the phone."
+msgstr "Holt alles, was das Band seit dem letzten Abholen aufgezeichnet hat. Das Band darf nicht mit dem Handy verbunden sein."
+
+msgid "First pull: days back"
+msgstr "Erstes Abholen: Tage zurück"
+
+msgid "GARMIN subfolders to import, comma separated"
+msgstr "GARMIN-Unterordner für den Import, durch Kommas getrennt"
+
+msgid "Gadgetbridge export folder"
+msgstr "Gadgetbridge-Exportordner"
+
+msgid "General"
+msgstr "Allgemein"
+
+msgid "Import from the watch as soon as it is plugged in"
+msgstr "Von der Uhr importieren, sobald sie angesteckt wird"
+
+msgid "Imports the new FIT files over MTP; with the agent running this also happens by itself when the watch is plugged in."
+msgstr "Importiert die neuen FIT-Dateien über MTP; mit laufendem Agent passiert das auch von selbst, sobald die Uhr angesteckt wird."
+
+msgid "Keep the data on the band after fetching"
+msgstr "Daten nach dem Abholen auf dem Band lassen"
+
+msgid "Keys"
+msgstr "Schlüssel"
+
+msgid "Keys saved to {path}."
+msgstr "Schlüssel nach {path} gespeichert."
+
+msgid "Language"
+msgstr "Sprache"
+
+msgid "Model for the weekly review"
+msgstr "Modell für den Wochenrückblick"
+
+msgid "New password"
+msgstr "Neues Passwort"
+
+msgid "Not saved:"
+msgstr "Nicht gespeichert:"
+
+msgid "Not set yet: the start password is in use."
+msgstr "Noch nicht gesetzt: das Startpasswort ist in Gebrauch."
+
+msgid "Ollama URL in the config"
+msgstr "Ollama-URL in der Konfiguration"
+
+msgid "Ollama address"
+msgstr "Ollama-Adresse"
+
+msgid "OpenRouter API key"
+msgstr "OpenRouter-API-Schlüssel"
+
+msgid "Password changed."
+msgstr "Passwort geändert."
+
+msgid "Phone serial"
+msgstr "Seriennummer des Handys"
+
+msgid "Repeat"
+msgstr "Wiederholen"
+
+msgid "Save configuration"
+msgstr "Konfiguration speichern"
+
+msgid "Save keys"
+msgstr "Schlüssel speichern"
+
+msgid "Save password"
+msgstr "Passwort speichern"
+
+msgid "Set in .env (WRISTPULL_WEB_PASSWORD_HASH); a password set here replaces it."
+msgstr "In .env gesetzt (WRISTPULL_WEB_PASSWORD_HASH); ein hier gesetztes Passwort ersetzt es."
+
+msgid "Set on the host (.env)"
+msgstr "Auf dem Rechner gesetzt (.env)"
+
+msgid "Set on this page."
+msgstr "Auf dieser Seite gesetzt."
+
+msgid "Set the band address under Settings first."
+msgstr "Zuerst die Adresse des Bands unter Einstellungen setzen."
+
+msgid "The current password is wrong."
+msgstr "Das aktuelle Passwort ist falsch."
+
+msgid "The two entries differ."
+msgstr "Die beiden Eingaben unterscheiden sich."
+
+msgid "Time zone"
+msgstr "Zeitzone"
+
+msgid "Timeout (s)"
+msgstr "Zeitlimit (s)"
+
+msgid "Token budget for the data package"
+msgstr "Token-Budget für das Datenpaket"
+
+msgid "Too short, or the start password."
+msgstr "Zu kurz, oder das Startpasswort."
+
+msgid "Triggers the Gadgetbridge export and pulls the database and the watch files from the phone."
+msgstr "Löst den Gadgetbridge-Export aus und holt Datenbank und Uhr-Dateien vom Handy."
+
+msgid "Watch folders"
+msgstr "Ordner der Uhr"
+
+msgid "Written to {path}"
+msgstr "Geschrieben nach {path}"
+
+msgid "You are logged in with the start password. Choose your own password now; nothing else works until you do."
+msgstr "Du bist mit dem Startpasswort angemeldet. Wähle jetzt ein eigenes Passwort; vorher geht nichts anderes."
+
+msgid "at least {n} characters"
+msgstr "mindestens {n} Zeichen"
+
+msgid "browser / system"
+msgstr "Browser / System"
+
+msgid "empty: ANTHROPIC_API_KEY / OPENROUTER_API_KEY (see Keys above)"
+msgstr "leer: ANTHROPIC_API_KEY / OPENROUTER_API_KEY (siehe Schlüssel oben)"
+
+msgid "empty: the default adapter"
+msgstr "leer: der Standardadapter"
+
+msgid "empty: the only phone adb sees; ip:port for wireless debugging"
+msgstr "leer: das einzige Handy, das adb sieht; ip:port für Wireless Debugging"
+
+msgid "empty: the same model"
+msgstr "leer: dasselbe Modell"
+
+msgid "for the Claude coach backend"
+msgstr "für das Coach-Backend Claude"
+
+msgid "for the OpenRouter coach backend"
+msgstr "für das Coach-Backend OpenRouter"
+
+msgid "from .env"
+msgstr "aus der .env"
+
+msgid "from the settings"
+msgstr "aus den Einstellungen"
+
+msgid "like the interface"
+msgstr "wie die Oberfläche"
+
+msgid "not set"
+msgstr "nicht gesetzt"
+
+msgid "optional"
+msgstr "wahlweise"
+
+msgid "remove"
+msgstr "entfernen"
+
+msgid "set, leave empty to keep"
+msgstr "gesetzt; leer lassen, um es zu behalten"
+
+msgid "wristpull strap scan lists the bands in range"
+msgstr "wristpull strap scan listet die Bänder in Reichweite"
+
+msgid "First start: log in with the start password \"wristpull\" and choose your own right after."
+msgstr "Erster Start: mit dem Startpasswort \"wristpull\" anmelden und gleich danach ein eigenes wählen."
+
 msgid "Bluetooth is off on the host"
 msgstr "Bluetooth ist auf dem Rechner ausgeschaltet"
 

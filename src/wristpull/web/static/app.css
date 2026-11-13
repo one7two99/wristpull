@@ -251,3 +251,24 @@ input[type="number"] { font: inherit; color: var(--text); background: var(--bg);
 .chip.state-running, .chip.state-queued { border-color: var(--accent); color: var(--accent); }
 .jobs .row { align-items: flex-start; }
 .jobs code { font-size: 0.8rem; }
+
+/* ---- sync layout and settings (parity W3) */
+.syncgrid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .syncgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.devcard form { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin: 10px 0 0; }
+.devcard .options { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.devcard .check-label { min-height: 36px; }
+.devcard .primary { align-self: flex-start; }
+.hint { color: var(--muted); font-size: 0.8rem; }
+.settings-section { display: flex; flex-direction: column; gap: 10px; }
+.settings-form { display: flex; flex-direction: column; gap: 10px; }
+.field { display: grid; gap: 4px; }
+.field label { color: var(--muted); font-size: 0.85rem; }
+.field input[type="text"], .field input[type="password"], .field select { width: 100%; }
+.field input.narrow { width: 9rem; }
+@media (min-width: 760px) { .field { grid-template-columns: 16rem minmax(0, 1fr); align-items: center; } .field .hint { grid-column: 2; } }
+.inline-check { display: inline-flex; min-height: 0; margin-left: 10px; }
+.settings-section .primary { align-self: flex-start; }
+.btn-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 10px; text-decoration: none; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 0.9rem; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); font-size: 0.85rem; overflow-wrap: anywhere; }

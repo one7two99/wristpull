@@ -679,13 +679,21 @@ wave by wave ([concept](docs/dashboard-concept.md), "Parity with the TUI").
 **Docker (recommended, reachable from the phone over HTTPS):**
 
 ```sh
-cp .env.example .env               # then fill it in:
-id -u; id -g                       #   UID / GID
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"   # WRISTPULL_WEB_SECRET
-uv run wristpull serve --hash-password                          # WRISTPULL_WEB_PASSWORD_HASH=...
-# or without uv on the host: docker compose run --rm cli wristpull serve --hash-password
+cp .env.example .env               # then fill in UID/GID, the two paths and WRISTPULL_SITE
 docker compose up -d --build
+# first login: the start password "wristpull"; the dashboard then asks for your own password
 ```
+
+**Settings in the browser.** The Settings page holds everything else: the dashboard password, the
+band's auth key, the coach API keys and the Ollama address (saved to `<data_dir>/secrets.json`, mode
+0600, where the `cli` and `agent` services read them too), and the whole config file (time zone,
+folders, phone, band, agent, coach). A value saved there overrides `.env` and the shell. Only what
+Docker needs before the containers start stays in `.env` (UID/GID, the paths, `WRISTPULL_SITE`,
+`WRISTPULL_USB_GID`); the page lists those read-only. The older way still works: a password hash from
+`wristpull serve --hash-password` in `WRISTPULL_WEB_PASSWORD_HASH` and the keys in `.env`. Without any
+password the dashboard accepts the start password `wristpull` exactly until you set your own, which
+it insists on at that first login; without `WRISTPULL_WEB_SECRET` it generates a secret once and keeps
+it in the store, so sessions survive restarts. The store is part of every backup (like `.env`).
 
 `.env` also names the data directory, the config file and `WRISTPULL_SITE`, the addresses Caddy
 serves (for example `https://192.168.1.10:8443, https://localhost:8443`). Caddy terminates HTTPS
@@ -699,12 +707,12 @@ docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./wristpull-r
 
 Keep the `caddy_data` volume: it holds that CA, and a new one would have to be installed again.
 
-- **Password:** only its scrypt hash is configured (`WRISTPULL_WEB_PASSWORD_HASH`), never the
-  password and never in the config file. Five failed logins from one address (twenty overall)
-  lock the login for 15 minutes.
-- **Session secret:** `WRISTPULL_WEB_SECRET` signs the session cookie, so you stay logged in
-  across restarts (30 days). Compose refuses to start without it. A local `wristpull serve`
-  without it uses a random secret per start and warns that logins end with the process.
+- **Password:** only its scrypt hash is stored (the settings page writes it to the secrets store;
+  `WRISTPULL_WEB_PASSWORD_HASH` in `.env` is the alternative), never the password and never in the
+  config file. Five failed logins from one address (twenty overall) lock the login for 15 minutes.
+  Change it under Settings → Change password.
+- **Session secret:** `WRISTPULL_WEB_SECRET` (or the one generated into the store) signs the session
+  cookie, so you stay logged in across restarts (30 days).
 - **One worker:** the server runs exactly one uvicorn worker, because the login limit (and later
   the background jobs) live in process memory. Do not scale the `web` service.
 - Cookies are `Secure`, `HttpOnly`, `SameSite=Strict`; every form carries a CSRF token; a strict
@@ -720,9 +728,8 @@ Keep the `caddy_data` volume: it holds that CA, and a new one would have to be i
   needs `After=docker.service`), or keep it on localhost and allow port 11434 only from the Docker
   subnets with a firewall rule.
 
-**Without Docker** (on the laptop only): `uv sync --extra web`, export
-`WRISTPULL_WEB_PASSWORD_HASH` (and `WRISTPULL_WEB_SECRET`), then
-`uv run wristpull serve` and open `http://127.0.0.1:8765`. Options: `--host`, `--port`,
+**Without Docker** (on the laptop only): `uv sync --extra web`, then `uv run wristpull serve` and open
+`http://127.0.0.1:8765` (start password `wristpull`, or export `WRISTPULL_WEB_PASSWORD_HASH`). Options: `--host`, `--port`,
 `--data-dir` (overrides `[storage] data_dir`), `--behind-proxy` (trust `X-Forwarded-For`, only
 when a proxy is the sole way in).
 

@@ -23,6 +23,7 @@ from ..adb import adb_usb_devices
 from ..config import Config, load_config
 from ..db import connect
 from ..jobtext import jsonable
+from ..secrets import apply as apply_secrets
 from . import queue
 from .deps import AgentDeps
 
@@ -194,6 +195,7 @@ class AgentRunner:
 
     def _run_job(self, conn: sqlite3.Connection, job: queue.AgentJob) -> queue.AgentJob:
         self.config = config = self.load(self.config_path)  # settings saved meanwhile apply now
+        apply_secrets(config)  # the band's key and the API keys from the dashboard's store
 
         def log(line: str) -> None:
             queue.append_log(conn, job.id, line)

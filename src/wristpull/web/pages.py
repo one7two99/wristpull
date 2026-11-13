@@ -428,3 +428,123 @@ def sync_data(conn: sqlite3.Connection, config: Config, *, now: datetime, tz: Zo
         rows.append({"id": job.id, "title": job.title, "status": job.status, "cli": job.cli, "when": when, "seconds": job.seconds(now) if job.finished_utc else 0, "summary": summary})
     data["jobs"] = rows
     return data
+
+
+# ---- settings (parity W3): the config file, the secrets store, what .env still decides ------------
+
+SECRET_FIELDS = (
+    ("WRISTPULL_STRAP_AUTHKEY", "Band auth key", "32 hex digits, from Gadgetbridge's device settings or huami-token"),
+    ("ANTHROPIC_API_KEY", "Anthropic API key", "for the Claude coach backend"),
+    ("OPENROUTER_API_KEY", "OpenRouter API key", "for the OpenRouter coach backend"),
+)
+HOST_ENV = ("UID", "GID", "WRISTPULL_DATA", "WRISTPULL_HOST_DATA_DIR", "WRISTPULL_CONFIG", "WRISTPULL_SITE", "WRISTPULL_USB_GID")
+PASSWORD_MIN = 8
+
+
+def settings_data(config: Config, env: dict[str, str]) -> dict[str, Any]:
+    """Everything the settings page shows: the config fields, which secrets are set and where, the host values."""
+    from .. import secrets as store
+    from ..config import COACH_BACKENDS, COACH_EFFORTS, UI_LANGUAGES, default_config_path
+
+    c = config.coach
+    return {
+        "config_path": str(config.path or default_config_path(env)),
+        "data_dir": str(config.file_data_dir or config.data_dir),
+        "fields": {
+            "timezone": config.timezone,
+            "folders": ", ".join(config.garmin_folders),
+            "phone_serial": config.phone_serial or "",
+            "phone_export_dir": config.phone_export_dir,
+            "strap_address": config.strap_address,
+            "strap_adapter": config.strap_adapter,
+            "strap_since_days": config.strap_since_days,
+            "strap_keep_on_band": config.strap_keep_on_band,
+            "agent_import_on_plug": config.agent_import_on_plug,
+            "ui_language": config.ui_language or "",
+            "ui_range_days": config.ui_range_days,
+            "coach_backend": c.backend,
+            "coach_model": c.model,
+            "coach_weekly_model": c.weekly_model or "",
+            "coach_api_key_env": c.api_key_env or "",
+            "coach_ollama_url": c.ollama_url,
+            "coach_num_ctx": c.num_ctx,
+            "coach_max_tokens": c.max_tokens,
+            "coach_timeout_s": f"{c.timeout_s:g}",
+            "coach_token_budget": c.token_budget,
+            "coach_effort": c.effort,
+            "coach_language": c.language or "",
+        },
+        "backends": COACH_BACKENDS,
+        "efforts": COACH_EFFORTS,
+        "languages": UI_LANGUAGES,
+        "secrets": [{"key": key, "label": label, "hint": hint, "source": store.source_of(key, config, env)} for key, label, hint in SECRET_FIELDS],
+        "ollama_url": store.effective(store.OLLAMA_URL, config, env) or "",
+        "ollama_source": store.source_of(store.OLLAMA_URL, config, env),
+        "password_source": store.source_of(store.PASSWORD_HASH, config, env),
+        "host": [{"key": key, "value": env.get(key, "")} for key in HOST_ENV],
+        "store_path": str(store.path(config)),
+    }
+
+
+def _int_field(form: Any, name: str, default: int, problems: list[str]) -> int:
+    raw = str(form.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        problems.append(f"{name} must be a whole number")
+        return default
+
+
+def config_from_form(config: Config, form: Any) -> tuple[Config, list[str]]:
+    """A Config built from the settings form (not yet validated) plus the parse problems."""
+    from dataclasses import replace
+
+    problems: list[str] = []
+    text = lambda name: str(form.get(name) or "").strip()  # noqa: E731
+    flag = lambda name: form.get(name) is not None  # noqa: E731
+    try:
+        timeout = float(text("coach_timeout_s") or config.coach.timeout_s)
+    except ValueError:
+        problems.append("coach timeout must be a number")
+        timeout = config.coach.timeout_s
+    coach = replace(
+        config.coach,
+        backend=text("coach_backend") or config.coach.backend,
+        model=text("coach_model"),
+        weekly_model=text("coach_weekly_model") or None,
+        api_key_env=text("coach_api_key_env") or None,
+        ollama_url=text("coach_ollama_url") or "http://localhost:11434",
+        num_ctx=_int_field(form, "coach_num_ctx", config.coach.num_ctx, problems),
+        max_tokens=_int_field(form, "coach_max_tokens", config.coach.max_tokens, problems),
+        timeout_s=timeout,
+        token_budget=_int_field(form, "coach_token_budget", config.coach.token_budget, problems),
+        effort=text("coach_effort") or config.coach.effort,
+        language=text("coach_language") or None,
+    )
+    folders = [f.strip() for f in text("folders").split(",") if f.strip()]
+    cfg = replace(
+        config,
+        timezone=text("timezone") or config.timezone,
+        garmin_folders=folders or list(config.garmin_folders),
+        phone_serial=text("phone_serial") or None,
+        phone_export_dir=text("phone_export_dir") or config.phone_export_dir,
+        strap_address=text("strap_address").upper(),
+        strap_adapter=text("strap_adapter"),
+        strap_since_days=_int_field(form, "strap_since_days", config.strap_since_days, problems),
+        strap_keep_on_band=flag("strap_keep_on_band"),
+        agent_import_on_plug=flag("agent_import_on_plug"),
+        ui_language=text("ui_language") or None,
+        ui_range_days=_int_field(form, "ui_range_days", config.ui_range_days, problems),
+        coach=coach,
+    )
+    return cfg, problems
+
+
+def apply_config(target: Config, new: Config) -> None:
+    """Copy every field of ``new`` into the running ``target`` (the app closes over one Config object)."""
+    from dataclasses import fields
+
+    for f in fields(Config):
+        setattr(target, f.name, getattr(new, f.name))

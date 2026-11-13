@@ -17,6 +17,7 @@ from .importers.garmin import import_garmin
 from .importers.phone import import_gadgetbridge_db, import_gadgetbridge_fit_dir, pull_phone
 from .timeutil import iso_utc
 from .runtime import STRAP_AUTHKEY_ENV
+from .secrets import apply as apply_secrets
 from .zeppos import SOURCE as ZEPP_SOURCE
 from .status import collect_status, render_status
 
@@ -885,6 +886,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     config = load_config(args.config)
+    apply_secrets(config)  # values saved on the dashboard's settings page override .env and the shell
     if args.command == "import":
         if args.device == "gadgetbridge":
             return cmd_import_gadgetbridge(args, config)

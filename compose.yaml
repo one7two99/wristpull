@@ -16,18 +16,22 @@ services:
     user: "${UID:?set UID in .env}:${GID:?set GID in .env}"
     env_file: .env
     environment:
-      # `wristpull serve` refuses to start without the password hash and warns without the secret.
+      # Both optional: without a hash the dashboard accepts the start password "wristpull" once and forces a change;
+      # without a secret it generates one and keeps it in the secrets store. Values set on the settings page win.
       WRISTPULL_WEB_SECRET: ${WRISTPULL_WEB_SECRET:-}
       WRISTPULL_WEB_PASSWORD_HASH: ${WRISTPULL_WEB_PASSWORD_HASH:-}
+      WRISTPULL_CONFIG_FILE: /config/config.toml
       # Coach runs with Ollama: the host as seen from the container (see README before changing OLLAMA_HOST).
       WRISTPULL_OLLAMA_URL: ${WRISTPULL_OLLAMA_URL:-http://host.docker.internal:11434}
       # Coach API keys: taken from the shell that runs `docker compose up`, or from .env.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
-      # Read-write: coach runs, ratings, journal notes and workout files are written from the browser.
+      # Read-write: coach runs, ratings, journal notes, workout files and the secrets store (<data>/secrets.json,
+      # written by the settings page) live here.
       - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}:/data
-      - ${WRISTPULL_CONFIG:?set WRISTPULL_CONFIG in .env}:/config/config.toml:ro
+      # Read-write since the settings page saves the config file (the TUI's settings screen does the same via `cli`).
+      - ${WRISTPULL_CONFIG:?set WRISTPULL_CONFIG in .env}:/config/config.toml
     extra_hosts:
       # Ollama on the host as http://host.docker.internal:11434 (never OLLAMA_HOST=0.0.0.0, see README).
       - "host.docker.internal:host-gateway"

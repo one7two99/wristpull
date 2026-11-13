@@ -27,16 +27,21 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
+import os
+
+from .. import secrets as store
 from ..agent import queue
-from ..config import Config
+from ..config import Config, default_config_path, validate_config, write_config
 from ..db import connect
 from . import jobview, pages
-from .auth import RateLimiter, SessionCodec, new_session, verify_password
+from .auth import RateLimiter, SessionCodec, hash_password, new_session, verify_password
 from .i18n import pick_language, translations
 from .jobs import JobRegistry
 
 HERE = Path(__file__).parent
 COOKIE = "wristpull_session"
+INITIAL_PASSWORD = "wristpull"  # accepted only while no password hash exists anywhere; the login then forces a change
+PASSWORD_PATHS = ("/settings/password", "/logout")  # reachable while the password must still be changed
 CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 
 
@@ -46,6 +51,7 @@ class WebDeps:
 
     today: Callable[[], date] | None = None  # None: today in the configured time zone
     now: Callable[[], datetime] | None = None  # None: the clock (UTC); tests fix it to judge the agent's heartbeat
+    env: dict[str, str] | None = None  # None: os.environ (the settings page shows what .env decided)
     limiter: RateLimiter = field(default_factory=RateLimiter)
     coach_backend: Callable[[Config, str], Any] | None = None  # None: make_backend from the config
     jobs: JobRegistry | None = None  # None: a threaded registry on the configured database
@@ -119,9 +125,12 @@ def local_time(iso_utc: str | None, tz: ZoneInfo) -> str:
     return moment.strftime("%d.%m. %H:%M")
 
 
-def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps | None = None) -> Starlette:
+def create_app(config: Config, *, password_hash: str | None = None, secret: str, deps: WebDeps | None = None) -> Starlette:
+    """``password_hash`` is the environment's hash (may be None); a hash saved on the settings page wins, and
+    without either the start password is accepted and must be changed at the first login."""
     deps = deps or WebDeps()
     codec = SessionCodec(secret)
+    env = deps.env if deps.env is not None else os.environ
     jobs = deps.jobs or JobRegistry(config.db_path)
     tz = ZoneInfo(config.timezone)
     templates = Jinja2Templates(directory=str(HERE / "templates"))
@@ -169,10 +178,19 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
         sent = request.headers.get("x-csrf-token") or (form.get("csrf") if form is not None else None)
         return bool(session and sent and isinstance(sent, str) and sent == session.get("csrf"))
 
+    def current_hash() -> str | None:
+        """The password hash in force: the store (settings page) first, then the environment."""
+        return store.load(config).get(store.PASSWORD_HASH) or password_hash or None
+
+    def must_change(session: dict[str, Any]) -> bool:
+        return bool(session.get("must_change")) and current_hash() is None
+
     def require_user(request: Request) -> dict[str, Any] | Response:
         session = session_of(request)
         if not session or not session.get("user"):
             return RedirectResponse("/login", status_code=303)
+        if must_change(session) and request.url.path not in PASSWORD_PATHS:
+            return RedirectResponse("/settings/password?first=1", status_code=303)
         return session
 
     def client_key(request: Request) -> str:
@@ -185,7 +203,7 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
         if session and session.get("user"):
             return RedirectResponse("/", status_code=303)
         session = session or new_session()
-        return render(request, "login.html", session, {"error": None}, set_session=True)
+        return render(request, "login.html", session, {"error": None, "first_run": current_hash() is None}, set_session=True)
 
     async def login_submit(request: Request) -> Response:
         form = await request.form()
@@ -196,12 +214,18 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
         client = client_key(request)
         if deps.limiter.blocked(client):
             return render(request, "login.html", session, {"error": "blocked"}, status_code=429)
-        if not verify_password(str(form.get("password") or ""), password_hash):
+        encoded = current_hash()
+        given = str(form.get("password") or "")
+        first_login = encoded is None and given == INITIAL_PASSWORD
+        if not first_login and not (encoded and verify_password(given, encoded)):
             deps.limiter.failure(client)
-            return render(request, "login.html", session, {"error": "wrong"}, status_code=401)
+            return render(request, "login.html", session, {"error": "wrong", "first_run": encoded is None}, status_code=401)
         deps.limiter.success(client)
-        response = RedirectResponse("/", status_code=303)
-        set_cookie(response, new_session(user=True))  # a new CSRF token after login
+        response = RedirectResponse("/settings/password?first=1" if first_login else "/", status_code=303)
+        fresh = new_session(user=True)  # a new CSRF token after login
+        if first_login:
+            fresh["must_change"] = True
+        set_cookie(response, fresh)
         return response
 
     async def logout(request: Request) -> Response:
@@ -303,10 +327,87 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
         session = session_of(request)
         if not session or not session.get("user"):
             return RedirectResponse("/login", status_code=303)
+        if must_change(session) and request.url.path not in PASSWORD_PATHS:
+            return RedirectResponse("/settings/password?first=1", status_code=303)
         form = await request.form()
         if not csrf_ok(request, session, form):
             return PlainTextResponse("CSRF token missing or wrong", status_code=403)
         return session, form
+
+    # ---- settings: the config file, the secrets store, the password ------------------------
+
+    def settings_page(request: Request, session: dict[str, Any], *, problems: list[str] | None = None, saved: str | None = None, status_code: int = 200) -> Response:
+        data = pages.settings_data(config, dict(env))
+        return render(request, "settings.html", session, {"page": "settings", "d": data, "problems": problems or [], "saved": saved or request.query_params.get("saved")}, status_code=status_code)
+
+    def settings_get(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        return settings_page(request, session)
+
+    async def settings_config(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        cfg, problems = pages.config_from_form(config, form)
+        problems += validate_config(cfg)
+        if problems:
+            return settings_page(request, session, problems=problems, status_code=400)
+        target = config.path or default_config_path(env)
+        write_config(cfg, target)
+        cfg.path = target
+        pages.apply_config(config, cfg)
+        return RedirectResponse("/settings?saved=config", status_code=303)
+
+    async def settings_secrets(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        _session, form = got
+        changes: dict[str, str | None] = {}
+        for key, _label, _hint in pages.SECRET_FIELDS:
+            value = str(form.get(key) or "").strip()
+            if form.get(f"clear_{key}") is not None:
+                changes[key] = None
+            elif value:
+                changes[key] = value
+        if "ollama_url" in form:
+            url = str(form.get("ollama_url") or "").strip()
+            changes[store.OLLAMA_URL] = url or None
+            config.coach.ollama_url = url or config.coach.ollama_url
+        store.update(config, changes)
+        store.apply(config)
+        return RedirectResponse("/settings?saved=secrets", status_code=303)
+
+    def password_get(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        return render(request, "password.html", session, {"page": "settings", "first": bool(request.query_params.get("first")) or must_change(session), "error": None, "minimum": pages.PASSWORD_MIN})
+
+    async def password_post(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        current, new, repeat = (str(form.get(k) or "") for k in ("current", "new", "repeat"))
+        encoded = current_hash()
+        first = encoded is None
+        error = None
+        if first and current != INITIAL_PASSWORD or (not first and not verify_password(current, encoded)):
+            error = "current"
+        elif len(new) < pages.PASSWORD_MIN or new == INITIAL_PASSWORD:
+            error = "weak"
+        elif new != repeat:
+            error = "repeat"
+        if error:
+            return render(request, "password.html", session, {"page": "settings", "first": first, "error": error, "minimum": pages.PASSWORD_MIN}, status_code=400)
+        store.update(config, {store.PASSWORD_HASH: hash_password(new)})
+        response = RedirectResponse("/?saved=password" if first else "/settings?saved=password", status_code=303)
+        set_cookie(response, new_session(user=True))  # drops must_change, fresh CSRF token
+        return response
 
     def is_htmx(request: Request) -> bool:
         return request.headers.get("hx-request") == "true"
@@ -412,6 +513,7 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
         def run(conn: Any, log: Callable[[str], None]) -> dict[str, Any]:
             from ..coach.runner import run_coach
 
+            store.apply(config)  # API keys saved on the settings page override the environment
             backend = deps.coach_backend(config, kind) if deps.coach_backend else None
             result = run_coach(conn, config, kind, today=day, question=question, backend=backend, log=log)
             return {"run_id": result.run_id, "warnings": result.warnings}
@@ -563,6 +665,11 @@ def create_app(config: Config, *, password_hash: str, secret: str, deps: WebDeps
             Route("/activities/{activity_id:int}", activity_page),
             Route("/sleep", sleep_page),
             Route("/sleep/{sleep_id:int}", night_page),
+            Route("/settings", settings_get),
+            Route("/settings/config", settings_config, methods=["POST"]),
+            Route("/settings/secrets", settings_secrets, methods=["POST"]),
+            Route("/settings/password", password_get),
+            Route("/settings/password", password_post, methods=["POST"]),
             Route("/sync", sync_page),
             Route("/sync/run", sync_run, methods=["POST"]),
             Route("/sync/job", sync_job),

@@ -18,7 +18,8 @@ restore an archive made with `wristpull-backup`, writes `.env` (UID/GID, paths, 
 generated session secret, the dashboard password hashed in the container, API keys and the band's
 auth key typed without echo), builds the image, fills the config, installs the udev rule and the
 AppArmor profile (each `sudo` command is shown and confirmed), starts the dashboard, exports Caddy's
-root certificate and ends with `wristpull status`. It is safe to run again: every step reports "ok"
+root certificate and ends with `wristpull status`. Everything it asks for beyond UID/GID, paths and
+the LAN address can also be set later on the dashboard's Settings page (start password `wristpull`). It is safe to run again: every step reports "ok"
 for what is already done. It is plain bash, one function per step, written to be read.
 The sections below are the same steps by hand, and the reference for what the script does.
 
@@ -93,9 +94,11 @@ from the Zepp account with [huami-token](https://codeberg.org/argrento/huami-tok
 ## 6. Dashboard (phone in the home network)
 
 ```sh
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"           # -> WRISTPULL_WEB_SECRET in .env
-docker compose run --rm cli wristpull serve --hash-password              # -> WRISTPULL_WEB_PASSWORD_HASH in .env
 # WRISTPULL_SITE in .env: the LAN address Caddy serves, e.g. https://192.168.1.10:8443, https://localhost:8443
+# Optional, the old way: WRISTPULL_WEB_SECRET and WRISTPULL_WEB_PASSWORD_HASH in .env
+#   python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+#   docker compose run --rm cli wristpull serve --hash-password
+# Without them: log in with the start password "wristpull" and set your own at once; the secret is generated.
 docker compose up -d                                                     # web, caddy and the device agent
 docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./wristpull-root.crt   # install on the phone once
 ```
@@ -145,7 +148,8 @@ Everything wristpull knows lives in three places; nothing is stored inside the c
 |---|---|---|
 | data directory | `~/Health/wristpull` (`WRISTPULL_DATA`) | `raw/` (every device file, immutable), `wristpull.sqlite`, `adb/` (phone authorisation), `coach/` (goal profile, prompts), `workouts/`, `exports/`, `reports/`, `staging/` (may be empty) |
 | config | `~/.config/wristpull/config.toml` (`WRISTPULL_CONFIG`) | timezone, folders, `[strap] address`, coach and UI settings |
-| `.env` next to `compose.yaml` | the checkout | UID/GID, the two paths above, dashboard secrets, API keys, the band's auth key (`WRISTPULL_STRAP_AUTHKEY`) |
+| `.env` next to `compose.yaml` | the checkout | UID/GID, the two paths above, `WRISTPULL_SITE`; optionally dashboard secrets, API keys, the band's auth key (`WRISTPULL_STRAP_AUTHKEY`) |
+| secrets store | `~/Health/wristpull/secrets.json` (in the data directory, mode 0600) | what the Settings page saved: password hash, session secret, API keys, the band's auth key, the Ollama address; wins over `.env` |
 
 `wristpull backup` packs the three into one archive and unpacks it on the other side:
 

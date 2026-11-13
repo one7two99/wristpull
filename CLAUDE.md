@@ -76,7 +76,11 @@
   runs the same library calls as `tui/jobs.py` with the fakes injected through `AgentDeps`, writes log lines and the
   result as JSON, and keeps a heartbeat plus the USB presence from sysfs. Job kinds are a fixed, validated list
   (`agent/kinds.py`); the web app only enqueues (`web/app.py` → `queue.enqueue`) and renders through `web/jobview.py`.
-  `jobtext.py` holds the Textual-free result summaries shared by TUI and web. The `agent` service has the rights of
+  `jobtext.py` holds the Textual-free result summaries shared by TUI and web. Secrets store `src/wristpull/secrets.py`
+  (`<data_dir>/secrets.json`, 0600): the dashboard's Settings page writes the password hash, session secret, band key,
+  API keys and Ollama address there; the store overrides `.env` (`secrets.apply` at CLI start, per agent job, per coach
+  run); without any password hash the login accepts the start password `wristpull` once and forces a change
+  (`web/app.py` `must_change`). The config file is mounted read-write into `web` (Settings saves it). The `agent` service has the rights of
   `cli` (USB, host network, D-Bus, AppArmor profile) and no ports; `web` still gets none of them. Tests drive
   `AgentRunner.run_once()` with `FakeMtp`/`FakeAdb`/`FakeTransport` and a temp sysfs; never the real devices.
 - Watch over MTP (`src/wristpull/mtp.py`): libmtp CLI tools behind the `Mtp` protocol (`MtpTools`; exit codes mean

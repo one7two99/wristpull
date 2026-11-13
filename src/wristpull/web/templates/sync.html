@@ -10,36 +10,57 @@
 <div><span>{{ _("Device agent") }}</span><strong class="{% if d.agent.online %}good{% else %}bad{% endif %}">{% if d.agent.online %}{{ _("online") }}{% else %}{{ _("offline") }}{% endif %}</strong>{% if d.agent.last_seen %}<span class="muted small">{{ _("last seen {when}").format(when=d.agent.last_seen) }}</span>{% endif %}</div>
 <div><span>{{ _("Watch (USB)") }}</span><strong>{% if d.agent.watch_present %}{{ _("attached") }}{% elif d.agent.online %}{{ _("not attached") }}{% else %}–{% endif %}</strong></div>
 <div><span>{{ _("Phone (ADB)") }}</span><strong>{% if d.agent.phone_present %}{{ _("attached") }}{% elif d.agent.online %}{{ _("not attached") }}{% else %}–{% endif %}</strong>{% if d.phone_serial %}<span class="muted small">{{ d.phone_serial }}</span>{% endif %}</div>
-<div><span>{{ _("Strap (Bluetooth)") }}</span><strong{% if d.agent.bluetooth_ready is false %} class="bad"{% endif %}>{% if d.agent.bluetooth_ready is false %}{{ _("Bluetooth is off on the host") }}{% elif d.strap_address %}{{ d.strap_address }}{% else %}{{ _("not configured") }}{% endif %}</strong>{% if d.agent.bluetooth_ready is false %}<span class="muted small"><code>rfkill unblock bluetooth</code></span>{% elif d.strap_address %}<span class="muted small">{% if d.strap_has_key %}{{ _("key from the environment") }}{% else %}{{ _("no auth key (WRISTPULL_STRAP_AUTHKEY)") }}{% endif %}</span>{% endif %}</div>
+<div><span>{{ _("Strap (Bluetooth)") }}</span><strong{% if d.agent.bluetooth_ready is false %} class="bad"{% endif %}>{% if d.agent.bluetooth_ready is false %}{{ _("Bluetooth is off on the host") }}{% elif d.strap_address %}{{ _("configured") }}{% else %}{{ _("not configured") }}{% endif %}</strong>{% if d.agent.bluetooth_ready is false %}<span class="muted small"><code>rfkill unblock bluetooth</code></span>{% elif d.strap_address %}<span class="muted small">{% if d.strap_has_key %}{{ _("key from the environment") }}{% else %}{{ _("no auth key (WRISTPULL_STRAP_AUTHKEY)") }}{% endif %}</span>{% endif %}</div>
 </section>
 
-<section class="card actions">
+<section class="card">
+<h2>{{ _("Current job") }}</h2>
+{% with show_log = True, poll_url = "/sync/job", offline = (job and job.active and not d.agent.online) %}{% include "_job.html" %}{% endwith %}
+{% if not job %}<p class="muted">{{ _("No device jobs yet.") }}</p>{% endif %}
+</section>
+
+<div class="syncgrid">
+<section class="card devcard">
+<h2>{{ _("Watch (USB)") }}</h2>
+<p class="muted small">{{ _("Imports the new FIT files over MTP; with the agent running this also happens by itself when the watch is plugged in.") }}</p>
 <form method="post" action="/sync/run" hx-post="/sync/run" hx-target="#job" hx-swap="outerHTML">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="kind" value="import_garmin">
+<div class="options"><label class="check-label"><input type="checkbox" name="dry_run" value="1"> {{ _("Dry run") }}</label></div>
 <button type="submit" class="primary">{{ _("Import from the watch") }}</button>
-<label class="check-label"><input type="checkbox" name="dry_run" value="1"> {{ _("Dry run") }}</label>
 </form>
-<form method="post" action="/sync/run" hx-post="/sync/run" hx-target="#job" hx-swap="outerHTML" class="wrap">
+</section>
+<section class="card devcard">
+<h2>{{ _("Phone (ADB)") }}</h2>
+<p class="muted small">{{ _("Triggers the Gadgetbridge export and pulls the database and the watch files from the phone.") }}</p>
+<form method="post" action="/sync/run" hx-post="/sync/run" hx-target="#job" hx-swap="outerHTML">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="kind" value="pull_phone">
-<button type="submit" class="primary">{{ _("Pull the phone") }}</button>
-<input type="text" name="serial" value="{{ d.phone_serial or '' }}" placeholder="{{ _('serial (optional)') }}" aria-label="{{ _('Serial') }}" maxlength="64" class="narrow">
+<div class="options">
+<label class="check-label">{{ _("Serial") }} <input type="text" name="serial" value="{{ d.phone_serial or '' }}" placeholder="{{ _('optional') }}" maxlength="64" class="narrow"></label>
 <label class="check-label"><input type="checkbox" name="trigger" value="1" checked> {{ _("Trigger the export") }}</label>
 <label class="check-label"><input type="checkbox" name="sync" value="1" checked> {{ _("Sync the device first") }}</label>
 <label class="check-label">{{ _("Wait") }} <input type="number" name="wait" value="60" min="0" max="900" class="narrow num"> s</label>
 <label class="check-label"><input type="checkbox" name="dry_run" value="1"> {{ _("Dry run") }}</label>
+</div>
+<button type="submit" class="primary">{{ _("Pull the phone") }}</button>
 </form>
-<form method="post" action="/sync/run" hx-post="/sync/run" hx-target="#job" hx-swap="outerHTML" class="wrap">
+</section>
+<section class="card devcard">
+<h2>{{ _("Strap (Bluetooth)") }}</h2>
+<p class="muted small">{{ _("Fetches everything the band recorded since the last pull. The band must not be connected to the phone.") }}</p>
+<form method="post" action="/sync/run" hx-post="/sync/run" hx-target="#job" hx-swap="outerHTML">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="kind" value="pull_strap">
-<button type="submit" class="primary" {% if not d.strap_address %}disabled{% endif %}>{{ _("Pull the strap") }}</button>
+<div class="options">
 <label class="check-label">{{ _("Since days") }} <input type="number" name="since_days" min="1" max="3650" placeholder="{{ _('config') }}" class="narrow num"></label>
 <label class="check-label"><input type="checkbox" name="dry_run" value="1"> {{ _("Dry run") }}</label>
-{% if not d.strap_address %}<span class="muted small">{{ _("Set [strap] address first (wristpull strap scan).") }}</span>{% endif %}
+</div>
+<button type="submit" class="primary" {% if not d.strap_address %}disabled{% endif %}>{{ _("Pull the strap") }}</button>
+{% if not d.strap_address %}<span class="hint">{{ _("Set the band address under Settings first.") }}</span>{% endif %}
 </form>
-{% with show_log = True, poll_url = "/sync/job", offline = (job and job.active and not d.agent.online) %}{% include "_job.html" %}{% endwith %}
 </section>
+</div>
 
 <section class="card">
 <h2>{{ _("Recent jobs") }}</h2>
