@@ -180,6 +180,13 @@ def test_device_state_from_heartbeat(conn):
     assert queue.device_state(conn, now=NOW + timedelta(seconds=5))["bluetooth_ready"] is False
     stale = queue.device_state(conn, now=NOW + timedelta(seconds=60))
     assert not stale["online"] and not stale["watch_present"] and stale["last_seen_utc"] == "2026-11-13T07:00:00Z"
+    # a running job keeps the agent "online" for a while even when the heartbeat lags (a long write transaction)
+    job = queue.enqueue(conn, "pull_strap", {}, now=NOW)
+    queue.claim(conn, now=NOW)
+    assert queue.device_state(conn, now=NOW + timedelta(seconds=60))["online"]
+    assert not queue.device_state(conn, now=NOW + timedelta(seconds=601))["online"]
+    queue.finish(conn, job.id, result=None, now=NOW)
+    assert not queue.device_state(conn, now=NOW + timedelta(seconds=60))["online"]
 
 
 # ---- runner -----------------------------------------------------------------------------
@@ -286,6 +293,13 @@ def test_start_marks_stale_jobs_and_serve_runs_until_stopped(cfg_file: Path, con
 
     runner.deps.sleep = sleep
     assert runner.serve(0.0, install_signals=False) == 0 and runner.cycles == 3
+    assert runner.pulse_once() is True and queue.device_state(conn, now=NOW)["online"]
+    # the pulse yields while the job's connection holds the write lock instead of failing the job
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        assert runner.pulse_once() is False
+    finally:
+        conn.rollback()
     lines = status_lines(conn, now=NOW)
     assert lines[0].startswith("agent:      online") and lines[1] == "watch:      not attached" and lines[3] == "bluetooth:  adapter ready"
     assert lines[4].startswith(f"job:        #{job.id} watch_list error")

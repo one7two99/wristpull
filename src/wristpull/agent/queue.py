@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -20,6 +21,7 @@ ACTIVE = ("queued", "running")
 FINAL = ("done", "error", "stopped")
 LOG_CAP = 2000  # lines kept per job
 HEARTBEAT_MAX_AGE_S = 15  # the agent writes every second; beyond this it counts as offline
+RUNNING_GRACE_S = 600  # while a job runs, a heartbeat may age this much before "offline" (long write transactions)
 KEEP_JOBS = 50
 
 
@@ -207,6 +209,18 @@ def set_state(conn: sqlite3.Connection, values: dict[str, str], *, now: datetime
         conn.commit()
 
 
+def pulse(db_path, *, now: datetime | None = None, wait_s: float = 0.5) -> bool:
+    """The heartbeat alone, on a short-lived connection of its own (the agent's side thread while a job
+    runs); False when the database was busy or the write failed, which the next second repairs."""
+    try:
+        with closing(sqlite3.connect(str(db_path), timeout=wait_s)) as conn:
+            conn.execute("INSERT OR REPLACE INTO agent_state (key, value, updated_utc) VALUES ('heartbeat', '1', ?)", (_now(now),))
+            conn.commit()
+        return True
+    except sqlite3.Error:
+        return False
+
+
 def get_state(conn: sqlite3.Connection) -> dict[str, tuple[str, str]]:
     """``key -> (value, updated_utc)``."""
     return {str(r[0]): (str(r[1]), str(r[2])) for r in conn.execute("SELECT key, value, updated_utc FROM agent_state").fetchall()}
@@ -222,6 +236,9 @@ def device_state(conn: sqlite3.Connection, *, now: datetime | None = None, max_a
         when = _parse(heartbeat[1])
         age = int((now - when).total_seconds()) if when else None
     online = age is not None and 0 <= age <= max_age_s
+    if not online and age is not None and 0 <= age <= RUNNING_GRACE_S:
+        running = conn.execute("SELECT 1 FROM agent_jobs WHERE status = 'running' LIMIT 1").fetchone()
+        online = running is not None
     bluetooth = state.get("bluetooth_ready")
     return {
         "online": online,

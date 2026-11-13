@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import signal
 import sqlite3
+import threading
 from collections.abc import Callable
 from contextlib import closing
 from dataclasses import replace
@@ -118,6 +119,7 @@ class AgentRunner:
         self.config = load(config_path)
         self.stop_serving = False
         self.cycles = 0
+        self._pulse: threading.Thread | None = None  # keeps the heartbeat alive while a job runs (serve() only)
         self._watch_since: datetime | None = None  # first cycle the watch was seen in this plug-in
         self._watch_last_seen: datetime | None = None
         self._plug_handled = False  # an import was enqueued for this plug-in
@@ -168,6 +170,17 @@ class AgentRunner:
             self._plug_handled = False
         return None
 
+    def pulse_once(self) -> bool:
+        """One heartbeat from the side thread, on its own connection; False when the database was busy
+        (the job's connection holds a write transaction) or the write failed, which is fine: the next
+        second tries again."""
+        return queue.pulse(self.db_path, now=self.deps.now())
+
+    def _pulse_loop(self) -> None:
+        while not self.stop_serving:
+            self.pulse_once()
+            self.deps.sleep(1.0)
+
     def run_once(self) -> queue.AgentJob | None:
         """One cycle: heartbeat and USB presence, then the oldest queued job, if any. Returns the finished job."""
         self.cycles += 1
@@ -214,6 +227,10 @@ class AgentRunner:
             for sig in (signal.SIGTERM, signal.SIGINT):
                 signal.signal(sig, lambda *_a: setattr(self, "stop_serving", True))
         self.start()
+        # A job blocks this loop for minutes (a strap fetch, an MTP transfer); the side thread keeps the
+        # heartbeat fresh so the dashboard does not report the agent as offline meanwhile.
+        self._pulse = threading.Thread(target=self._pulse_loop, name="wristpull-agent-pulse", daemon=True)
+        self._pulse.start()
         while not self.stop_serving:
             self.run_once()
             if self.stop_serving:
