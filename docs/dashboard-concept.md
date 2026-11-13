@@ -198,7 +198,10 @@ Web and agent talk through the SQLite database they already share (WAL, exactly 
   into `agent_state`. The dashboard shows "watch attached / phone attached / agent online" from
   that table and never probes the MTP tools itself.
 - The agent reloads the config file for every job, so settings saved in the browser apply to the
-  next job. Results are rendered with the same summary lines as in the TUI
+  next job. With `[agent] import_on_plug = true` (default) it enqueues `import garmin` by itself once
+  the watch has been on USB for ten seconds (the fenix enumerates twice), once per plug-in; this
+  replaces the udev-started import unit. It also reports whether the host's Bluetooth adapter is
+  rfkill-blocked (the device card shows it). Results are rendered with the same summary lines as in the TUI
   (`src/wristpull/jobtext.py`, Textual-free, shared by both shells).
 
 Rejected: giving `web` the `cli` rights (a network-reachable process with the whole USB bus, the

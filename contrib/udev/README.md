@@ -21,6 +21,9 @@ With the rule the desktop no longer offers the watch as a drive; that is intende
 hold the device while the container opens it). To use the watch on the desktop again, remove the
 rule and reload.
 
-The dashboard's device agent (Compose service `agent`) opens the watch the same way when a job is
-started from the browser. The udev import unit and the agent may meet at the watch: whichever comes
-second gets libmtp's "device busy" message and can simply be run again, nothing is lost.
+The dashboard's device agent (Compose service `agent`) opens the watch the same way, for jobs
+started from the browser and, with `[agent] import_on_plug = true` (the default), by itself when the
+watch is plugged in. The rule is still needed for the permissions and to keep the desktop away; the
+import unit is not: with the agent running, mask it (`systemctl --user mask
+wristpull-import-docker.service`), or the two open the watch at the same time and one of them gets
+libmtp's "device busy" message.

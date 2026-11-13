@@ -499,7 +499,7 @@ def test_sync_page_enqueues_for_the_agent_and_polls_until_done(seeded: Config, p
     assert "agent is offline" in queued.text and "Stop after the current file" in queued.text
     with connect(seeded.db_path) as conn:
         job = queue.current(conn)
-        assert job.kind == "import_garmin" and job.params == {"dry_run": True} and job.cli == "wristpull import garmin --dry-run"
+        assert job.kind == "import_garmin" and job.params == {"dry_run": True, "auto": False} and job.cli == "wristpull import garmin --dry-run"
     busy = client.post("/sync/run", data={"csrf": token, "kind": "pull_strap"}, headers={"hx-request": "true"})
     assert "Another job is still running" in busy.text
     plain = client.post("/sync/run", data={"csrf": token, "kind": "pull_strap"})

@@ -1341,6 +1341,9 @@ msgstr "Der Geräte-Agent führt diese Jobs neben dem Dashboard aus; einen nach 
 msgid "Device agent"
 msgstr "Geräte-Agent"
 
+msgid "Bluetooth is off on the host"
+msgstr "Bluetooth ist auf dem Rechner ausgeschaltet"
+
 msgid "online"
 msgstr "erreichbar"
 

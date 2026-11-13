@@ -69,9 +69,9 @@ docker compose run --rm cli wristpull import garmin
 ```
 
 `WRISTPULL_USB_GID` in `.env` is the `plugdev` GID (`getent group plugdev | cut -d: -f3`, 46 on
-Debian/Ubuntu). The rule also starts `wristpull-import-docker.service` on plug-in if you install
-the unit from `contrib/systemd/` (optional; `loginctl enable-linger $USER` for runs without a
-desktop session).
+Debian/Ubuntu). The import on plug-in is the device agent's job (step 6, `[agent] import_on_plug`,
+on by default); the udev rule's `wristpull-import-docker.service` from `contrib/systemd/` is the
+older way for a machine without the agent and must not be installed next to it.
 
 ## 5. Strap over Bluetooth (AppArmor profile, auth key)
 
@@ -125,8 +125,8 @@ contrib/bin/wristpull-morning strap      # one step only
 Or from the browser: the dashboard's Sync page starts the same jobs on the device agent, with a
 live log and the stop button.
 
-`contrib/systemd/` has optional timers and the plug-in import service for the `cli` service; the
-coach's cloud backends take their API keys from `.env`.
+`contrib/systemd/` has optional timers for the `cli` service (and the plug-in import service the
+agent replaces); the coach's cloud backends take their API keys from `.env`.
 
 ## 9. Updating
 

@@ -21,6 +21,9 @@ ADAPTER_HINT = (
 )
 
 
+RFKILL_HINT = "the host's Bluetooth is switched off (`rfkill list bluetooth` says soft blocked, or the desktop's Bluetooth toggle): `rfkill unblock bluetooth`"
+
+
 def ble_error(exc: Exception, what: str) -> BandError:
     """A BandError with a hint for the usual BlueZ failures (D-Bus denied, no adapter, a stuck adapter)."""
     text = str(exc) or type(exc).__name__
@@ -29,6 +32,8 @@ def ble_error(exc: Exception, what: str) -> BandError:
         return BandError(f"{what}: timed out ({text}); {ADAPTER_HINT}")
     if "accessdenied" in lowered or "apparmor" in lowered or "not authorized" in lowered or "permission" in lowered:
         return BandError(f"{what}: {DBUS_HINT} ({text})")
+    if "no bluetooth adapters" in lowered:
+        return BandError(f"{what}: {RFKILL_HINT} ({text})")
     if "no powered bluetooth" in lowered or ("adapter" in lowered and "not found" in lowered):
         return BandError(f"{what}: no powered Bluetooth adapter ({text})")
     return BandError(f"{what}: {text}")

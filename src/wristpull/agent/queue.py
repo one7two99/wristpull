@@ -222,11 +222,13 @@ def device_state(conn: sqlite3.Connection, *, now: datetime | None = None, max_a
         when = _parse(heartbeat[1])
         age = int((now - when).total_seconds()) if when else None
     online = age is not None and 0 <= age <= max_age_s
+    bluetooth = state.get("bluetooth_ready")
     return {
         "online": online,
         "heartbeat_age_s": age,
         "last_seen_utc": heartbeat[1] if heartbeat else None,
         "watch_present": online and state.get("watch_present", ("0", ""))[0] == "1",
         "phone_present": online and state.get("phone_present", ("0", ""))[0] == "1",
+        "bluetooth_ready": (bluetooth[0] == "1") if (online and bluetooth) else None,  # None: unknown
         "version": state.get("agent_version", ("", ""))[0] or None,
     }

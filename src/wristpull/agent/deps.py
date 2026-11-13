@@ -25,3 +25,4 @@ class AgentDeps:
     today: Callable[[], date] = date.today
     now: Callable[[], datetime] = lambda: datetime.now(UTC)
     sysfs: Path = SYSFS_USB  # where the USB presence is read from
+    sys_class: Path = Path("/sys/class")  # rfkill and bluetooth: is the host's adapter switched on?

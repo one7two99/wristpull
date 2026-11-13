@@ -6,7 +6,7 @@ machine that runs unattended, such as the planned hub.
 
 | Unit | What it does |
 |---|---|
-| `wristpull-import-docker.service` | oneshot USB import, started by `../udev/91-wristpull-garmin-docker.rules` when the watch is plugged in |
+| `wristpull-import-docker.service` | oneshot USB import, started by `../udev/91-wristpull-garmin-docker.rules` when the watch is plugged in. **Superseded by the device agent** (Compose service `agent`, since 2026-11-13): with `[agent] import_on_plug = true` (the default) the agent imports by itself as soon as the watch appears on USB. Do not install both: they would open the watch at the same time (`systemctl --user mask wristpull-import-docker.service` silences an installed copy). |
 | `wristpull-pull-docker.service` / `.timer` | `wristpull pull phone` every morning at 06:45 (and 15 minutes after boot) |
 | `wristpull-coach-daily-docker.service` / `.timer` | `wristpull coach daily` at 07:00, after the pull |
 

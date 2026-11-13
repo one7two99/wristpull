@@ -16,7 +16,7 @@
 <div><span>{{ _("Device agent") }}</span><strong class="{% if devices.agent.online %}good{% else %}bad{% endif %}">{% if devices.agent.online %}{{ _("online") }}{% else %}{{ _("offline") }}{% endif %}</strong></div>
 <div><span>{{ _("Watch (USB)") }}</span><strong>{% if devices.agent.watch_present %}{{ _("attached") }}{% elif devices.agent.online %}{{ _("not attached") }}{% else %}–{% endif %}</strong></div>
 <div><span>{{ _("Phone (ADB)") }}</span><strong>{% if devices.agent.phone_present %}{{ _("attached") }}{% elif devices.agent.online %}{{ _("not attached") }}{% else %}–{% endif %}</strong></div>
-<div><span>{{ _("Strap (Bluetooth)") }}</span><strong>{% if devices.strap_address %}{{ _("configured") }}{% else %}{{ _("not configured") }}{% endif %}</strong></div>
+<div><span>{{ _("Strap (Bluetooth)") }}</span><strong{% if devices.agent.bluetooth_ready is false %} class="bad"{% endif %}>{% if devices.agent.bluetooth_ready is false %}{{ _("Bluetooth is off on the host") }}{% elif devices.strap_address %}{{ _("configured") }}{% else %}{{ _("not configured") }}{% endif %}</strong></div>
 </div>
 {% if devices.job %}<p class="muted small">{{ _("Last device job: {title}, {status}").format(title=_(devices.job.title), status=_(devices.job.status)) }}{% if devices.job.lines %} · {{ devices.job.lines[0] }}{% endif %}</p>{% endif %}
 <form method="post" action="/sync/run" class="inline wrap">

@@ -732,7 +732,9 @@ coach runs, ratings, journal notes and edited workout files.
 
 - **Device agent:** `agent` starts with `docker compose up -d` and needs the same host preparation
   as `cli` (udev rule, AppArmor profile, `WRISTPULL_USB_GID`, the strap key in `.env`): the setup
-  script does all of it. Without the AppArmor profile only this service fails to start and the
+  script does all of it. It also imports by itself when the watch is plugged in (`[agent]
+  import_on_plug`), and the device card says when the host's Bluetooth is switched off (rfkill),
+  the usual reason for "No Bluetooth adapters found". Without the AppArmor profile only this service fails to start and the
   dashboard says "device agent offline"; the jobs then wait in the queue until it is back. The agent
   has no ports and listens on nothing. `wristpull agent --status` (through `cli`) prints its
   heartbeat and the current job, `wristpull agent --once` runs one cycle by hand. When the agent and
@@ -824,12 +826,16 @@ and can be run on its own (`wristpull-morning strap`). The Gadgetbridge way (syn
 phone in, `pull phone`) is still there as the `phone` step for anyone who keeps the app.
 
 
-`contrib/systemd/` has user units for anyone who wants timers anyway (`pull phone` at 06:45, `coach
-daily` at 07:00, each `docker compose run --rm -T cli …`) and the oneshot import service that
-`contrib/udev/91-wristpull-garmin-docker.rules` starts when the watch is plugged in; the rule also
-makes the device readable for `plugdev` and hides the watch from the desktop's MTP handling, and the
-setup script installs it. Both READMEs explain installation; `loginctl enable-linger` lets everything
-run without a logged-in session. Keep the order the watch dictates:
+With the device agent running (`docker compose up -d`), plugging the watch in is enough: the agent
+sees it on USB, waits ten seconds for the fenix's second enumeration and imports (`[agent]
+import_on_plug`, on by default; the Sync page shows the job). `contrib/systemd/` has user units for
+anyone who wants timers anyway (`pull phone` at 06:45, `coach daily` at 07:00, each `docker compose
+run --rm -T cli …`) and the older oneshot import service that
+`contrib/udev/91-wristpull-garmin-docker.rules` can start when the watch is plugged in (not next to
+the agent); the rule itself is still needed: it makes the device readable for `plugdev` and hides
+the watch from the desktop's MTP handling, and the setup script installs it. Both READMEs explain
+installation; `loginctl enable-linger` lets everything run without a logged-in session. Keep the
+order the watch dictates:
 USB import before any phone app syncs, because Garmin deletes monitoring files once they were fetched.
 While the watch is on the cable anyway, `wristpull workout push --upcoming` copies the planned
 workouts over; the import service template shows where that step belongs.

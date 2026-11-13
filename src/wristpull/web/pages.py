@@ -405,6 +405,7 @@ def devices_data(conn: sqlite3.Connection, config: Config, *, now: datetime) -> 
             "online": state["online"],
             "watch_present": state["watch_present"],
             "phone_present": state["phone_present"],
+            "bluetooth_ready": state["bluetooth_ready"],
             "last_seen": state["last_seen_utc"],
             "version": state["version"],
         },

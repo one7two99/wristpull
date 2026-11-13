@@ -49,6 +49,11 @@ since_days = {strap_since_days}
 # Leave the data on the band after fetching (false: the band may delete what it sent).
 keep_on_band = {strap_keep_on_band}
 
+[agent]
+# The device agent (Docker service `agent`, `wristpull agent`) runs the jobs the dashboard starts. With
+# import_on_plug it also imports from the watch by itself as soon as the watch is plugged in (no udev unit needed).
+import_on_plug = {agent_import_on_plug}
+
 [ui]
 # Language of the terminal UI (wristpull tui): "de", "en" or "" for the system locale.
 language = "{ui_language}"
@@ -166,6 +171,7 @@ class Config:
     strap_adapter: str = ""
     strap_since_days: int = 30
     strap_keep_on_band: bool = True
+    agent_import_on_plug: bool = True  # the agent enqueues `import garmin` when the watch appears on USB
     ui_language: str | None = None  # None: follow the system locale
     ui_theme: str = "textual-dark"
     ui_range_days: int = 28
@@ -195,6 +201,7 @@ class Config:
             strap_adapter=self.strap_adapter,
             strap_since_days=self.strap_since_days,
             strap_keep_on_band="true" if self.strap_keep_on_band else "false",
+            agent_import_on_plug="true" if self.agent_import_on_plug else "false",
             ui_language=self.ui_language or "",
             ui_theme=self.ui_theme,
             ui_range_days=self.ui_range_days,
@@ -278,6 +285,9 @@ def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = Non
         cfg.strap_since_days = int(strap["since_days"])
     if strap.get("keep_on_band") is not None:
         cfg.strap_keep_on_band = bool(strap["keep_on_band"])
+    agent = data.get("agent", {})
+    if agent.get("import_on_plug") is not None:
+        cfg.agent_import_on_plug = bool(agent["import_on_plug"])
     ui = data.get("ui", {})
     if ui.get("language"):
         cfg.ui_language = str(ui["language"])

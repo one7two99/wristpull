@@ -121,3 +121,14 @@ def test_toml_path_uses_tilde_and_forward_slashes(monkeypatch):
     assert toml_path(Path("/srv/wp")) == "/srv/wp"
     assert toml_path(Path(str(home) + "sibling")) == (str(home) + "sibling").replace("\\", "/")  # a prefix, not the home itself
     assert toml_path(Path(r"C:\Users\x\Health")) == "C:/Users/x/Health"  # Windows: forward slashes keep the TOML valid
+
+
+def test_agent_section_roundtrip(tmp_path: Path):
+    assert Config().agent_import_on_plug is True
+    path = tmp_path / "config.toml"
+    path.write_text('[agent]\nimport_on_plug = false\n', "utf-8")
+    cfg = load_config(path)
+    assert cfg.agent_import_on_plug is False
+    assert "[agent]\n" in cfg.render() and "import_on_plug = false" in cfg.render()
+    written = write_config(cfg, tmp_path / "out" / "config.toml")
+    assert load_config(written).agent_import_on_plug is False and validate_config(cfg) == []

@@ -93,7 +93,7 @@ CLI = {
 KINDS: dict[str, KindSpec] = {
     spec.key: spec
     for spec in (
-        KindSpec("import_garmin", "Import Garmin", (Field("dry_run", "bool", False),), stoppable=True),
+        KindSpec("import_garmin", "Import Garmin", (Field("dry_run", "bool", False), Field("auto", "bool", False)), stoppable=True),
         KindSpec(
             "pull_phone",
             "Pull phone",

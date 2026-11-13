@@ -14,7 +14,7 @@ from fake_mtp import FakeMtp
 from wristpull.agent import queue
 from wristpull.agent.deps import AgentDeps
 from wristpull.agent.kinds import KINDS, validate
-from wristpull.agent.runner import RESTART_MESSAGE, AgentRunner, status_lines, usb_vendor_present
+from wristpull.agent.runner import AUTO_LINE, PLUG_SETTLE_S, RESTART_MESSAGE, UNPLUG_RESET_S, AgentRunner, bluetooth_ready, status_lines, usb_vendor_present
 from wristpull.cli import main
 from wristpull.config import Config
 from wristpull.db import connect
@@ -59,7 +59,23 @@ def fake_sysfs(tmp_path: Path, *, watch: bool = False, phone: bool = False) -> P
     return sysfs
 
 
-def deps_for(tmp_path: Path, *, garmin_tree: Path | None = None, sysfs: Path | None = None, transport=None, adb=None) -> AgentDeps:
+def fake_sys_class(tmp_path: Path, *, adapter: bool = True, soft: str = "0", hard: str = "0") -> Path:
+    """``/sys/class`` with an rfkill switch of type bluetooth and (optionally) the adapter hci0."""
+    sys_class = tmp_path / "sys_class"
+    (sys_class / "rfkill" / "rfkill0").mkdir(parents=True, exist_ok=True)
+    (sys_class / "rfkill" / "rfkill0" / "type").write_text("bluetooth\n")
+    (sys_class / "rfkill" / "rfkill0" / "soft").write_text(soft + "\n")
+    (sys_class / "rfkill" / "rfkill0" / "hard").write_text(hard + "\n")
+    (sys_class / "rfkill" / "rfkill1").mkdir(exist_ok=True)
+    (sys_class / "rfkill" / "rfkill1" / "type").write_text("wlan\n")
+    (sys_class / "rfkill" / "rfkill1" / "soft").write_text("1\n")
+    (sys_class / "bluetooth").mkdir(exist_ok=True)
+    if adapter:
+        (sys_class / "bluetooth" / "hci0").mkdir(exist_ok=True)
+    return sys_class
+
+
+def deps_for(tmp_path: Path, *, garmin_tree: Path | None = None, sysfs: Path | None = None, transport=None, adb=None, now=None) -> AgentDeps:
     mtp_root = garmin_tree.parent if garmin_tree else tmp_path / "no-watch"
     return AgentDeps(
         adb_factory=lambda: adb or FakeAdb(tmp_path / "phone", devices=[]),
@@ -67,8 +83,9 @@ def deps_for(tmp_path: Path, *, garmin_tree: Path | None = None, sysfs: Path | N
         transport_factory=transport,
         sleep=lambda _s: None,
         today=lambda: NOW.date(),
-        now=lambda: NOW,
+        now=now or (lambda: NOW),
         sysfs=sysfs or fake_sysfs(tmp_path),
+        sys_class=fake_sys_class(tmp_path),
     )
 
 
@@ -80,8 +97,8 @@ def runner_for(cfg_file: Path, config: Config, deps: AgentDeps) -> AgentRunner:
 
 
 def test_validate_types_and_defaults_the_parameters():
-    assert validate("import_garmin", {}) == {"dry_run": False}
-    assert validate("import_garmin", {"dry_run": "on"}) == {"dry_run": True}
+    assert validate("import_garmin", {}) == {"dry_run": False, "auto": False}
+    assert validate("import_garmin", {"dry_run": "on"}) == {"dry_run": True, "auto": False}
     phone = validate("pull_phone", {"serial": " ABC123 ", "trigger": "0", "wait": "90"})
     assert phone == {"serial": "ABC123", "trigger": False, "sync": True, "wait": 90, "dry_run": False}
     assert validate("pull_strap", {"since_days": ""}) == {"dry_run": False, "since_days": None}
@@ -112,7 +129,7 @@ def test_validate_types_and_defaults_the_parameters():
 
 def test_queue_roundtrip_one_job_at_a_time(conn):
     job = queue.enqueue(conn, "import_garmin", {"dry_run": "1"}, now=NOW)
-    assert job is not None and job.status == "queued" and job.params == {"dry_run": True} and job.cli == "wristpull import garmin --dry-run"
+    assert job is not None and job.status == "queued" and job.params == {"dry_run": True, "auto": False} and job.cli == "wristpull import garmin --dry-run"
     assert job.title == "Import Garmin" and job.stoppable and job.seconds(NOW + timedelta(seconds=3)) == 3
     assert queue.enqueue(conn, "pull_strap", {}, now=NOW) is None  # one at a time
     with pytest.raises(ValueError):
@@ -154,10 +171,13 @@ def test_queue_log_cap_and_stale_jobs(conn):
 
 
 def test_device_state_from_heartbeat(conn):
-    assert queue.device_state(conn, now=NOW) == {"online": False, "heartbeat_age_s": None, "last_seen_utc": None, "watch_present": False, "phone_present": False, "version": None}
+    assert queue.device_state(conn, now=NOW) == {"online": False, "heartbeat_age_s": None, "last_seen_utc": None, "watch_present": False, "phone_present": False, "bluetooth_ready": None, "version": None}
     queue.set_state(conn, {"heartbeat": "1", "watch_present": "1", "phone_present": "0", "agent_version": "0.2.0"}, now=NOW)
     state = queue.device_state(conn, now=NOW + timedelta(seconds=5))
     assert state["online"] and state["watch_present"] and not state["phone_present"] and state["heartbeat_age_s"] == 5 and state["version"] == "0.2.0"
+    assert state["bluetooth_ready"] is None  # the agent said nothing about it
+    queue.set_state(conn, {"bluetooth_ready": "0"}, now=NOW)
+    assert queue.device_state(conn, now=NOW + timedelta(seconds=5))["bluetooth_ready"] is False
     stale = queue.device_state(conn, now=NOW + timedelta(seconds=60))
     assert not stale["online"] and not stale["watch_present"] and stale["last_seen_utc"] == "2026-11-13T07:00:00Z"
 
@@ -172,7 +192,11 @@ def test_run_once_heartbeat_and_usb_presence(cfg_file: Path, config: Config, tmp
     assert runner.run_once() is None  # nothing queued
     conn = connect(config.db_path)
     state = queue.device_state(conn, now=NOW)
-    assert state["online"] and state["watch_present"] and state["phone_present"]
+    assert state["online"] and state["watch_present"] and state["phone_present"] and state["bluetooth_ready"] is True
+    assert bluetooth_ready(fake_sys_class(tmp_path / "off", soft="1")) is False
+    assert bluetooth_ready(fake_sys_class(tmp_path / "hard", hard="1")) is False
+    assert bluetooth_ready(fake_sys_class(tmp_path / "none", adapter=False)) is False
+    assert bluetooth_ready(tmp_path / "not-linux") is None
 
 
 def test_run_once_imports_from_the_fake_watch(cfg_file: Path, config: Config, tmp_path: Path, garmin_tree: Path):
@@ -263,7 +287,53 @@ def test_start_marks_stale_jobs_and_serve_runs_until_stopped(cfg_file: Path, con
     runner.deps.sleep = sleep
     assert runner.serve(0.0, install_signals=False) == 0 and runner.cycles == 3
     lines = status_lines(conn, now=NOW)
-    assert lines[0].startswith("agent:      online") and lines[1] == "watch:      not attached" and lines[3].startswith(f"job:        #{job.id} watch_list error")
+    assert lines[0].startswith("agent:      online") and lines[1] == "watch:      not attached" and lines[3] == "bluetooth:  adapter ready"
+    assert lines[4].startswith(f"job:        #{job.id} watch_list error")
+
+
+def test_import_on_plug_once_per_plug_in(cfg_file: Path, config: Config, tmp_path: Path, garmin_tree: Path):
+    clock = [NOW]
+    sysfs = fake_sysfs(tmp_path)
+    runner = runner_for(cfg_file, config, deps_for(tmp_path, garmin_tree=garmin_tree, sysfs=sysfs, now=lambda: clock[0]))
+    conn = connect(config.db_path)
+
+    def plug(present: bool) -> None:
+        dev = sysfs / "1-3"
+        if present and not dev.exists():
+            dev.mkdir()
+            (dev / "idVendor").write_text("091e\n")
+            (dev / "idProduct").write_text("4cdb\n")
+        if not present and dev.exists():
+            (dev / "idVendor").unlink()
+            (dev / "idProduct").unlink()
+            dev.rmdir()
+
+    def tick(seconds: int, present: bool):
+        clock[0] += timedelta(seconds=seconds)
+        plug(present)
+        return runner.run_once()
+
+    assert tick(1, False) is None and tick(1, True) is None  # just plugged in: not yet
+    assert tick(2, False) is None  # the fenix re-enumerates: a short absence does not reset
+    for _ in range(PLUG_SETTLE_S - 3):
+        assert tick(1, True) is None
+    done = tick(1, True)  # settled: the agent enqueued and ran the import in the same cycle
+    assert done is not None and done.kind == "import_garmin" and done.params == {"dry_run": False, "auto": True} and done.status == "done"
+    assert done.result["new"] == 5 and AUTO_LINE in queue.log_lines(conn, done.id)
+    for _ in range(5):
+        assert tick(1, True) is None  # still plugged in: nothing more
+    assert tick(UNPLUG_RESET_S + 1, False) is None  # unplugged for good
+    for _ in range(PLUG_SETTLE_S):
+        tick(1, True)
+    again = tick(1, True)  # plugged in again: a second import (finds everything archived)
+    assert again is not None and again.params["auto"] and again.result["skipped"] == 5
+    # switched off in the config: nothing happens on the next plug-in
+    cfg_file.write_text(cfg_file.read_text("utf-8") + "[agent]\nimport_on_plug = false\n", "utf-8")
+    runner.load = lambda _p: __import__("wristpull.config", fromlist=["load_config"]).load_config(cfg_file)
+    tick(UNPLUG_RESET_S + 1, False)
+    for _ in range(PLUG_SETTLE_S + 2):
+        assert tick(1, True) is None
+    assert len(queue.recent(conn)) == 2
 
 
 def test_runner_has_no_sql():
