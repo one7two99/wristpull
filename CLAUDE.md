@@ -70,6 +70,15 @@
   The Docker stack on Linux is the primary way to run wristpull; the native uv install is for development and for
   macOS/Windows (`docs/platforms.md`). There are no native systemd units or udev rules any more, only the Docker ones.
   `docs/history/` holds the original German work orders, unmaintained.
+- Device agent (`src/wristpull/agent/`, `wristpull agent`, Compose service `agent`; concept: "Parity with the TUI" in
+  `docs/dashboard-concept.md`): the only way the browser reaches the watch, the phone and the band. `agent/queue.py` is
+  SQL only (tables `agent_jobs`, `agent_job_log`, `agent_state`); `agent/runner.py` claims one queued job at a time,
+  runs the same library calls as `tui/jobs.py` with the fakes injected through `AgentDeps`, writes log lines and the
+  result as JSON, and keeps a heartbeat plus the USB presence from sysfs. Job kinds are a fixed, validated list
+  (`agent/kinds.py`); the web app only enqueues (`web/app.py` → `queue.enqueue`) and renders through `web/jobview.py`.
+  `jobtext.py` holds the Textual-free result summaries shared by TUI and web. The `agent` service has the rights of
+  `cli` (USB, host network, D-Bus, AppArmor profile) and no ports; `web` still gets none of them. Tests drive
+  `AgentRunner.run_once()` with `FakeMtp`/`FakeAdb`/`FakeTransport` and a temp sysfs; never the real devices.
 - Watch over MTP (`src/wristpull/mtp.py`): libmtp CLI tools behind the `Mtp` protocol (`MtpTools`; exit codes mean
   nothing, stdout/stderr markers decide, fixtures in `tests/fixtures/mtp/`). The watch is always reached over MTP;
   `--path DIR` imports a directory instead (`LocalWatch`); there is no mount code (removed 2026-11-08). Import goes through `<data_dir>/staging/` (`importers.garmin.import_garmin_mtp`, name+size

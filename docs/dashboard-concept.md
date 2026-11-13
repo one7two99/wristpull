@@ -4,7 +4,8 @@ Status: concept approved 2026-11-03; D1 implemented the same day (`wristpull ser
 scrypt hash, signed session, CSRF, rate limit, pages Today and Trends, Dockerfile, Compose, Caddy); D2 the same day (Activities and Sleep with
 detail pages); D3 the same day (coach runs as background jobs, rating, journal, workout list, templates,
 drafts from the plan, Markdown editor with live check).
-Implementation waves at the end.
+Implementation waves at the end. The parity plan of 2026-11-13 (every TUI function in the browser,
+device jobs through the `agent` service) is the section "Parity with the TUI".
 
 ## Why
 
@@ -18,7 +19,9 @@ from the browser. Decisions taken with the user (2026-11-03):
 - **Actions** in the browser, not only charts: coach runs, rating, journal, workout files.
 - Pulling the watch (USB/MTP), the phone (ADB) and pushing workouts to the watch **stay on the
   laptop** (CLI, TUI, systemd/udev). The container has no USB access; the dashboard shows when
-  the last sync happened.
+  the last sync happened. *Revised 2026-11-13:* the `web` container still has no device access,
+  but a separate `agent` service runs these jobs on its behalf, so the browser can start them
+  (see "Parity with the TUI").
 - Runs **on this laptop first**, later on a separate server laptop (see "Moving to a server").
 
 ## Guiding principles
@@ -156,6 +159,97 @@ Rejected:
 - Laptop stays the master and copies a snapshot to the server – web actions on the server
   (ratings, notes, coach runs, workout edits) would be overwritten.
 - SQLite on an NFS/SMB share – file locking over network file systems is unreliable.
+
+## Parity with the TUI
+
+Decided with the user on 2026-11-13: **every function of the TUI should be reachable in the
+browser**, so nobody needs a terminal to run wristpull. The web layer stays a shell over the same
+library functions (no SQL, no FIT parsing in `src/wristpull/web/`, boundary test). The TUI keeps
+working as it is.
+
+### The one structural problem: devices
+
+The `web` container is reachable from the LAN and therefore gets no USB bus, no host network, no
+system D-Bus (Bluetooth) and no adb keys (`docker-concept.md`). Importing from the watch, pulling the
+phone, pulling the strap, pushing workouts and reading or cleaning the watch must run in another
+process that the browser only *asks*.
+
+**Decision: a device agent.** A third Compose service `agent` runs the same image with the rights
+of `cli` (USB pass-through, host network, D-Bus socket, adb keys, the `wristpull-cli` AppArmor
+profile) as a long-running loop (`wristpull agent`), without any published port. It starts with
+`docker compose up -d` like `web` and `caddy` (`restart: unless-stopped`); when the AppArmor profile is
+not installed only this service fails to start and the dashboard says "device agent offline".
+
+Web and agent talk through the SQLite database they already share (WAL, exactly like `cli` and
+`web` today):
+
+- `agent_jobs` is the queue: the web app inserts a row (`kind`, JSON `params`, the equivalent
+  command line), the agent claims the oldest queued row, runs it, writes log lines into
+  `agent_job_log` and the result as JSON, and sets `done`, `error` or `stopped`. One job at a
+  time. The browser polls the job partial every 2 s with htmx, as it does for coach runs.
+- The job kinds are a **fixed list** with typed, validated parameters (`import_garmin`,
+  `pull_phone`, `pull_strap`, `workout_push`, `workout_push_upcoming`, `workout_verify`,
+  `watch_list`, `watch_remove`). No command lines, no paths from the browser; workout file names
+  are checked like in the editor. The agent never executes anything else.
+- **Stop:** the web app sets `stop_requested` on the running row; the agent hands the library the
+  usual `stop=` callback (polled between files), so imports end after the current file.
+- **Device state without MTP cost:** every second the agent writes a heartbeat and the USB
+  presence it reads from sysfs (`idVendor` `091e` for the watch, an ADB interface for the phone)
+  into `agent_state`. The dashboard shows "watch attached / phone attached / agent online" from
+  that table and never probes the MTP tools itself.
+- The agent reloads the config file for every job, so settings saved in the browser apply to the
+  next job. Results are rendered with the same summary lines as in the TUI
+  (`src/wristpull/jobtext.py`, Textual-free, shared by both shells).
+
+Rejected: giving `web` the `cli` rights (a network-reachable process with the whole USB bus, the
+host network and the system bus); mounting the Docker socket into `web` to run
+`docker compose run cli` (root on the host); an HTTP or Unix-socket channel between the two
+containers (a second channel with its own authentication, while the database is shared anyway).
+
+Side by side: `cli`, the morning script and the udev import unit keep working. When one of them
+opens the watch while an agent job uses it, the other side gets the known "device busy" message
+(the same situation as the udev unit and the morning script today).
+
+### Page by page
+
+| TUI screen | Browser |
+|---|---|
+| 1 Overview | **Today** gains a "Devices" card (watch and phone attached, agent online, strap configured, the last device job) and a "Data store" card (raw files per source, errors), plus buttons for import, pull and the exports. |
+| 2 Devices & Sync | **Sync** (new): the three forms (watch: dry run; phone: serial, trigger, sync, wait, dry run; strap: dry run, since days), live log, stop, result lines, the equivalent command line, the last 20 jobs. Runs on the agent. |
+| 3 Days | **Days** (new): period presets, the daily table, a detail column per day (`detail.day_detail_rows`, moved out of the TUI screen so both shells share it). |
+| 4 Activities | exists; adds the name filter, the archive path and a download link for the raw FIT. |
+| 5 Sleep | exists; adds the source group (all / Garmin / strap). |
+| 6 Files | **Files** (new): folder navigation under the data directory, archive row, FIT inspect, text preview, download, the host path to copy. `adb/` (private key) and `staging/` are never listed or served. |
+| 7 Export & Report | **Export** (new): the same form, in-process jobs (`JobRegistry`), result with download links and a Markdown preview. |
+| 8 Settings | **Settings** (new): the same field groups (no TUI theme), save = `validate_config` + `write_config`, "check coach" as an in-process job. The config file is then mounted read-write into `web` (same trust boundary as the data directory it already writes). Secrets stay in `.env` and are never shown; the form names only the environment variables. |
+| 9 Coach | exists; adds the dry run, tokens and cost per run, the profile editor (textarea) and the goal wizard as one form built from `coach.wizard.QUESTIONS`. |
+| 0 Workouts (files) | exists; adds push (selected, upcoming, force, dry run), verify, delete with a confirmation step, the push history. Device parts run on the agent. |
+| 0 Workouts (watch) | **Workouts on the watch** (new): list, re-read, remove with backup and confirmation. Runs on the agent. |
+| ? Help | **Help** (new): pages, the CLI equivalent of every action, version and paths. |
+| F12 | language switch in the navigation (cookie, read before `Accept-Language`). |
+
+Not carried over: the command palette, the TUI theme list (the web has light and dark), the OSC 52
+clipboard (a copy button in `app.js` instead), `import garmin --path <host folder>` (the container
+cannot see host folders; an inbox under the data directory may follow later). Backup and restore
+stay on the command line: an archive with the secrets is nothing to download in a browser.
+
+### Security
+
+Every new POST goes through the existing session and CSRF checks. Job kinds come from an
+enumeration, parameters are typed (bool, int, allow lists), file names only through
+`workouts.store.workout_file` or the files page's path check (resolved, inside the data directory,
+no `..`). Destructive actions (delete a workout file, remove one from the watch) need a confirmation
+step. Download routes serve only the data directory without `adb/`.
+
+### Waves
+
+- **W0** this section, CLAUDE.md.
+- **W1** agent (`src/wristpull/agent/`, schema v7, `wristpull agent`, Compose service), `jobtext.py`,
+  the Sync page, the device card on Today, the shared job partial.
+- **W2** Days, Files, Export, the activity and sleep filters.
+- **W3** Settings (config read-write in Compose), coach check, profile editor, wizard, dry run, language switch.
+- **W4** workouts over the agent: push, verify, delete, the watch view.
+- **W5** Help, navigation, screenshots, README table "TUI key ↔ web page".
 
 ## Docker
 
