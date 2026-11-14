@@ -161,7 +161,13 @@ the test list are in the plan of 2026-11-14 and move here with wave A3.
   (`build_insights`). Pages: `/insights` (readiness ring and components, ACWR, bedtime/wake-up, one
   scatter per pair with bin means, tags for the last seven days, caveats), readiness tile and today's tags on
   Today; CLI `wristpull coach tag DATE +sauna -alcohol`. On the real database the package takes ~0.2 s.
-- **A4** coach kind `insights`, month/week report as HTML, dry-run link.
+- **A4** (done 2026-11-14) coach kind `insights`: `context.build_insights_package` renders the package into
+  sections (readiness with components, relationships with r/n/strength/lags/bins/sweet spot, tag effects,
+  sleep regularity, weekday means, previous coaching, caveats), `prompts.SECTIONS/TASKS["insights"]` (en/de:
+  what the data shows / what it means / one thing to try / numbers used), the system prompt forbids
+  recomputing; model `[coach] insights_model` → `weekly_model` → `model`; CLI `wristpull coach insights
+  [--weeks N]`, button and last report on `/insights` (with a hint when newer days exist), also on `/coach`.
+  `/report?kind=week|month&date=` shows the CLI's weekly/monthly Markdown with the period's charts.
 - **P4** parity: workouts through the agent (push, verify, delete, watch view).
 - **A5/P5** Help page, "more" menu, parity test, screenshots, README table, memory.
 

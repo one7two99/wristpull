@@ -12,13 +12,13 @@ from typing import Any
 
 from ..config import Config
 from .backends import Backend, ChatRequest, CoachError, make_backend
-from .context import build_daily, build_weekly, render
+from .context import build_daily, build_insights_package, build_weekly, render
 from .profile import coach_dir, load_profile
 from .prompts import parse_sections, system_prompt, user_prompt, verify_numbers
 from .store import memory_digest, save_run
 
 Log = Callable[[str], None]
-KINDS = ("daily", "weekly", "ask")
+KINDS = ("daily", "weekly", "ask", "insights")
 
 
 @dataclass
@@ -64,6 +64,7 @@ def run_coach(
     backend: Backend | None = None,
     dry_run: bool = False,
     force: bool = False,
+    weeks: int = 12,
     log: Log = lambda _m: None,
 ) -> CoachResult:
     if kind not in KINDS:
@@ -79,7 +80,12 @@ def run_coach(
             raise CoachError(message + "; pass --force to run anyway")
         warnings.append(message)
     digest = memory_digest(conn, lang)
-    pkg = build_weekly(conn, config, today, digest=digest) if kind == "weekly" else build_daily(conn, config, today, digest=digest)
+    if kind == "weekly":
+        pkg = build_weekly(conn, config, today, digest=digest)
+    elif kind == "insights":
+        pkg = build_insights_package(conn, config, today, digest=digest, weeks=weeks)
+    else:
+        pkg = build_daily(conn, config, today, digest=digest)
     data_md, dropped = render(pkg, budget_tokens=config.coach.token_budget)
     if dropped:
         warnings.append("sections omitted for the token budget: " + ", ".join(dropped))

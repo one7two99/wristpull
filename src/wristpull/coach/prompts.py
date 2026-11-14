@@ -20,6 +20,10 @@ SECTIONS: dict[str, dict[str, list[tuple[str, str]]]] = {
         "en": [("answer", "Answer"), ("numbers", "Numbers used")],
         "de": [("answer", "Antwort"), ("numbers", "Verwendete Zahlen")],
     },
+    "insights": {
+        "en": [("findings", "What the data shows"), ("meaning", "What it means for you"), ("experiment", "One thing to try"), ("numbers", "Numbers used")],
+        "de": [("findings", "Was die Daten zeigen"), ("meaning", "Was das für dich heißt"), ("experiment", "Ein Versuch"), ("numbers", "Verwendete Zahlen")],
+    },
 }
 
 TASKS = {
@@ -34,6 +38,15 @@ TASKS = {
         "Finish with up to three questions whose answers would improve the next plan. Keep the whole answer under 700 words."
     ),
     "ask": "Answer the athlete's question using only the data provided. Keep the whole answer under 300 words.",
+    "insights": (
+        "The data package holds statistics that were computed deterministically: a readiness index with its components, "
+        "sleep regularity, correlations between sleep, training load, stress, Body Battery and HRV (Spearman r over the "
+        "athlete's own z-scores, with n, a strength label and the lag), binned response curves with a possible sweet spot, "
+        "and tag effects. Interpret them, never recompute or re-estimate them. Repeat each strength label as given, "
+        "skip pairs marked insufficient, and never present a correlation as a cause. Name what the data shows, what it "
+        "means for this athlete's recovery and sleep, and propose exactly one small, testable change for the next two "
+        "weeks (for example a bedtime window) that follows from a sweet spot or a tag effect. Keep the whole answer under 400 words."
+    ),
 }
 
 DEFAULT_PROFILE = {
@@ -85,8 +98,10 @@ def system_prompt(kind: str, lang: str) -> str:
         "- The goal profile's constraints (injuries, time budget, rest day) are hard limits.\n"
         "- No medical diagnoses or medication advice. If values look pathological (resting HR far above normal, "
         "SpO2 below 90 %, chest pain mentioned), recommend seeing a doctor instead of training advice.\n"
-        "- Be concrete: durations in minutes, intensities as easy/moderate/hard or heart-rate zones.\n\n"
-        f"Answer in {LANGUAGE_NAMES.get(lang, 'English')}. Use exactly these Markdown H2 headings, in this order, "
+        "- Be concrete: durations in minutes, intensities as easy/moderate/hard or heart-rate zones.\n"
+        + ("- The statistics in the package (readiness, correlations, bins, sweet spots, tag effects) were computed deterministically: "
+           "interpret them, do not recompute them, and keep their strength labels.\n" if kind == "insights" else "")
+        + f"\nAnswer in {LANGUAGE_NAMES.get(lang, 'English')}. Use exactly these Markdown H2 headings, in this order, "
         f"with nothing before the first one:\n{headings}\n"
     )
 

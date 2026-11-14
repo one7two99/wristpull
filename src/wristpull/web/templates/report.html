@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Report") }} {{ d.label }}{% endblock %}
+{% block main %}
+<a class="back" href="/export">← {{ _("Export & Report") }}</a>
+<header class="page-head">
+<h1>{% if d.kind == "week" %}{{ _("Weekly report") }}{% else %}{{ _("Monthly report") }}{% endif %} {{ d.label }}</h1>
+<p class="muted">{{ d.start }} – {{ d.end }}</p>
+</header>
+<nav class="chips" aria-label="{{ _('Period') }}">
+<a href="/report?kind={{ d.kind }}&amp;date={{ d.previous }}" aria-label="{{ _('Earlier') }}">←</a>
+<a href="/report?kind=week&amp;date={{ d.date }}" {% if d.kind == "week" %}aria-current="page"{% endif %}>{{ _("Week") }}</a>
+<a href="/report?kind=month&amp;date={{ d.date }}" {% if d.kind == "month" %}aria-current="page"{% endif %}>{{ _("Month") }}</a>
+<a href="/report?kind={{ d.kind }}&amp;date={{ d.next }}" aria-label="{{ _('Later') }}">→</a>
+</nav>
+{% if d.charts %}
+<section class="charts" aria-label="{{ _('Charts') }}">
+{% for c in d.charts %}
+<article class="card chart-card">
+<h2>{{ c.title }}{% if c.unit %} <span class="unit">({{ _(c.unit) }})</span>{% endif %}</h2>
+<div class="chart short" id="chart-{{ c.id }}" data-chart="{{ c.id }}" role="img" aria-label="{{ c.title }}"></div>
+</article>
+{% endfor %}
+</section>
+{% endif %}
+<section class="card">
+<div class="prose">{{ d.html }}</div>
+<p class="muted small">{{ _("The same text as") }} <code>wristpull report {{ d.kind }} --date {{ d.end }}</code>; {{ _("the Export page writes it as a file.") }}</p>
+</section>
+<script type="application/json" id="chart-data" data-charts>{{ charts_json|safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js" defer></script>
+{% endblock %}

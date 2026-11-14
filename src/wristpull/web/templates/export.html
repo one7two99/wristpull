@@ -3,7 +3,7 @@
 {% block main %}
 <header class="page-head">
 <h1>{{ _("Export & Report") }}</h1>
-<p class="muted">{{ _("A Markdown summary with CSV files for Claude, or a weekly or monthly report; the files land in the data directory.") }}</p>
+<p class="muted">{{ _("A Markdown summary with CSV files for Claude, or a weekly or monthly report; the files land in the data directory.") }} {{ _("Read a report in the browser instead:") }} <a href="/report?kind=week">{{ _("this week") }}</a> · <a href="/report?kind=month">{{ _("this month") }}</a></p>
 </header>
 <section class="card actions">
 {% if error == "dates" %}<p class="note error-box">{{ _("Dates must be YYYY-MM-DD") }}</p>{% elif error == "order" %}<p class="note error-box">{{ _("'To' must not be before 'From'") }}</p>{% endif %}

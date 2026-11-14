@@ -2361,3 +2361,58 @@ msgstr "{n} Tage, {m} z vor den Nachbarn"
 
 msgid "{n} missing"
 msgstr "{n} fehlen"
+
+# ---- AI insights report, report pages (analysis wave A4)
+msgid "AI report"
+msgstr "KI-Report"
+
+msgid "Charts"
+msgstr "Diagramme"
+
+msgid "Coach: insights report"
+msgstr "Coach: Einblicke-Report"
+
+msgid "Create AI report"
+msgstr "KI-Report erstellen"
+
+msgid "Insights report"
+msgstr "Einblicke-Report"
+
+msgid "Model for the insights report"
+msgstr "Modell für den Einblicke-Report"
+
+msgid "Month"
+msgstr "Monat"
+
+msgid "No insights report yet."
+msgstr "Noch kein Einblicke-Report."
+
+msgid "Read a report in the browser instead:"
+msgstr "Oder lies einen Report im Browser:"
+
+msgid "Report"
+msgstr "Report"
+
+msgid "The model gets exactly the statistics on this page and narrates them; it computes nothing itself. Runs with the backend from the settings and costs tokens only when you press the button."
+msgstr "Das Modell bekommt genau die Statistiken dieser Seite und erzählt sie; es rechnet nichts selbst. Läuft mit dem Backend aus den Einstellungen und kostet nur beim Knopfdruck Tokens."
+
+msgid "The same text as"
+msgstr "Derselbe Text wie"
+
+msgid "Week"
+msgstr "Woche"
+
+msgid "empty: the weekly model, then the default"
+msgstr "leer: das Wochen-Modell, sonst das Standardmodell"
+
+msgid "insights"
+msgstr "Einblicke"
+
+msgid "new days since this report: create it again for the current view"
+msgstr "seit diesem Report sind neue Tage dazugekommen: erstelle ihn für die aktuelle Sicht neu"
+
+msgid "over the last {n} weeks"
+msgstr "über die letzten {n} Wochen"
+
+msgid "the Export page writes it as a file."
+msgstr "die Export-Seite schreibt ihn als Datei."

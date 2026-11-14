@@ -106,10 +106,13 @@ def build_parser() -> argparse.ArgumentParser:
         ("daily", "morning check: recovery and a suggestion for today"),
         ("weekly", "review of the last completed week (the current one on a Sunday) with a plan for the next"),
         ("ask", "a free question over the daily data package"),
+        ("insights", "the insights report: readiness, sleep regularity, correlations and tag effects, narrated by the model"),
     ):
         p_c = coach_sub.add_parser(name, help=help_text)
         if name == "ask":
             p_c.add_argument("question")
+        if name == "insights":
+            p_c.add_argument("--weeks", type=int, default=12, help="period of the statistics in weeks (default 12)")
         p_c.add_argument("--backend", choices=["ollama", "claude", "openrouter"], help="override [coach] backend")
         p_c.add_argument("--model", help="override [coach] model")
         p_c.add_argument("--lang", choices=["de", "en"], help="answer language (default: [coach] language or the UI language)")
@@ -118,7 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
         p_c.add_argument("--force", action="store_true", help="run although the goal profile still has placeholders")
     p_show = coach_sub.add_parser("show", help="print stored coach answers")
     p_show.add_argument("--last", type=int, default=1, help="how many runs (default 1)")
-    p_show.add_argument("--kind", choices=["daily", "weekly", "ask"])
+    p_show.add_argument("--kind", choices=["daily", "weekly", "ask", "insights"])
     p_profile = coach_sub.add_parser("profile", help="show the goal profile (path, open placeholders) or run the goal wizard")
     p_profile.add_argument("--wizard", action="store_true", help="answer multiple-choice questions and (re)generate the profile's wizard block")
     p_profile.add_argument("--lang", choices=["de", "en"], help="language of the generated profile text")
@@ -676,7 +679,7 @@ def cmd_coach(args: argparse.Namespace, config: Config) -> int:
 
         today = parse_date(args.date) if args.date else date.today()
         backend = make_backend(config, model=args.model, backend=args.backend, kind=args.coach_cmd)
-        result = run_coach(conn, config, args.coach_cmd, today=today, language=args.lang, question=getattr(args, "question", None), backend=backend, dry_run=args.dry_run, force=args.force, log=log)
+        result = run_coach(conn, config, args.coach_cmd, today=today, language=args.lang, question=getattr(args, "question", None), backend=backend, dry_run=args.dry_run, force=args.force, weeks=getattr(args, "weeks", 12), log=log)
     except (CoachError, ValueError) as exc:
         print(f"coach: {exc}", file=sys.stderr)
         return 1

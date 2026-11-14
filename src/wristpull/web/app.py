@@ -638,19 +638,25 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         if kind not in pages.COACH_KINDS or (kind == "ask" and not question):
             return PlainTextResponse("unknown run kind or empty question", status_code=400)
         day = today()
+        try:
+            weeks = int(str(form.get("weeks") or "12"))
+        except ValueError:
+            weeks = 12
+        weeks = weeks if weeks in pages.INSIGHT_WEEKS else 12
+        back = "/insights" if kind == "insights" and form.get("from") == "insights" else "/coach"
 
         def run(conn: Any, log: Callable[[str], None]) -> dict[str, Any]:
             from ..coach.runner import run_coach
 
             store.apply(config)  # API keys saved on the settings page override the environment
             backend = deps.coach_backend(config, kind) if deps.coach_backend else None
-            result = run_coach(conn, config, kind, today=day, question=question, backend=backend, dry_run=dry_run, log=log)
+            result = run_coach(conn, config, kind, today=day, question=question, backend=backend, dry_run=dry_run, weeks=weeks, log=log)
             return {"run_id": result.run_id, "warnings": result.warnings, "dry_run_path": str(result.dry_run_path) if result.dry_run_path else None}
 
-        started = jobs.start(f"coach-{kind}", kind, run, cli=f"wristpull coach {kind}" + (f' "{question}"' if question else "") + (" --dry-run" if dry_run else ""))
+        started = jobs.start(f"coach-{kind}", kind, run, cli=f"wristpull coach {kind}" + (f' "{question}"' if question else "") + (f" --weeks {weeks}" if kind == "insights" and weeks != 12 else "") + (" --dry-run" if dry_run else ""))
         if is_htmx(request):
             return job_partial(request, session, busy=started is None)
-        return RedirectResponse("/coach", status_code=303)
+        return RedirectResponse(back, status_code=303)
 
     def coach_job(request: Request) -> Response:
         session = require_user(request)
@@ -673,7 +679,28 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             weeks = 12
         with closing(connect(config.db_path)) as conn:
             data = pages.insights_data(conn, config, today(), weeks, lang=lang)
-        return render(request, "insights.html", session, {"page": "insights", "d": data, "charts_json": chart_json(data["charts"], lang), "choices": pages.INSIGHT_WEEKS, "saved": request.query_params.get("saved")})
+        current = jobs.last_of(("coach-insights",))
+        report_time = local_time(data["report"]["created_at_utc"], tz) if data["report"] else None
+        return render(request, "insights.html", session, {"page": "insights", "d": data, "charts_json": chart_json(data["charts"], lang), "choices": pages.INSIGHT_WEEKS, "saved": request.query_params.get("saved"), "report_time": report_time,
+                                                          "job": web_view(current, request) if current else None, "busy": False, "poll_url": "/coach/job", "show_log": False, "offline": False})
+
+    def report_page(request: Request) -> Response:
+        """The weekly or monthly report as a page: the CLI's Markdown plus the period's charts."""
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        lang = lang_of(request)
+        kind = request.query_params.get("kind", "week")
+        try:
+            day = date.fromisoformat(request.query_params.get("date", "")) if request.query_params.get("date") else today()
+        except ValueError:
+            day = today()
+        with closing(connect(config.db_path)) as conn:
+            data = pages.report_page(conn, config, kind, day)
+        if data is None:
+            return render(request, "missing.html", session, {"page": "export"}, status_code=404)
+        data["html"] = markdown.render(data["markdown"])
+        return render(request, "report.html", session, {"page": "export", "d": data, "charts_json": chart_json(data["charts"], lang)})
 
     async def tags_post(request: Request) -> Response:
         """The checkbox form of one day: its tags become exactly the ticked ones."""
@@ -858,7 +885,8 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             if get_run(conn, run_id) is None:
                 return PlainTextResponse("unknown run", status_code=404)
             add_feedback(conn, run_id, rating, str(form.get("note") or "").strip() or None)
-        target = "/" if form.get("next") == "/" else f"/coach#run-{run_id}"
+        wanted = str(form.get("next") or "")
+        target = "/" if wanted == "/" else ("/insights#report" if wanted == "/insights" else f"/coach#run-{run_id}")
         return RedirectResponse(target, status_code=303)
 
     async def journal_add(request: Request) -> Response:
@@ -993,6 +1021,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             Route("/sleep", sleep_page),
             Route("/sleep/{sleep_id:int}", night_page),
             Route("/insights", insights_page),
+            Route("/report", report_page),
             Route("/tags", tags_post, methods=["POST"]),
             Route("/days", days_page),
             Route("/days/detail", day_detail),

@@ -11,6 +11,7 @@
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <button type="submit" name="kind" value="daily" class="primary">{{ _("Daily check") }}</button>
 <button type="submit" name="kind" value="weekly" class="secondary">{{ _("Weekly review") }}</button>
+<button type="submit" name="kind" value="insights" class="secondary">{{ _("Insights report") }}</button>
 <button type="submit" name="kind" value="daily" class="secondary" formaction="/coach/run" hx-post="/coach/run" hx-vals='{"dry_run": "1"}' title="{{ _('Writes the prompt to coach/dryrun without sending it') }}">{{ _("Dry run") }}</button>
 </form>
 <p class="muted small">

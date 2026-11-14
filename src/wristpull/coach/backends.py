@@ -327,7 +327,9 @@ def api_key_for(config: Config, backend: str, env: Callable[[str], str | None] =
 def make_backend(config: Config, *, model: str | None = None, backend: str | None = None, kind: str = "daily") -> Backend:
     """Build the configured backend; the weekly review may use [coach] weekly_model."""
     name = backend or config.coach.backend
-    chosen = model or (config.coach.weekly_model if kind == "weekly" and config.coach.weekly_model else config.coach.model)
+    deeper = config.coach.weekly_model or config.coach.model  # the weekly review and the insights report may use a larger model
+    by_kind = {"weekly": deeper, "insights": config.coach.insights_model or deeper}
+    chosen = model or by_kind.get(kind, config.coach.model)
     if name == "ollama":
         return OllamaBackend(config.coach.ollama_url, chosen, timeout_s=config.coach.timeout_s, num_ctx=config.coach.num_ctx)
     if name == "claude":

@@ -503,10 +503,11 @@ def test_web_strings_have_german_translations():
     ids.update(readiness.TITLES.values())
     ids.update(correlate.TITLES.values())
     ids.update({"ready", "moderate", "recover", "none", "weak", "strong", "Readiness", "Bedtime", "Wake-up", "Bin mean", "Nights come from both the watch and the strap; their scales may differ."})
+    ids.update({"Coach: insights report", "insights"})
     missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio",
                                                                             "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max",
                                                                             "Detail", "Garmin", "Export", "Export & Report", "BB", "Int.", "…", "Filter",
-                                                                            "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm", "Readiness", "Sauna", "Tag"})
+                                                                            "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm", "Readiness", "Sauna", "Tag", "Report"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"
 
@@ -901,6 +902,38 @@ def test_readiness_tile_with_history(config: Config, conn, garmin_tree: Path):
     assert tile and tile["score"] is not None and tile["label"] in ("ready", "moderate", "recover") and 1 <= len(tile["reasons"]) <= 3 and tile["reasons"][0]["text"][0] in "+-±"
     data = pages.insights_data(conn, config, TODAY, 12)
     assert data["latest"]["score"] == tile["score"] and any(c["label"] != "insufficient" for c in data["pkg"]["correlations"]) and any(c["id"].startswith("corr-") for c in data["charts"])
+
+
+# ---- AI insights report and report pages (analysis wave A4) ---------------------------------------
+
+
+def test_insights_report_run_and_report_pages(seeded: Config, password_hash: str):
+    from wristpull.coach.backends import FakeBackend
+    from wristpull.coach.profile import profile_path
+
+    profile_path(seeded).parent.mkdir(parents=True, exist_ok=True)
+    profile_path(seeded).write_text("# Goal profile\n- Goals: run\n", "utf-8")
+    fake = FakeBackend(["## What the data shows\nSleep and Body Battery move together.\n## What it means for you\nKeep it.\n## One thing to try\nBed by 23:00.\n## Numbers used\n- 20\n"])
+    client = client_for(seeded, password_hash, coach_backend=lambda cfg, kind: fake)
+    login(client)
+    page = client.get("/insights")
+    assert "Create AI report" in page.text and "No insights report yet." in page.text
+    token = csrf_of(page.text)
+    started = client.post("/coach/run", data={"csrf": token, "kind": "insights", "weeks": "4", "from": "insights"}, headers={"hx-request": "true"})
+    assert started.status_code == 200 and "finished" in started.text and "wristpull coach insights --weeks 4" in started.text and len(fake.requests) == 1
+    page = client.get("/insights")
+    assert "Sleep and Body Battery move together." in page.text and "<h3>What the data shows</h3>" in page.text and 'name="next" value="/insights"' in page.text
+    assert "Insights report" in client.get("/coach").text
+    plain = client.post("/coach/run", data={"csrf": token, "kind": "insights", "from": "insights"})
+    assert plain.status_code == 303 and plain.headers["location"] == "/insights"
+    rated = client.post("/coach/rate", data={"csrf": token, "run_id": "2", "rating": "1", "next": "/insights"})
+    assert rated.headers["location"] == "/insights#report"
+    week = client.get("/report?kind=week&date=2026-10-06", headers={"accept-language": "de"})
+    assert week.status_code == 200 and "Wochenreport 2026-W41" in week.text and 'id="chart-steps"' in week.text and "<h3>Summary</h3>" in week.text and "2026-10-05 – 2026-10-11" in week.text
+    month = client.get("/report?kind=month&date=2026-10-06")
+    assert month.status_code == 200 and "Monthly report 2026-10" in month.text and 'href="/report?kind=month&amp;date=2026-11-01"' in month.text
+    assert client.get("/report?kind=nope").status_code == 404 and client.get("/report?kind=week&date=x").status_code == 200
+    assert 'href="/report?kind=week"' in client.get("/export").text
 
 
 # ---- devices & sync: jobs for the device agent (parity W1) ------------------------------------

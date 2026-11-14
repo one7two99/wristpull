@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import period with context %}
+{% from "_rating.html" import rating with context %}
 {% block title %}wristpull · {{ _("Insights") }}{% endblock %}
 {% block main %}
 <header class="page-head">
@@ -37,6 +38,29 @@
 {% endif %}
 <div class="chart short" id="chart-readiness" data-chart="readiness" role="img" aria-label="{{ _('Readiness') }}"></div>
 <p class="muted small legend-note">{{ _("Lines at 45 and 70 separate recover, moderate and ready.") }}</p>
+</section>
+
+<section class="card actions" id="report" aria-label="{{ _('AI report') }}">
+<h2>{{ _("AI report") }}</h2>
+<p class="muted small">{{ _("The model gets exactly the statistics on this page and narrates them; it computes nothing itself. Runs with the backend from the settings and costs tokens only when you press the button.") }}</p>
+<form method="post" action="/coach/run" hx-post="/coach/run" hx-target="#job" hx-swap="outerHTML">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="kind" value="insights">
+<input type="hidden" name="weeks" value="{{ d.weeks }}">
+<input type="hidden" name="from" value="insights">
+<button type="submit" class="primary">{{ _("Create AI report") }}</button>
+<span class="hint">{{ _("over the last {n} weeks").format(n=d.weeks) }}</span>
+</form>
+{% include "_job.html" %}
+{% if d.report %}
+<article class="run">
+<p class="muted small">{{ report_time }} · {{ d.report.backend }}{% if d.report.model %} · {{ d.report.model }}{% endif %}{% if d.report.stale %} · <span class="warn-text">{{ _("new days since this report: create it again for the current view") }}</span>{% endif %}</p>
+<div class="prose">{{ d.report.answer_md|markdown }}</div>
+{{ rating(d.report.id, d.report.rating, "/insights") }}
+</article>
+{% else %}
+<p class="muted">{{ _("No insights report yet.") }}</p>
+{% endif %}
 </section>
 
 <section class="card chart-card">

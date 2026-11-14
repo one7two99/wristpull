@@ -184,3 +184,38 @@ def test_coach_note_notes_and_plan_ics_cli(tmp_path: Path, capsys, monkeypatch):
     assert "DTSTART;TZID=Europe/Berlin:20261005T180000" in text and "DTSTART;VALUE=DATE:20261007" in text
     assert main(["--config", str(cfg), "coach", "plan-ics"]) == 0
     assert (tmp_path / "Health" / "coach" / "plan-2026-10-05.ics").exists()
+
+
+def test_run_coach_insights_narrates_the_package(conn, config, garmin_tree: Path):
+    from wristpull.coach.backends import FakeBackend
+    from wristpull.coach.context import build_insights_package, render
+    from wristpull.coach.prompts import SECTIONS, parse_sections
+    from wristpull.importers.garmin import import_garmin
+
+    import_garmin(conn, config, path=garmin_tree)
+    pkg = build_insights_package(conn, config, date(2026, 10, 7), weeks=4)
+    titles = [s.title for s in pkg.sections]
+    assert titles[:2] == ["Readiness today (why)", "Relationships found"] and "Data caveats" in titles and pkg.kind == "insights"
+    text, _dropped = render(pkg, budget_tokens=6000)
+    assert "insufficient" in text and "Not enough history" in text and "a correlation is not a cause" in text
+    answer = "## What the data shows\nLittle yet.\n## What it means for you\nKeep wearing the watch.\n## One thing to try\nBed by 23:00.\n## Numbers used\n- 20\n"
+    fake = FakeBackend([answer])
+    result = run_coach(conn, config, "insights", today=date(2026, 10, 7), backend=fake, force=True, weeks=4)
+    assert result.kind == "insights" and result.status == "ok" and set(result.sections) >= {"findings", "meaning", "experiment", "numbers"}
+    request = fake.requests[0]
+    assert "computed deterministically" in request.system and "## Relationships found" in request.user and "never recompute" in request.user
+    assert recent_runs(conn, kind="insights")[0]["period_start"] == "2026-09-10"
+    assert [h for _k, h in SECTIONS["insights"]["de"]][0] == "Was die Daten zeigen"
+    assert parse_sections("## Was die Daten zeigen\nx\n## Verwendete Zahlen\n1", "insights", "de")["findings"] == "x"
+
+
+def test_insights_model_choice(config):
+    from wristpull.coach.backends import make_backend
+
+    config.coach.backend = "ollama"
+    config.coach.model = "small"
+    assert make_backend(config, kind="insights").model == "small"
+    config.coach.weekly_model = "medium"
+    assert make_backend(config, kind="insights").model == "medium" and make_backend(config, kind="weekly").model == "medium"
+    config.coach.insights_model = "large"
+    assert make_backend(config, kind="insights").model == "large" and make_backend(config, kind="daily").model == "small"

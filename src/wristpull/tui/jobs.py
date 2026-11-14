@@ -204,7 +204,7 @@ def coach_job(config: Config, deps: TuiDeps, kind: str, *, today: date, question
     from ..coach.runner import run_coach
 
     cli = f"wristpull coach {kind}" + (f' "{question}"' if question else "") + (" --dry-run" if dry_run else "") + (f" --lang {language}" if language else "")
-    titles = {"daily": _("Coach: daily check"), "weekly": _("Coach: weekly review"), "ask": _("Coach: question")}
+    titles = {"daily": _("Coach: daily check"), "weekly": _("Coach: weekly review"), "ask": _("Coach: question"), "insights": _("Coach: insights report")}
 
     def run(conn: sqlite3.Connection, log: Log) -> CoachResult:
         factory = deps.coach_backend or (lambda c, **kw: make_backend(c, **kw))

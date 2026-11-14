@@ -289,6 +289,74 @@ def build_weekly(conn: sqlite3.Connection, config: Config, day: date, *, digest:
     return pkg
 
 
+def build_insights_package(conn: sqlite3.Connection, config: Config, today: date, *, digest: str = "", weeks: int = 12) -> DataPackage:
+    """The insights report's package: the computed statistics as text sections, so the model only narrates."""
+    from ..insights import build_insights
+    from ..insights.tags import LABELS
+
+    ins = build_insights(conn, config, today, period_days=7 * weeks)
+    pkg = DataPackage(kind="insights", start=date.fromisoformat(ins["period"]["start"]), end=today)
+    pkg.facts["insights"] = ins
+    latest = ins["readiness"]["latest"]
+    if latest:
+        lines = [f"- Readiness on {latest['date']}: {latest['score']:.0f} of 100 ({latest['label']}), confidence {latest['confidence']:.2f}."]
+        for c in latest["components"]:
+            if not c["present"]:
+                lines.append(f"- {c['title']}: no data")
+                continue
+            value = f"{c['value'] / 3600:.1f} h" if c["key"] == "sleep_duration" else (f"{c['value']:.2f}" if c["key"] == "acwr" else f"{c['value']:.0f}")
+            z = f", z {c['z']:+.1f}" if c["z"] is not None else ""
+            lines.append(f"- {c['title']}: {value}{z}, component score {c['score']:.0f}, weight {c['weight'] * 100:.0f} %, contribution {c['contribution']:+.1f}")
+        scores = [v for v in ins["readiness"]["series"]["score"] if v is not None]
+        if scores:
+            lines.append(f"- Readiness over the period: mean {sum(scores) / len(scores):.0f}, lowest {min(scores):.0f}, highest {max(scores):.0f} ({len(scores)} days).")
+        pkg.add("Readiness today (why)", "\n".join(lines), 100)
+    else:
+        pkg.add("Readiness today (why)", "- Not enough history for a readiness index yet (needs two components with a 28-day baseline).", 100)
+    rel = []
+    for c in ins["correlations"]:
+        head = f"- {c['x_title']} -> {c['y_title']} (lag {c['lag']} day{'s' if c['lag'] != 1 else ''}):"
+        if c["label"] == "insufficient":
+            rel.append(f"{head} insufficient ({c['n']} paired days, 20 needed)")
+            continue
+        lags = ", ".join(f"lag {k} r {v:+.2f}" if v is not None else f"lag {k} n/a" for k, v in c["by_lag"].items())
+        rel.append(f"{head} r {c['r']:+.2f}, {c['label']}{', significant' if c['significant'] else ''}, n {c['n']}; by lag: {lags}")
+        bins = "; ".join(f"{b['label']}: n {b['n']}, mean {b['mean_y']:.1f}" for b in c["bins"])
+        rel.append(f"  bins of {c['x_title']}{(' in ' + c['x_unit']) if c['x_unit'] and c['x_unit'] != 'clock' else ''} -> mean {c['y_title']}: {bins}")
+        if c["sweet_spot"]:
+            rel.append(f"  sweet spot: {c['sweet_spot']['bin']} ({c['sweet_spot']['n']} days, mean {c['y_title']} {c['sweet_spot']['mean_y']:.1f}, {c['sweet_spot']['margin_z']:.2f} z ahead of the neighbours)")
+        else:
+            rel.append("  no clear sweet spot")
+    pkg.add("Relationships found", "\n".join(rel), 95)
+    tag_lines = []
+    for t in ins["tags"]:
+        name = LABELS.get(t["tag"], t["tag"])
+        if not t["effects"]:
+            tag_lines.append(f"- {name}: {t['n']} tagged day{'s' if t['n'] != 1 else ''}, fewer than five with data -> no effect computed")
+            continue
+        effects = "; ".join(f"{e['title']} {e['delta_z']:+.2f} z ({e['delta']:+.1f}{(' ' + e['unit']) if e['unit'] else ''})" for e in t["effects"])
+        tag_lines.append(f"- {name} ({t['n']} days), the following day vs. the other days: {effects}")
+    if tag_lines:
+        pkg.add("Tag effects", "\n".join(tag_lines), 90)
+    sl = ins["sleep"]
+    if sl["n_nights"]:
+        pkg.add("Sleep regularity (last {} days)".format(sl["window_days"]),
+                f"- {sl['n_nights']} nights ({sl['nights_missing']} missing); bedtime {sl['bedtime_mean']} ± {sl['bedtime_std_min']} min; wake-up {sl['wake_mean']} ± {sl['wake_std_min']} min.\n"
+                f"- Mean sleep {sl['mean_h']:.2f} h against the target {sl['target_h']:.1f} h: debt {sl['debt_h']:.1f} h, balance {sl['balance_h']:+.1f} h.", 85)
+    wd = []
+    names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    for metric, pattern in ins["weekday"].items():
+        cells = ", ".join(f"{names[p['weekday']]} {p['mean']:.1f}" for p in pattern if p["mean"] is not None)
+        if cells:
+            wd.append(f"- {metric}: {cells}")
+    if wd:
+        pkg.add("Weekday pattern (means)", "\n".join(wd), 70)
+    if digest:
+        pkg.add("Previous coaching", digest, 50)
+    pkg.add("Data caveats", "\n".join(f"- {c}" for c in ins["caveats"] + DATA_CAVEATS[1:]), 40)
+    return pkg
+
+
 def render(pkg: DataPackage, *, budget_tokens: int) -> tuple[str, list[str]]:
     """Markdown of the package within the budget; lowest-priority sections are dropped first."""
     sections = list(pkg.sections)

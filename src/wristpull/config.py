@@ -68,6 +68,8 @@ backend = "{coach_backend}"
 model = "{coach_model}"
 # Optional larger model for the weekly review (empty: same as model).
 weekly_model = "{coach_weekly_model}"
+# Optional model for the insights report (empty: weekly_model, then model).
+insights_model = "{coach_insights_model}"
 # Environment variable holding the API key (never the key itself). Empty: ANTHROPIC_API_KEY / OPENROUTER_API_KEY.
 api_key_env = "{coach_api_key_env}"
 ollama_url = "{coach_ollama_url}"
@@ -116,6 +118,7 @@ class CoachConfig:
     backend: str = "ollama"
     model: str = "gemma3:4b"
     weekly_model: str | None = None
+    insights_model: str | None = None  # the insights report; empty: weekly_model, then model
     api_key_env: str | None = None
     ollama_url: str = "http://localhost:11434"
     num_ctx: int = 8192  # Ollama context window; must hold the data package plus the answer
@@ -211,6 +214,7 @@ class Config:
             coach_backend=self.coach.backend,
             coach_model=self.coach.model,
             coach_weekly_model=self.coach.weekly_model or "",
+            coach_insights_model=self.coach.insights_model or "",
             coach_api_key_env=self.coach.api_key_env or "",
             coach_ollama_url=self.coach.ollama_url,
             coach_num_ctx=self.coach.num_ctx,
@@ -303,7 +307,7 @@ def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = Non
     for key in ("backend", "model", "ollama_url", "effort"):
         if coach.get(key):
             setattr(cfg.coach, key, str(coach[key]))
-    for key in ("weekly_model", "api_key_env", "language"):
+    for key in ("weekly_model", "insights_model", "api_key_env", "language"):
         if coach.get(key):
             setattr(cfg.coach, key, str(coach[key]))
     for key in ("max_tokens", "token_budget", "num_ctx"):

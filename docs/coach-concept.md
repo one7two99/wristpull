@@ -196,3 +196,8 @@ resting HR); a one-line daily `journal`; the weekly plan as an ICS calendar file
   confirm what the watch took over. CLI `wristpull workout …`, TUI screen 0, key `t` on the coach
   screen. The push history (`workout_pushes`) is the next candidate for the weekly adherence
   section: planned workout → pushed → recorded activity.
+- **C6 (2026-11-14): the insights report.** A fourth run kind `insights` narrates the deterministic
+  statistics of `src/wristpull/insights/` (readiness, sleep regularity, lagged correlations, sweet spots,
+  tag effects; see `docs/analysis-concept.md`). The package is rendered into sections by
+  `context.build_insights_package`; the model may interpret but not recompute, keeps the strength labels
+  and proposes one testable change. Model: `[coach] insights_model`, else `weekly_model`, else `model`.

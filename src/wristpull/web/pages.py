@@ -610,7 +610,7 @@ def night_page(conn: sqlite3.Connection, sleep_id: int, tz: ZoneInfo) -> dict[st
 
 # ---- coach, journal, workouts (wave D3) -------------------------------------------------------
 
-COACH_KINDS = ("daily", "weekly", "ask")
+COACH_KINDS = ("daily", "weekly", "ask", "insights")
 TEMPLATE_KINDS = ("time", "distance", "intervals")
 
 
@@ -831,6 +831,7 @@ def settings_data(config: Config, env: dict[str, str]) -> dict[str, Any]:
             "coach_backend": c.backend,
             "coach_model": c.model,
             "coach_weekly_model": c.weekly_model or "",
+            "coach_insights_model": c.insights_model or "",
             "coach_api_key_env": c.api_key_env or "",
             "coach_ollama_url": c.ollama_url,
             "coach_num_ctx": c.num_ctx,
@@ -882,6 +883,7 @@ def config_from_form(config: Config, form: Any) -> tuple[Config, list[str]]:
         backend=text("coach_backend") or config.coach.backend,
         model=text("coach_model"),
         weekly_model=text("coach_weekly_model") or None,
+        insights_model=text("coach_insights_model") or None,
         api_key_env=text("coach_api_key_env") or None,
         ollama_url=text("coach_ollama_url") or "http://localhost:11434",
         num_ctx=_int_field(form, "coach_num_ctx", config.coach.num_ctx, problems),
@@ -1107,7 +1109,14 @@ def insights_data(conn: sqlite3.Connection, config: Config, today: date, weeks: 
     for i in range(TAG_WINDOW_DAYS):
         day = (today - timedelta(days=i)).isoformat()
         tag_days.append({"date": day, "tags": pkg["tag_days"].get(day, [])})
-    return {"weeks": weeks, "pkg": pkg, "charts": charts, "tags": TAGS, "tag_days": tag_days, "latest": latest}
+    report = None
+    runs = recent_runs(conn, kind="insights", limit=1)
+    if runs:
+        run = runs[0]
+        stamp = run.get("created_at_utc") or ""
+        report = {"id": run["id"], "created_at_utc": stamp, "backend": run.get("backend"), "model": run.get("model"), "answer_md": run.get("answer_md") or "",
+                  "rating": run.get("rating"), "period_end": run.get("period_end"), "stale": bool(run.get("period_end") and run["period_end"] < today.isoformat())}
+    return {"weeks": weeks, "pkg": pkg, "charts": charts, "tags": TAGS, "tag_days": tag_days, "latest": latest, "report": report}
 
 
 def readiness_tile(conn: sqlite3.Connection, config: Config, today: date) -> dict[str, Any] | None:
@@ -1122,3 +1131,42 @@ def readiness_tile(conn: sqlite3.Connection, config: Config, today: date) -> dic
     reasons = sorted(present, key=lambda c: -abs(c["contribution"]))[:3]
     return {"date": latest["date"], "score": latest["score"], "label": latest["label"], "confidence": latest["confidence"],
             "reasons": [{"title": c["title"], "contribution": c["contribution"], "text": f"{c['contribution']:+.1f}"} for c in reasons]}
+
+
+# ---- week and month report as a page (analysis wave A4) ---------------------------------------------
+
+REPORT_KINDS = ("week", "month")
+REPORT_CHARTS = (  # (id, title, unit, column, kind, scale, digits)
+    ("steps", "Steps", "", "steps", "bar", 1.0, 0),
+    ("rhr", "Resting HR", "bpm", "resting_hr", "line", 1.0, 0),
+    ("sleep", "Sleep", "h", "sleep_duration_s", "bar", 3600.0, 2),
+    ("stress", "Stress", "", "stress_avg", "line", 1.0, 0),
+    ("bb", "Body Battery", "", "body_battery_max", "line", 1.0, 0),
+)
+
+
+def report_page(conn: sqlite3.Connection, config: Config, kind: str, day: date) -> dict[str, Any] | None:
+    """The weekly or monthly report rendered from the same Markdown as the CLI, plus the period's charts."""
+    from ..report import build_report
+
+    if kind not in REPORT_KINDS:
+        return None
+    start, end = week_bounds(day) if kind == "week" else month_bounds(day)
+    markdown, _svgs = build_report(conn, config, kind, day, charts=False, chart_dir=None)
+    days = [(start + timedelta(days=i)).isoformat() for i in range((end - start).days + 1)]
+    rows = series.daily_rows(conn, start, end)
+    charts = []
+    for chart_id, title, unit, column, chart_kind, scale, digits in REPORT_CHARTS:
+        watch = [round(rows[d][f"garmin_{column}"] / scale, digits) if d in rows and rows[d].get(f"garmin_{column}") is not None else None for d in days]
+        strap = [round(rows[d][f"strap_{column}"] / scale, digits) if d in rows and rows[d].get(f"strap_{column}") is not None else None for d in days] if column in series.STRAP_METRICS else None
+        if not any(v is not None for v in watch) and not (strap and any(v is not None for v in strap)):
+            continue
+        chart_series = [{"name": "Watch", "data": watch, "role": "watch"}]
+        if strap and any(v is not None for v in strap):
+            chart_series.append({"name": "Strap", "data": strap, "role": "strap"})
+        charts.append({"id": chart_id, "title": title, "unit": unit, "kind": chart_kind, "labels": days, "series": chart_series, "zoom": False})
+    label = start.strftime("%G-W%V") if kind == "week" else start.strftime("%Y-%m")
+    previous = start - timedelta(days=1)
+    following = end + timedelta(days=1)
+    return {"kind": kind, "label": label, "start": start.isoformat(), "end": end.isoformat(), "markdown": markdown, "charts": charts,
+            "previous": previous.isoformat(), "next": following.isoformat(), "date": day.isoformat()}

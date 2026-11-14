@@ -693,7 +693,11 @@ wake-up spread, sleep debt against `[coach] sleep_target_h`), relationships betw
 Body Battery and HRV as Spearman correlations of the within-person z-scores with lags 0–2 and a binned
 response curve that names the sweet spot when one bin clearly beats its neighbours, and day tags (alcohol,
 sauna, sick, travel, …) whose effect on the following day is compared with the other days. Today shows the
-readiness and the day's tags; `wristpull coach tag 2026-11-14 +sauna` sets tags from the terminal.
+readiness and the day's tags; `wristpull coach tag 2026-11-14 +sauna` sets tags from the terminal. The
+button "Create AI report" (also `wristpull coach insights`) hands exactly these statistics to the configured
+coach backend, which narrates them in four sections (what the data shows, what it means, one thing to try,
+numbers used) and never recomputes them; the last report stays on the page with its rating. `/report`
+reads the weekly or monthly report in the browser with the period's charts.
 **Days** is the TUI's day table (steps, resting HR, sleep, Body Battery,
 stress, intensity minutes, strap steps, sources) for any period with the watch-and-strap detail of
 one day. **Files** browses the data directory (raw archive, exports, reports, workouts): FIT files
