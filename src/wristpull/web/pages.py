@@ -17,7 +17,13 @@ from ..coach.metrics import acute_chronic, deltas, recovery_flags, value
 from ..coach.store import recent_notes, recent_runs
 from ..config import Config
 from .. import series
-from ..detail import activity_detail, downsample, local_clock, sleep_night, sports
+from ..aggregate import month_bounds, week_bounds
+from ..detail import activity_detail, day_detail_rows, downsample, local_clock, sleep_night, sports
+from ..export import ExportResult
+from ..jobtext import last_days
+from ..report import ReportResult
+from ..tui.queries import inspect_fit, raw_file_info
+from . import files as filesafe
 from ..merge import STRAP_PRIORITY, merged_activities, merged_sleep
 from ..status import last_imports
 from ..timeutil import parse_iso_utc
@@ -332,12 +338,15 @@ def activity_title(row: dict[str, Any]) -> str:
     return name if name and name.lower() != sport.lower() else sport.capitalize()
 
 
-def activities_list(conn: sqlite3.Connection, today: date, weeks: int, *, sport: str | None = None, tz: ZoneInfo) -> dict[str, Any]:
-    """Merged activities (Garmin USB/phone duplicates removed, strap separate), newest first."""
+def activities_list(conn: sqlite3.Connection, today: date, weeks: int, *, sport: str | None = None, q: str | None = None, tz: ZoneInfo) -> dict[str, Any]:
+    """Merged activities (Garmin USB/phone duplicates removed, strap separate), newest first; ``q`` filters by name."""
     start, weeks = _period(today, weeks)
     rows = list(reversed(merged_activities(conn, start.isoformat(), today.isoformat())))
     if sport:
         rows = [r for r in rows if (r.get("sport") or "") == sport]
+    needle = (q or "").strip().lower()
+    if needle:
+        rows = [r for r in rows if needle in f"{r.get('name') or ''} {r.get('profile_name') or ''} {r.get('sport') or ''}".lower()]
     items = [
         {
             "id": r["id"],
@@ -357,6 +366,7 @@ def activities_list(conn: sqlite3.Connection, today: date, weeks: int, *, sport:
         "weeks": weeks,
         "start": start.isoformat(),
         "sport": sport,
+        "q": needle,
         "sports": sports(conn),
         "items": items,
         "total_s": sum(i["duration_s"] or 0 for i in items),
@@ -385,9 +395,11 @@ def activity_page(conn: sqlite3.Connection, activity_id: int, tz: ZoneInfo) -> d
     zones_total = sum(detail["hr_zones_s"]) or 0
     zones = [{"label": f"Z{i}", "seconds": s, "pct": round(100 * s / zones_total) if zones_total else 0}
              for i, s in enumerate(detail["hr_zones_s"], 1)] if zones_total else []
+    archive = detail.get("archive_path")
     return {
         "a": detail,
         "title": activity_title(detail),
+        "download": f"raw/{archive}" if archive else None,  # relative to the data directory, for /files/download
         "clock": local_clock(detail["start_utc"], tz),
         "duration_s": detail.get("timer_s") or detail.get("elapsed_s"),
         "charts": charts,
@@ -396,9 +408,14 @@ def activity_page(conn: sqlite3.Connection, activity_id: int, tz: ZoneInfo) -> d
     }
 
 
-def sleep_list(conn: sqlite3.Connection, today: date, weeks: int) -> dict[str, Any]:
-    """One row per wake-up date with the watch's and the strap's night side by side, newest first."""
+SLEEP_SOURCES = ("all", "watch", "strap")
+
+
+def sleep_list(conn: sqlite3.Connection, today: date, weeks: int, *, source: str = "all") -> dict[str, Any]:
+    """One row per wake-up date with the watch's and the strap's night side by side, newest first;
+    ``source`` watch|strap keeps only the nights of that device."""
     start, weeks = _period(today, weeks)
+    source = source if source in SLEEP_SOURCES else "all"
     by_day: dict[str, dict[str, Any]] = {}
     for s in merged_sleep(conn, start.isoformat(), today.isoformat()):
         day = by_day.setdefault(s["local_date"], {"date": s["local_date"], "watch": None, "strap": None})
@@ -406,7 +423,9 @@ def sleep_list(conn: sqlite3.Connection, today: date, weeks: int) -> dict[str, A
         if day[key] is None or (s.get("duration_s") or 0) > (day[key].get("duration_s") or 0):
             day[key] = s  # the main night if a device logged a nap too
     rows = sorted(by_day.values(), key=lambda d: d["date"], reverse=True)
-    return {"weeks": weeks, "start": start.isoformat(), "rows": rows}
+    if source != "all":
+        rows = [r for r in rows if r[source] is not None]
+    return {"weeks": weeks, "start": start.isoformat(), "rows": rows, "source": source, "sources": SLEEP_SOURCES}
 
 
 def stage_band(stages: list[dict[str, Any]], start_utc: str, end_utc: str) -> list[dict[str, Any]]:
@@ -670,3 +689,153 @@ def apply_config(target: Config, new: Config) -> None:
 
     for f in fields(Config):
         setattr(target, f.name, getattr(new, f.name))
+
+
+# ---- days, files, export (parity wave P2) -------------------------------------------------------
+
+DAY_SOURCE_LETTERS = {"garmin_usb": "G", "gadgetbridge_garmin": "P", "garmin_connect": "C", "zepp_ble": "b", "gadgetbridge_zepp": "s", "gadgetbridge": "s"}
+
+
+def day_period(today: date, range_days: int, *, start: str | None, end: str | None, preset: str | None) -> tuple[date, date]:
+    """The Days page's period: a preset (week, month, default), explicit from/to, or the default range."""
+    if preset == "week":
+        return week_bounds(today)
+    if preset == "month":
+        return month_bounds(today)
+    try:
+        if start and end:
+            a, b = date.fromisoformat(start), date.fromisoformat(end)
+            if a <= b and (b - a).days <= 366:
+                return a, b
+    except ValueError:
+        pass
+    return last_days(today, range_days)
+
+
+def days_data(conn: sqlite3.Connection, start: date, end: date, *, day: str | None = None, lang: str | None = None) -> dict[str, Any]:
+    """The TUI Days table: one row per day with data, the detail of ``day`` (default: the latest)."""
+    rows = day_rows(conn, start, end)
+    items = []
+    for r in rows:
+        mod, vig = r.get("garmin_moderate_min"), r.get("garmin_vigorous_min")
+        items.append({
+            "date": r["date"],
+            "steps": r.get("garmin_steps"),
+            "resting_hr": r.get("garmin_resting_hr"),
+            "sleep_s": r.get("garmin_sleep_duration_s"),
+            "bb_max": r.get("garmin_body_battery_max"),
+            "bb_min": r.get("garmin_body_battery_min"),
+            "stress": r.get("garmin_stress_avg"),
+            "intensity": None if mod is None and vig is None else (mod or 0) + (vig or 0),
+            "strap_steps": r.get("strap_steps"),
+            "sources": "".join(DAY_SOURCE_LETTERS.get(src, src[:1]) for src in (r.get("sources") or "").split("+") if src),
+        })
+    chosen = day if day in {r["date"] for r in rows} else (rows[-1]["date"] if rows else None)
+    span = (end - start).days + 1
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "rows": list(reversed(items)),
+        "n": len(rows),
+        "day": chosen,
+        "detail": day_detail(rows, chosen, lang=lang) if chosen else None,
+        "earlier": {"from": (start - timedelta(days=span)).isoformat(), "to": (start - timedelta(days=1)).isoformat()},
+        "later": {"from": (end + timedelta(days=1)).isoformat(), "to": (end + timedelta(days=span)).isoformat()},
+    }
+
+
+def day_detail(rows: list[dict[str, Any]], day: str, *, lang: str | None = None) -> dict[str, Any] | None:
+    row = next((r for r in rows if r["date"] == day), None)
+    if row is None:
+        return None
+    return {"date": day, "cells": day_detail_rows(row, lang), "sources": row.get("sources") or "–"}
+
+
+def files_data(conn: sqlite3.Connection, config: Config, rel: str | None, *, file: str | None = None, env: dict[str, str] | None = None) -> dict[str, Any]:
+    """The listing of one folder of the data directory plus the selected file's info, archive row and inspect/preview."""
+    from ..runtime import host_path
+
+    data = {"listing": filesafe.listing(config.data_dir, rel), "root": str(host_path(config.data_dir, env)), "file": None}
+    if file:
+        path = filesafe.safe_path(config.data_dir, file)
+        if not path.is_file():
+            raise filesafe.BadPath(file)
+        info = filesafe.file_info(path)
+        info["rel"] = filesafe.relative(config.data_dir, path)
+        info["host_path"] = str(host_path(path, env))
+        row = raw_file_info(conn, config, path)
+        info["archive"] = dict(row) if row else None
+        info["inspect"] = None
+        info["preview"] = None
+        if info["kind"] == "fit":
+            try:
+                header, summary = inspect_fit(path)
+                info["inspect"] = {"header": header, "messages": [{"name": name, "num": e["num"], "count": e["count"], "fields": list(e["fields"].keys())} for name, e in summary.items()]}
+            except Exception as exc:  # noqa: BLE001 - a corrupt file is shown, not raised
+                info["inspect"] = {"error": str(exc)}
+        elif info["kind"] == "text":
+            info["preview"] = filesafe.preview(path)
+        data["file"] = info
+    return data
+
+
+EXPORT_KINDS = ("export", "week", "month")
+EXPORT_TITLES = {"export": "Export for Claude", "week": "Weekly report", "month": "Monthly report"}
+PREVIEW_LINES = 80
+
+
+def export_form(today: date, range_days: int) -> dict[str, Any]:
+    """Defaults and presets for the export form."""
+    start, end = last_days(today, range_days)
+    week = week_bounds(today)
+    month = month_bounds(today)
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "presets": [
+            {"key": "7", "label": "7 days", "from": (today - timedelta(days=6)).isoformat(), "to": today.isoformat()},
+            {"key": "default", "label": "default", "from": start.isoformat(), "to": end.isoformat()},
+            {"key": "week", "label": "this week", "from": week[0].isoformat(), "to": week[1].isoformat()},
+            {"key": "month", "label": "this month", "from": month[0].isoformat(), "to": month[1].isoformat()},
+        ],
+        "kinds": EXPORT_KINDS,
+    }
+
+
+def export_result(result: Any, config: Config, *, env: dict[str, str] | None = None) -> dict[str, Any] | None:
+    """Files (with sizes and download paths) and the Markdown preview of a finished export or report."""
+    from ..runtime import host_path
+
+    if not isinstance(result, (ExportResult, ReportResult)):
+        return None
+    files = []
+    for path in result.files:
+        p = Path(path)
+        try:
+            size = p.stat().st_size
+        except OSError:
+            size = None
+        try:
+            rel = filesafe.relative(config.data_dir, p)
+        except ValueError:
+            rel = None
+        files.append({"name": p.name, "size": size, "rel": rel})
+    try:
+        directory_rel = filesafe.relative(config.data_dir, Path(result.directory))
+    except ValueError:
+        directory_rel = None
+    lines = result.markdown.splitlines()
+    return {
+        "directory": str(host_path(Path(result.directory), env)),
+        "directory_rel": directory_rel,
+        "files": files,
+        "preview": "\n".join(lines[:PREVIEW_LINES]),
+        "truncated": len(lines) > PREVIEW_LINES,
+        "lines": len(lines),
+    }
+
+
+def export_cli(kind: str, start: date, end: date, *, csv: bool, charts: bool) -> str:
+    if kind == "export":
+        return f"wristpull export --for-claude --from {start.isoformat()} --to {end.isoformat()}" + ("" if csv else " --no-csv")
+    return f"wristpull report {kind} --date {end.isoformat()}" + (" --charts" if charts else "")

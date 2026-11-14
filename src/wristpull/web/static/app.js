@@ -12,6 +12,32 @@
   });
 })();
 
+// The phone's "More" sheet (the pages that do not fit into the bottom bar) and the export form's period presets.
+(function () {
+  "use strict";
+  document.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-more-toggle]");
+    const sheet = document.getElementById("more-sheet");
+    if (toggle && sheet) {
+      const open = sheet.hasAttribute("hidden");
+      if (open) sheet.removeAttribute("hidden"); else sheet.setAttribute("hidden", "");
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      return;
+    }
+    if (sheet && !sheet.hasAttribute("hidden") && !event.target.closest("#more-sheet")) {
+      sheet.setAttribute("hidden", "");
+      document.querySelectorAll("[data-more-toggle]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    }
+    const preset = event.target.closest(".chip-button[data-from]");
+    if (preset) {
+      const form = preset.closest("form");
+      const from = form && form.querySelector('input[name="from"]');
+      const to = form && form.querySelector('input[name="to"]');
+      if (from && to) { from.value = preset.getAttribute("data-from"); to.value = preset.getAttribute("data-to"); }
+    }
+  });
+})();
+
 // Theme toggle: system → light → dark, remembered per browser; theme.js applies it before the first paint.
 (function () {
   "use strict";

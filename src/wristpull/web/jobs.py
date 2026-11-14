@@ -27,6 +27,7 @@ class Job:
     key: str
     title: str
     status: str = "running"  # running | done | error
+    cli: str = ""  # the equivalent command line, shown with the result
     log: list[str] = field(default_factory=list)
     started: float = field(default_factory=time.time)
     finished: float | None = None
@@ -56,16 +57,21 @@ class JobRegistry:
         with self._lock:
             return self._jobs[-1] if self._jobs else None
 
+    def last_of(self, keys: tuple[str, ...]) -> Job | None:
+        """The most recent job whose key is one of ``keys`` (running or finished)."""
+        with self._lock:
+            return next((j for j in reversed(self._jobs) if j.key in keys), None)
+
     def get(self, job_id: int) -> Job | None:
         with self._lock:
             return next((j for j in self._jobs if j.id == job_id), None)
 
-    def start(self, key: str, title: str, fn: Callable[[sqlite3.Connection, Log], Any]) -> Job | None:
+    def start(self, key: str, title: str, fn: Callable[[sqlite3.Connection, Log], Any], *, cli: str = "") -> Job | None:
         """Start ``fn(conn, log)``; None while another job is still running."""
         with self._lock:
             if self._jobs and self._jobs[-1].running:
                 return None
-            job = Job(id=len(self._jobs) + 1, key=key, title=title)
+            job = Job(id=len(self._jobs) + 1, key=key, title=title, cli=cli)
             self._jobs = (self._jobs + [job])[-20:]
         if self.threaded:
             threading.Thread(target=self._work, args=(job, fn), name=f"wristpull-job-{job.id}", daemon=True).start()

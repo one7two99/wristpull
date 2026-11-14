@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Days") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Days") }}</h1>
+<p class="muted">{{ d.start }} – {{ d.end }} · {{ _("{n} days with data").format(n=d.n) }}</p>
+</header>
+<nav class="chips" aria-label="{{ _('Period') }}">
+<a href="/days?from={{ d.earlier.from }}&amp;to={{ d.earlier.to }}" aria-label="{{ _('Earlier') }}">←</a>
+<a href="/days?preset=week">{{ _("this week") }}</a>
+<a href="/days?preset=month">{{ _("this month") }}</a>
+<a href="/days">{{ _("default range") }}</a>
+<a href="/days?from={{ d.later.from }}&amp;to={{ d.later.to }}" aria-label="{{ _('Later') }}">→</a>
+</nav>
+<form method="get" action="/days" class="inline wrap">
+<label for="from" class="hint">{{ _("From") }}</label><input id="from" name="from" type="date" value="{{ d.start }}">
+<label for="to" class="hint">{{ _("To") }}</label><input id="to" name="to" type="date" value="{{ d.end }}">
+<button type="submit" class="secondary">{{ _("Show") }}</button>
+</form>
+<div class="daysgrid">
+<section class="card table-box" aria-label="{{ _('Days') }}">
+<table class="days">
+<thead><tr><th>{{ _("Date") }}</th><th>{{ _("Steps") }}</th><th>{{ _("RHR") }}</th><th>{{ _("Sleep") }}</th><th>{{ _("BB") }}</th><th>{{ _("Stress") }}</th><th>{{ _("Int.") }}</th><th>{{ _("Strap steps") }}</th><th>{{ _("Src") }}</th></tr></thead>
+<tbody>
+{% for r in d.rows %}
+<tr {% if r.date == d.day %}aria-current="true"{% endif %}>
+<td><a href="/days?from={{ d.start }}&amp;to={{ d.end }}&amp;day={{ r.date }}" hx-get="/days/detail?day={{ r.date }}" hx-target="#day-detail" hx-swap="outerHTML">{{ r.date }}</a></td>
+<td class="num">{{ r.steps|num }}</td><td class="num">{{ r.resting_hr|num }}</td><td class="num">{{ r.sleep_s|hm }}</td>
+<td class="num">{% if r.bb_max is not none %}{{ r.bb_max|num }}▸{{ r.bb_min|num }}{% else %}–{% endif %}</td>
+<td class="num">{{ r.stress|num }}</td><td class="num">{{ r.intensity|num }}</td><td class="num">{{ r.strap_steps|num }}</td><td class="mono">{{ r.sources }}</td>
+</tr>
+{% else %}
+<tr><td colspan="9" class="muted">{{ _("No data in this period. Import from the watch or pull the phone first.") }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</section>
+{% with detail=d.detail %}{% include "_day_detail.html" %}{% endwith %}
+</div>
+<p class="muted small">{{ _("Src: G watch over USB, P watch via the phone, C Connect export, b strap over Bluetooth, s strap via the phone.") }}</p>
+{% endblock %}

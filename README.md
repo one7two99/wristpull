@@ -679,9 +679,17 @@ log, a stop button and the equivalent command to copy), and shows whether the wa
 attached. Those jobs do not run in the web container, which has no device access: the **device
 agent** (Compose service `agent`, `wristpull agent`) runs next to it with the rights of the `cli`
 service, takes the jobs from a queue in the database and writes log and result back; Today shows
-whether it is online. The goal is every TUI function in the browser; the remaining pages (days,
-files, export and reports, settings, the coach's wizard and profile, workouts on the watch) follow
-wave by wave ([concept](docs/dashboard-concept.md), "Parity with the TUI"); charts, analysis
+whether it is online. **Days** is the TUI's day table (steps, resting HR, sleep, Body Battery,
+stress, intensity minutes, strap steps, sources) for any period with the watch-and-strap detail of
+one day. **Files** browses the data directory (raw archive, exports, reports, workouts): FIT files
+are inspected (message types, counts, fields) with their archive row, text files previewed,
+everything downloadable; `adb/` and `staging/` stay hidden. **Export** writes the Claude export
+(Markdown + CSV) or a weekly or monthly report as a background job, lists the files with download
+links and shows the Markdown preview; the activity page offers the FIT file for download, the
+activity list filters by name, the sleep list by device. On the phone the pages that do not fit
+into the bottom bar sit behind "More". The goal is every TUI function in the browser; still open
+are the coach's check, wizard and profile pages, the language switch, workouts on the watch and a
+help page ([concept](docs/dashboard-concept.md), "Parity with the TUI"); charts, analysis
 (readiness, correlations, tags) and the AI insights report follow
 [docs/analysis-concept.md](docs/analysis-concept.md).
 

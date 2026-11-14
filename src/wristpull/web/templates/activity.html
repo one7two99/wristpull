@@ -4,7 +4,7 @@
 <a class="back" href="/activities">← {{ _("All activities") }}</a>
 <header class="page-head">
 <h1>{{ d.title }}</h1>
-<p class="muted">{{ d.a.local_date }} {{ d.clock }} · {{ d.a.source }}</p>
+<p class="muted">{{ d.a.local_date }} {{ d.clock }} · {{ d.a.source }}{% if d.download %} · <a href="/files/download?path={{ d.download|urlencode }}">{{ _("Download FIT") }}</a> · <a href="/files?dir={{ d.download.rsplit('/', 1)[0]|urlencode }}&amp;file={{ d.download|urlencode }}">{{ _("Inspect") }}</a>{% endif %}</p>
 </header>
 <section class="stats">
 <div><span>{{ _("Duration") }}</span><strong class="num">{{ d.duration_s|dur }}</strong></div>

@@ -6,13 +6,20 @@
 <h1>{{ _("Activities") }}</h1>
 <p class="muted">{{ ngettext("{n} activity", "{n} activities", d["items"]|length).format(n=d["items"]|length) }} · {{ d.total_s|dur }} h · {{ d.total_m|km }}</p>
 </header>
-{{ period("/activities", d.weeks, choices, ("&sport=" ~ d.sport|urlencode) if d.sport else "") }}
+{{ period("/activities", d.weeks, choices, (("&sport=" ~ d.sport|urlencode) if d.sport else "") ~ (("&q=" ~ d.q|urlencode) if d.q else "")) }}
 {% if d.sports %}
 <nav class="chips" aria-label="{{ _('Sport') }}">
-<a href="/activities?weeks={{ d.weeks }}" {% if not d.sport %}aria-current="page"{% endif %}>{{ _("All") }}</a>
-{% for s in d.sports %}<a href="/activities?weeks={{ d.weeks }}&amp;sport={{ s|urlencode }}" {% if s == d.sport %}aria-current="page"{% endif %}>{{ s|replace("_", " ") }}</a>{% endfor %}
+<a href="/activities?weeks={{ d.weeks }}{% if d.q %}&amp;q={{ d.q|urlencode }}{% endif %}" {% if not d.sport %}aria-current="page"{% endif %}>{{ _("All") }}</a>
+{% for s in d.sports %}<a href="/activities?weeks={{ d.weeks }}&amp;sport={{ s|urlencode }}{% if d.q %}&amp;q={{ d.q|urlencode }}{% endif %}" {% if s == d.sport %}aria-current="page"{% endif %}>{{ s|replace("_", " ") }}</a>{% endfor %}
 </nav>
 {% endif %}
+<form method="get" action="/activities" class="inline">
+<input type="hidden" name="weeks" value="{{ d.weeks }}">
+{% if d.sport %}<input type="hidden" name="sport" value="{{ d.sport }}">{% endif %}
+<label class="sr-only" for="q">{{ _("Filter by name") }}</label>
+<input id="q" name="q" type="search" maxlength="80" value="{{ d.q }}" placeholder="{{ _('Filter by name') }}">
+<button type="submit" class="secondary">{{ _("Filter") }}</button>
+</form>
 <ul class="list">
 {% for a in d["items"] %}
 <li><a class="row" href="/activities/{{ a.id }}">

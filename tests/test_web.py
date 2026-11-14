@@ -487,8 +487,14 @@ def test_web_strings_have_german_translations():
     ids.update(m.unit for m in series.METRICS if m.unit)
     ids.update(m.explain for m in series.METRICS)
     ids.update({"7-day mean", "28-day band", "Body Battery and stress today", "Weekday pattern", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"})
+    from wristpull.detail import DAY_DETAIL_FIELDS
+
+    ids.update(label for label, _c, _k in DAY_DETAIL_FIELDS)
+    ids.update(pages.EXPORT_TITLES.values())
+    ids.update(p["label"] for p in pages.export_form(TODAY, 28)["presets"])
     missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio",
-                                                                            "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max"})
+                                                                            "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max",
+                                                                            "Detail", "Garmin", "Export", "Export & Report", "BB", "Int.", "…", "Filter"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"
 
@@ -548,6 +554,137 @@ def test_markdown_renderer():
     assert "<br>Second line" in html and "<ul><li>one</li><li>two wrapped</li></ul>" in html and "<ol><li>first</li></ol>" in html
     assert "<th>Day</th>" in html and "<td>easy</td>" in html and "<h4>Numbers used</h4>" in html and html.endswith("<p>plain</p>")
     assert render("") == "" and render("2 * 3 * 4") == "<p>2 * 3 * 4</p>"
+
+
+# ---- days, files, export, filters (parity wave P2) -----------------------------------------------
+
+
+def test_day_detail_rows_and_period():
+    from wristpull.detail import day_detail_rows
+
+    row = {"date": "2026-10-06", "garmin_steps": 8123, "strap_steps": 8000, "garmin_hr_min": 48, "garmin_hr_avg": 70.2, "garmin_hr_max": 150,
+           "garmin_sleep_duration_s": 7.5 * 3600, "garmin_resting_hr": None, "strap_resting_hr": 52}
+    cells = day_detail_rows(row)
+    labels = [c["label"] for c in cells]
+    assert labels[:2] == ["Steps", "HR min / avg / max"] and "Resting HR" in labels and "Temperature avg" not in labels  # only fields with a value
+    assert cells[0]["garmin"] == "8,123" and cells[0]["strap"] == "8,000" and cells[1]["garmin"] == "48 / 70 / 150" and cells[1]["strap"] == "– / – / –"
+    assert next(c for c in cells if c["label"] == "Sleep")["garmin"] == "7:30 h"
+    assert next(c for c in cells if c["label"] == "Resting HR")["strap"] == "52"
+    assert pages.day_period(TODAY, 28, start=None, end=None, preset=None) == (date(2026, 9, 10), TODAY)
+    assert pages.day_period(TODAY, 28, start=None, end=None, preset="week") == (date(2026, 10, 5), date(2026, 10, 11))
+    assert pages.day_period(TODAY, 28, start="2026-10-01", end="2026-10-03", preset=None) == (date(2026, 10, 1), date(2026, 10, 3))
+    assert pages.day_period(TODAY, 28, start="2026-10-03", end="2026-10-01", preset=None) == (date(2026, 9, 10), TODAY)  # reversed: default
+    assert pages.day_period(TODAY, 28, start="x", end="y", preset=None) == (date(2026, 9, 10), TODAY)
+
+
+def test_days_page_and_detail(seeded: Config, password_hash: str):
+    client = client_for(seeded, password_hash)
+    login(client)
+    page = client.get("/days", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "Tage mit Daten" in page.text and 'hx-get="/days/detail?day=2026-10-06"' in page.text and 'aria-current="true"' in page.text
+    assert "Detail 2026-10-06" in page.text and "Schritte" in page.text and 'id="day-detail"' in page.text
+    earlier = client.get("/days?from=2026-09-01&to=2026-09-07")
+    assert earlier.status_code == 200 and "0 days with data" in earlier.text and "Pick a day" in earlier.text
+    chosen = client.get("/days?from=2026-10-01&to=2026-10-06&day=2026-10-03")
+    assert chosen.status_code == 200 and "Detail 2026-10-03" in chosen.text
+    partial = client.get("/days/detail?day=2026-10-04")
+    assert partial.status_code == 200 and partial.text.strip().startswith('<section class="card" id="day-detail"') and "Detail 2026-10-04" in partial.text
+    assert client.get("/days/detail?day=2020-01-01").status_code == 404 and client.get("/days/detail?day=nope").status_code == 404
+    assert client.get("/days?preset=month").status_code == 200
+
+
+def test_files_helpers(tmp_path: Path):
+    from wristpull.web import files
+
+    data = tmp_path / "Health"
+    (data / "raw" / "garmin_usb").mkdir(parents=True)
+    (data / "adb").mkdir()
+    (data / "staging").mkdir()
+    (data / ".hidden").mkdir()
+    (data / "raw" / "garmin_usb" / "a.fit").write_bytes(b"x" * 10)
+    (data / "notes.md").write_text("# hi\nline two\n", "utf-8")
+    (data / "adb" / "adbkey").write_text("secret", "utf-8")
+    top = files.listing(data, None)
+    assert [d["name"] for d in top["dirs"]] == ["raw"] and [f["name"] for f in top["files"]] == ["notes.md"] and top["parent"] is None and top["crumbs"] == []
+    sub = files.listing(data, "raw/garmin_usb")
+    assert sub["rel"] == "raw/garmin_usb" and sub["parent"] == "raw" and [c["rel"] for c in sub["crumbs"]] == ["raw", "raw/garmin_usb"]
+    assert sub["files"][0]["kind"] == "fit" and sub["files"][0]["size"] == 10
+    assert files.safe_path(data, "notes.md") == (data / "notes.md").resolve() and files.safe_path(data, "") == data.resolve()
+    for bad in ("../", "../Health/notes.md/../..", "adb/adbkey", "adb", "staging", ".hidden", "raw/../adb/adbkey", "../../etc/passwd"):
+        with pytest.raises(files.BadPath):
+            files.safe_path(data, bad)
+    with pytest.raises(files.BadPath):
+        files.listing(data, "notes.md")  # not a folder
+    assert files.preview(data / "notes.md") == ["# hi", "line two"] and files.file_kind(data / "notes.md") == "text" and files.file_kind(data / "x.bin") == "other"
+
+
+def test_files_page_and_download(seeded: Config, password_hash: str):
+    client = client_for(seeded, password_hash)
+    login(client)
+    (seeded.data_dir / "adb").mkdir(exist_ok=True)
+    (seeded.data_dir / "adb" / "adbkey").write_text("secret", "utf-8")
+    page = client.get("/files", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "?dir=raw" in page.text and "adb" not in page.text.split("filelist")[1].split("</ul>")[0] and "Dateien" in page.text
+    from urllib.parse import quote
+
+    fit = next(p for p in sorted((seeded.data_dir / "raw").rglob("*")) if p.suffix.lower() == ".fit")
+    folder = quote(fit.parent.relative_to(seeded.data_dir).as_posix(), safe="")
+    raw = client.get(f"/files?dir={folder}")
+    assert raw.status_code == 200 and fit.name in raw.text and "?dir=raw/garmin_usb" in client.get("/files?dir=raw").text
+    rel = quote(fit.relative_to(seeded.data_dir).as_posix(), safe="")
+    detail = client.get(f"/files?dir={folder}&file={rel}")
+    assert detail.status_code == 200 and "Messages (inspect)" in detail.text and "garmin_usb" in detail.text and "Download" in detail.text and "SHA-256" in detail.text
+    download = client.get(f"/files/download?path={rel}")
+    assert download.status_code == 200 and download.headers["content-disposition"].startswith("attachment") and download.content[8:12] == b".FIT"
+    for bad in ("adb%2Fadbkey", "..%2F..%2Fetc%2Fpasswd", "staging", "nope.fit", "raw"):
+        assert client.get(f"/files/download?path={bad}").status_code == 404, bad
+    assert client.get("/files?dir=adb").status_code == 404 and client.get("/files?dir=..").status_code == 404 and client.get("/files?file=adb%2Fadbkey").status_code == 404
+    (seeded.data_dir / "notes.md").write_text("# Title\nsome text\n", "utf-8")
+    text = client.get("/files?file=notes.md")
+    assert text.status_code == 200 and "Preview" in text.text and "some text" in text.text
+
+
+def test_export_page_runs_export_and_report(seeded: Config, password_hash: str):
+    client = client_for(seeded, password_hash)
+    login(client)
+    page = client.get("/export", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "Export &amp; Report" in page.text and 'data-from="2026-10-05"' in page.text and "Erzeugen" in page.text
+    token = csrf_of(page.text)
+    assert client.post("/export/run", data={"csrf": token, "kind": "nope", "from": "2026-10-01", "to": "2026-10-06"}).status_code == 400
+    assert client.post("/export/run", data={"csrf": token, "kind": "export", "from": "2026-10-06", "to": "2026-10-01"}).status_code == 400
+    started = client.post("/export/run", data={"csrf": token, "kind": "export", "from": "2026-10-01", "to": "2026-10-06", "csv": "1"}, headers={"hx-request": "true"})
+    assert started.status_code == 200 and "finished" in started.text and "wrote 5 files" in started.text and "wristpull export --for-claude --from 2026-10-01 --to 2026-10-06" in started.text
+    poll = client.get("/export/job?poll=1")
+    assert poll.headers.get("hx-refresh") == "true"
+    page = client.get("/export")
+    assert "summary.md" in page.text and "daily.csv" in page.text and "/files/download?path=exports/2026-10-01_2026-10-06/summary.md" in page.text and "Open in Files" in page.text
+    assert '<div class="prose">' in page.text and "<h3>" in page.text  # the Markdown preview is rendered
+    summary = client.get("/files/download?path=exports%2F2026-10-01_2026-10-06%2Fsummary.md")
+    assert summary.status_code == 200 and summary.content.startswith(b"#")
+    report = client.post("/export/run", data={"csrf": token, "kind": "week", "from": "2026-10-01", "to": "2026-10-06", "charts": "1"})
+    assert report.status_code == 303
+    page = client.get("/export")
+    assert "report.md" in page.text and ".svg" in page.text and "wristpull report week --date 2026-10-06 --charts" in page.text
+    coach = client.get("/coach")
+    assert "Weekly report" not in coach.text  # the coach page shows only coach runs
+
+
+def test_activity_name_filter_and_sleep_source_filter(seeded: Config, password_hash: str):
+    client = client_for(seeded, password_hash)
+    login(client)
+    all_rows = client.get("/activities?weeks=4").text.count('class="row"')
+    assert all_rows >= 1
+    none = client.get("/activities?weeks=4&q=zzz-no-such-name")
+    assert none.status_code == 200 and 'class="row"' not in none.text and 'value="zzz-no-such-name"' in none.text
+    assert client.get("/activities?weeks=4&q=run").text.count('class="row"') >= 1
+    detail_id = re.search(r'href="/activities/(\d+)"', client.get("/activities?weeks=4").text).group(1)
+    detail = client.get(f"/activities/{detail_id}")
+    assert "Download FIT" in detail.text and "/files/download?path=raw/" in detail.text
+    watch = client.get("/sleep?weeks=4&source=watch")
+    assert watch.status_code == 200 and 'aria-current="page">Watch' in watch.text and "Strap" not in watch.text.split('<ul class="list">')[1]
+    strap = client.get("/sleep?weeks=4&source=strap")
+    assert strap.status_code == 200 and "No nights in this period." in strap.text  # the fixture has no strap nights
+    assert client.get("/sleep?weeks=4&source=nope").status_code == 200
 
 
 # ---- devices & sync: jobs for the device agent (parity W1) ------------------------------------

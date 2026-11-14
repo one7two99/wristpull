@@ -16,6 +16,7 @@ from ..jobtext import Gettext, JobRecord, JobSpec, Ngettext, describe_result, re
 from .jobs import Job
 
 COACH_TITLES = {"daily": "Coach: daily check", "weekly": "Coach: weekly review", "ask": "Coach: question"}
+WEB_TITLES = {"export": "Export for Claude", "report-week": "Weekly report", "report-month": "Monthly report"}
 
 
 @dataclass
@@ -71,19 +72,24 @@ def from_agent(job: AgentJob, *, log: list[str] | None = None, gettext: Gettext,
     )
 
 
-def from_web(job: Job) -> JobView:
-    """A coach run of this process (``web/jobs.py``)."""
+def from_web(job: Job, *, gettext: Gettext | None = None, ngettext: Ngettext | None = None) -> JobView:
+    """A job of this process (``web/jobs.py``): a coach run, an export or a report."""
     kind = job.key.removeprefix("coach-")
-    lines = []
+    title = COACH_TITLES.get(kind) or WEB_TITLES.get(job.key) or job.title
+    lines: list[str] = []
     if job.status == "done" and isinstance(job.result, dict):
         lines = [f"  ! {w}" for w in job.result.get("warnings", [])]
+    elif job.status == "done" and job.result is not None:
+        record = JobRecord(JobSpec(job.key, title, job.cli, None), result=job.result)
+        lines = describe_result(record, gettext=gettext, ngettext=ngettext)
     return JobView(
         id=job.id,
         source="web",
         kind=job.key,
-        title=COACH_TITLES.get(kind, job.title),
+        title=title,
         status=job.status,
         seconds=job.seconds,
+        cli=job.cli,
         error=job.error,
         lines=lines,
         log=list(job.log),

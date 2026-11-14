@@ -2006,3 +2006,94 @@ msgstr "z-Wert"
 
 msgid "Open a metric for the full chart, its baseline and the day's curve."
 msgstr "Öffne einen Messwert für das große Diagramm, seine Basislinie und den Tagesverlauf."
+
+# ---- days, files, export (parity wave P2)
+msgid "A Markdown summary with CSV files for Claude, or a weekly or monthly report; the files land in the data directory."
+msgstr "Eine Markdown-Zusammenfassung mit CSV-Dateien für Claude oder ein Wochen- bzw. Monatsbericht; die Dateien landen im Datenordner."
+
+msgid "Count"
+msgstr "Anzahl"
+
+msgid "Data"
+msgstr "Daten"
+
+msgid "Device"
+msgstr "Gerät"
+
+msgid "Download"
+msgstr "Herunterladen"
+
+msgid "Download FIT"
+msgstr "FIT herunterladen"
+
+msgid "Earlier"
+msgstr "Früher"
+
+msgid "Empty folder."
+msgstr "Leerer Ordner."
+
+msgid "Fields"
+msgstr "Felder"
+
+msgid "Filter by name"
+msgstr "Nach Name filtern"
+
+msgid "Folder"
+msgstr "Ordner"
+
+msgid "From"
+msgstr "Von"
+
+msgid "Generate"
+msgstr "Erzeugen"
+
+msgid "Imported"
+msgstr "Importiert"
+
+msgid "Inspect"
+msgstr "Untersuchen"
+
+msgid "Later"
+msgstr "Später"
+
+msgid "Message"
+msgstr "Nachricht"
+
+msgid "Modified"
+msgstr "Geändert"
+
+msgid "More"
+msgstr "Mehr"
+
+msgid "Open in Files"
+msgstr "In Dateien öffnen"
+
+msgid "Options"
+msgstr "Optionen"
+
+msgid "Parse status"
+msgstr "Parse-Status"
+
+msgid "Path"
+msgstr "Pfad"
+
+msgid "Pick a day in the table."
+msgstr "Wähle einen Tag in der Tabelle."
+
+msgid "Select a file: FIT files are inspected, text files previewed, everything can be downloaded."
+msgstr "Wähle eine Datei: FIT-Dateien werden untersucht, Textdateien angezeigt, alles lässt sich herunterladen."
+
+msgid "Size"
+msgstr "Größe"
+
+msgid "Src: G watch over USB, P watch via the phone, C Connect export, b strap over Bluetooth, s strap via the phone."
+msgstr "Src: G Uhr über USB, P Uhr über das Handy, C Connect-Export, b Band über Bluetooth, s Band über das Handy."
+
+msgid "The data directory on the host:"
+msgstr "Der Datenordner auf dem Rechner:"
+
+msgid "The whole file is in the download."
+msgstr "Die ganze Datei steckt im Download."
+
+msgid "What"
+msgstr "Was"

@@ -135,7 +135,11 @@ the test list are in the plan of 2026-11-14 and move here with wave A3.
 - **A1** (done 2026-11-14): `series.py` + tests, metric pages, Trends tiles, Today sparklines and
   day curve, chart kinds and zoom in `app.js`, theme toggle (`theme.js`, nav and Settings),
   `web/markdown.py` for coach answers, palette tokens, German catalog, README.
-- **P2** parity: Days, Files, Export (+ activity name filter, FIT download, sleep source filter).
+- **P2** (done 2026-11-14) parity: `/days` (period presets, table, day detail partial;
+  `detail.day_detail_rows` shared with the TUI), `/files` (`web/files.py`: safe paths, listing,
+  preview; download route; FIT inspect; `adb/` and `staging/` hidden), `/export` (export and
+  reports as in-process jobs with download links and a Markdown preview), activity name filter and
+  FIT download, sleep source filter, the phone's "More" sheet in the navigation.
 - **A2** sleep and activities as above.
 - **P3** parity: coach check job, profile editor, wizard, dry run, tokens/costs, language switch.
 - **A3** insights package, tags (schema v8), `/insights`, readiness on Today, rolling ACWR.

@@ -99,3 +99,65 @@ def sports(conn: sqlite3.Connection) -> list[str]:
 
 def local_clock(ts_utc: str, tz: ZoneInfo) -> str:
     return parse_iso_utc(ts_utc).astimezone(tz).strftime("%H:%M")
+
+
+# ---- one day, watch and strap side by side (the TUI Days screen and the web Days page) ----------
+
+DAY_DETAIL_FIELDS: tuple[tuple[str, str, str], ...] = (
+    # (label msgid, daily_summary column, kind) kind: int | float | duration | km | hr | stress | bb | spo2
+    ("Steps", "steps", "int"),
+    ("Distance", "distance_m", "km"),
+    ("Active calories", "active_calories", "int"),
+    ("Moderate minutes", "moderate_min", "int"),
+    ("Vigorous minutes", "vigorous_min", "int"),
+    ("HR min / avg / max", "hr", "hr"),
+    ("Resting HR", "resting_hr", "int"),
+    ("Stress avg / max", "stress", "stress"),
+    ("Body battery min / max", "body_battery", "bb"),
+    ("SpO2 avg / min", "spo2", "spo2"),
+    ("Respiration avg", "respiration_avg", "float"),
+    ("Temperature avg", "temperature_avg", "float"),
+    ("Sleep", "sleep_duration_s", "duration"),
+    ("Sleep score", "sleep_score", "int"),
+    ("HRV last night", "hrv_last_night_avg_ms", "float"),
+    ("Activities", "activities_count", "int"),
+    ("Training load", "training_load", "float"),
+)
+
+
+def day_detail_value(row: dict[str, Any], prefix: str, column: str, kind: str, lang: str | None = None) -> str:
+    """One formatted cell of the day detail (``prefix`` garmin or strap); ``–`` when absent."""
+    from .tui.format import fmt_duration, fmt_float, fmt_int  # plain formatting helpers, no Textual
+
+    g = lambda name: row.get(f"{prefix}_{name}")  # noqa: E731
+    if kind == "int":
+        return fmt_int(g(column), lang)
+    if kind == "float":
+        return fmt_float(g(column), 1, lang)
+    if kind == "km":
+        v = g(column)
+        return "–" if v is None else f"{fmt_float(v / 1000, 1, lang)} km"
+    if kind == "duration":
+        v = g(column)
+        return "–" if v is None else fmt_duration(v) + " h"
+    if kind == "hr":
+        return f"{fmt_int(g('hr_min'), lang)} / {fmt_int(g('hr_avg'), lang)} / {fmt_int(g('hr_max'), lang)}"
+    if kind == "stress":
+        return f"{fmt_float(g('stress_avg'), 0, lang)} / {fmt_int(g('stress_max'), lang)}"
+    if kind == "bb":
+        return f"{fmt_int(g('body_battery_min'), lang)} / {fmt_int(g('body_battery_max'), lang)}"
+    if kind == "spo2":
+        return f"{fmt_float(g('spo2_avg'), 0, lang)} / {fmt_int(g('spo2_min'), lang)}"
+    return "–"
+
+
+def day_detail_rows(row: dict[str, Any], lang: str | None = None) -> list[dict[str, str]]:
+    """The fields of one ``daily_frame`` row that have a value, as ``{label, garmin, strap}`` (label = msgid)."""
+    out = []
+    for label, column, kind in DAY_DETAIL_FIELDS:
+        garmin = day_detail_value(row, "garmin", column, kind, lang)
+        strap = day_detail_value(row, "strap", column, kind, lang)
+        if garmin == "–" and strap == "–":
+            continue
+        out.append({"label": label, "garmin": garmin, "strap": strap})
+    return out

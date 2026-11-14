@@ -22,7 +22,7 @@ from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
@@ -34,6 +34,7 @@ from ..agent import queue
 from ..config import Config, default_config_path, validate_config, write_config
 from ..db import connect
 from . import jobview, markdown, pages
+from .files import BadPath
 from .auth import RateLimiter, SessionCodec, hash_password, new_session, verify_password
 from .i18n import pick_language, translations
 from .jobs import JobRegistry
@@ -159,6 +160,14 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
 
     templates.env.filters["num"] = num
     templates.env.filters["markdown"] = markdown.render
+
+    @pass_context
+    def nbytes(ctx: Any, size: int | None) -> str:
+        from ..tui.format import fmt_bytes
+
+        return fmt_bytes(size, ctx.get("lang", "en"))
+
+    templates.env.filters["bytes"] = nbytes
     templates.env.filters["km"] = km
     templates.env.filters["dur"] = format_duration
     templates.env.filters["hm"] = format_hm
@@ -349,8 +358,9 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         if isinstance(session, Response):
             return session
         sport = request.query_params.get("sport") or None
+        q = (request.query_params.get("q") or "")[:80]
         with closing(connect(config.db_path)) as conn:
-            data = pages.activities_list(conn, today(), weeks_of(request), sport=sport, tz=tz)
+            data = pages.activities_list(conn, today(), weeks_of(request), sport=sport, q=q, tz=tz)
         return render(request, "activities.html", session, {"page": "activities", "d": data, "choices": pages.TREND_WEEKS})
 
     def activity_page(request: Request) -> Response:
@@ -369,7 +379,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         if isinstance(session, Response):
             return session
         with closing(connect(config.db_path)) as conn:
-            data = pages.sleep_list(conn, today(), weeks_of(request))
+            data = pages.sleep_list(conn, today(), weeks_of(request), source=request.query_params.get("source") or "all")
         return render(request, "sleep.html", session, {"page": "sleep", "d": data, "choices": pages.TREND_WEEKS})
 
     def night_page(request: Request) -> Response:
@@ -472,11 +482,18 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
     def is_htmx(request: Request) -> bool:
         return request.headers.get("hx-request") == "true"
 
-    def job_partial(request: Request, session: dict[str, Any], *, refresh: bool = False, busy: bool = False) -> Response:
-        """The coach run of this process (polled at /coach/job)."""
-        current = jobs.current()
-        view = jobview.from_web(current) if current else None
-        response = render(request, "_job.html", session, {"job": view, "busy": busy, "poll_url": "/coach/job", "show_log": False, "offline": False})
+    COACH_KEYS = tuple(f"coach-{k}" for k in pages.COACH_KINDS)
+    EXPORT_KEYS = ("export", "report-week", "report-month")
+
+    def web_view(job: Any, request: Request) -> jobview.JobView:
+        gettext, ngettext = gettext_of(request)
+        return jobview.from_web(job, gettext=gettext, ngettext=ngettext)
+
+    def job_partial(request: Request, session: dict[str, Any], *, keys: tuple[str, ...] = (), poll_url: str = "/coach/job", refresh: bool = False, busy: bool = False) -> Response:
+        """The latest in-process job of the given kinds (coach runs at /coach/job, exports at /export/job)."""
+        current = jobs.last_of(keys or COACH_KEYS)
+        view = web_view(current, request) if current else None
+        response = render(request, "_job.html", session, {"job": view, "busy": busy, "poll_url": poll_url, "show_log": False, "offline": False})
         if refresh:
             response.headers["HX-Refresh"] = "true"
         return response
@@ -554,8 +571,8 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             return session
         with closing(connect(config.db_path)) as conn:
             data = pages.coach_data(conn, tz)
-        current = jobs.current()
-        return render(request, "coach.html", session, {"page": "coach", "d": data, "job": jobview.from_web(current) if current else None, "busy": False,
+        current = jobs.last_of(COACH_KEYS)
+        return render(request, "coach.html", session, {"page": "coach", "d": data, "job": web_view(current, request) if current else None, "busy": False,
                                                        "poll_url": "/coach/job", "show_log": False, "offline": False, "today": today().isoformat(),
                                                        "saved": request.query_params.get("saved")})
 
@@ -578,7 +595,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             result = run_coach(conn, config, kind, today=day, question=question, backend=backend, log=log)
             return {"run_id": result.run_id, "warnings": result.warnings}
 
-        started = jobs.start(f"coach-{kind}", kind, run)
+        started = jobs.start(f"coach-{kind}", kind, run, cli=f"wristpull coach {kind}" + (f' "{question}"' if question else ""))
         if is_htmx(request):
             return job_partial(request, session, busy=started is None)
         return RedirectResponse("/coach", status_code=303)
@@ -587,9 +604,118 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session = require_user(request)
         if isinstance(session, Response):
             return session
-        job = jobs.current()
+        job = jobs.last_of(COACH_KEYS)
         # The page polls while a job runs; the first answer after it finished reloads the page once.
         return job_partial(request, session, refresh=bool(request.query_params.get("poll") and job and not job.running))
+
+    # ---- days, files, export (parity wave P2) ----------------------------------------------
+
+    def days_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        q = request.query_params
+        start, end = pages.day_period(today(), config.ui_range_days, start=q.get("from"), end=q.get("to"), preset=q.get("preset"))
+        with closing(connect(config.db_path)) as conn:
+            data = pages.days_data(conn, start, end, day=q.get("day"), lang=lang)
+        return render(request, "days.html", session, {"page": "days", "d": data})
+
+    def day_detail(request: Request) -> Response:
+        """One day's detail (htmx partial behind the table rows)."""
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        try:
+            day = date.fromisoformat(request.query_params.get("day", ""))
+        except ValueError:
+            return PlainTextResponse("bad day", status_code=404)
+        with closing(connect(config.db_path)) as conn:
+            data = pages.days_data(conn, day, day, day=day.isoformat(), lang=lang)
+        if data["detail"] is None:
+            return PlainTextResponse("no data for that day", status_code=404)
+        return render(request, "_day_detail.html", session, {"page": "days", "detail": data["detail"]})
+
+    def files_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        q = request.query_params
+        try:
+            with closing(connect(config.db_path)) as conn:
+                data = pages.files_data(conn, config, q.get("dir"), file=q.get("file") or None, env=dict(env))
+        except BadPath:
+            return render(request, "missing.html", session, {"page": "files"}, status_code=404)
+        return render(request, "files.html", session, {"page": "files", "d": data})
+
+    def files_download(request: Request) -> Response:
+        """A file of the data directory (never adb/ or staging/), as an attachment."""
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        try:
+            path = pages.filesafe.safe_path(config.data_dir, request.query_params.get("path"))
+        except BadPath:
+            return PlainTextResponse("not found", status_code=404)
+        if not path.is_file():
+            return PlainTextResponse("not found", status_code=404)
+        return FileResponse(str(path), filename=path.name, media_type="application/octet-stream")
+
+    def export_page(request: Request, session: dict[str, Any] | None = None, *, error: str | None = None, status_code: int = 200) -> Response:
+        session = session or require_user(request)
+        if isinstance(session, Response):
+            return session
+        current = jobs.last_of(EXPORT_KEYS)
+        view = web_view(current, request) if current else None
+        result = pages.export_result(current.result, config, env=dict(env)) if current and current.status == "done" else None
+        if result:
+            result["preview_html"] = markdown.render(result["preview"])
+        form = pages.export_form(today(), config.ui_range_days)
+        return render(request, "export.html", session, {"page": "export", "form": form, "job": view, "result": result, "busy": False, "poll_url": "/export/job", "show_log": False, "offline": False, "error": error or request.query_params.get("error")}, status_code=status_code)
+
+    async def export_run(request: Request) -> Response:
+        """Start an export or a report as an in-process job (the same registry as the coach runs)."""
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        kind = str(form.get("kind") or "export")
+        if kind not in pages.EXPORT_KINDS:
+            return PlainTextResponse("unknown kind", status_code=400)
+        try:
+            start = date.fromisoformat(str(form.get("from") or ""))
+            end = date.fromisoformat(str(form.get("to") or ""))
+        except ValueError:
+            return export_page(request, session, error="dates", status_code=400)
+        if end < start:
+            return export_page(request, session, error="order", status_code=400)
+        csv = form.get("csv") is not None
+        charts = form.get("charts") is not None
+        cli = pages.export_cli(kind, start, end, csv=csv, charts=charts)
+
+        def run(conn: Any, log: Callable[[str], None]) -> Any:
+            if kind == "export":
+                from ..export import export_for_claude
+
+                log(f"exporting {start.isoformat()} to {end.isoformat()} …")
+                return export_for_claude(conn, config, start.isoformat(), end.isoformat(), write_csv=csv)
+            from ..report import write_report
+
+            log(f"rendering {kind} report for {end.isoformat()} …")
+            return write_report(conn, config, kind, end, charts=charts)
+
+        started = jobs.start("export" if kind == "export" else f"report-{kind}", pages.EXPORT_TITLES[kind], run, cli=cli)
+        if is_htmx(request):
+            return job_partial(request, session, keys=EXPORT_KEYS, poll_url="/export/job", busy=started is None)
+        return RedirectResponse("/export", status_code=303)
+
+    def export_job(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        job = jobs.last_of(EXPORT_KEYS)
+        return job_partial(request, session, keys=EXPORT_KEYS, poll_url="/export/job", refresh=bool(request.query_params.get("poll") and job and not job.running))
 
     async def coach_rate(request: Request) -> Response:
         got = await posted(request)
@@ -727,6 +853,13 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             Route("/activities/{activity_id:int}", activity_page),
             Route("/sleep", sleep_page),
             Route("/sleep/{sleep_id:int}", night_page),
+            Route("/days", days_page),
+            Route("/days/detail", day_detail),
+            Route("/files", files_page),
+            Route("/files/download", files_download),
+            Route("/export", export_page),
+            Route("/export/run", export_run, methods=["POST"]),
+            Route("/export/job", export_job),
             Route("/settings", settings_get),
             Route("/settings/config", settings_config, methods=["POST"]),
             Route("/settings/secrets", settings_secrets, methods=["POST"]),

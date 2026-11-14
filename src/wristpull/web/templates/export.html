@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Export & Report") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Export & Report") }}</h1>
+<p class="muted">{{ _("A Markdown summary with CSV files for Claude, or a weekly or monthly report; the files land in the data directory.") }}</p>
+</header>
+<section class="card actions">
+{% if error == "dates" %}<p class="note error-box">{{ _("Dates must be YYYY-MM-DD") }}</p>{% elif error == "order" %}<p class="note error-box">{{ _("'To' must not be before 'From'") }}</p>{% endif %}
+<form method="post" action="/export/run" hx-post="/export/run" hx-target="#job" hx-swap="outerHTML" class="export-form">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<fieldset>
+<legend>{{ _("What") }}</legend>
+<label class="check-label"><input type="radio" name="kind" value="export" checked> {{ _("Claude export (Markdown + CSV)") }}</label>
+<label class="check-label"><input type="radio" name="kind" value="week"> {{ _("Weekly report") }}</label>
+<label class="check-label"><input type="radio" name="kind" value="month"> {{ _("Monthly report") }}</label>
+</fieldset>
+<fieldset>
+<legend>{{ _("Period") }}</legend>
+<div class="inline wrap">
+<label for="from" class="hint">{{ _("From") }}</label><input id="from" name="from" type="date" value="{{ form.start }}" required>
+<label for="to" class="hint">{{ _("To") }}</label><input id="to" name="to" type="date" value="{{ form.end }}" required>
+</div>
+<div class="chips presets">{% for p in form.presets %}<button type="button" class="chip-button" data-from="{{ p.from }}" data-to="{{ p.to }}">{{ _(p.label) }}</button>{% endfor %}</div>
+<p class="hint">{{ _("Reports use the week or month of 'To'.") }}</p>
+</fieldset>
+<fieldset>
+<legend>{{ _("Options") }}</legend>
+<label class="check-label"><input type="checkbox" name="csv" value="1" checked> {{ _("Write CSV files (export)") }}</label>
+<label class="check-label"><input type="checkbox" name="charts" value="1" checked> {{ _("Charts as SVG (reports)") }}</label>
+</fieldset>
+<button type="submit" class="primary">{{ _("Generate") }}</button>
+</form>
+{% include "_job.html" %}
+</section>
+{% if result %}
+<section class="card">
+<h2>{{ _("Result") }}</h2>
+<p class="muted small">{{ result.directory }}{% if result.directory_rel is not none %} · <a href="/files?dir={{ result.directory_rel|urlencode }}">{{ _("Open in Files") }}</a>{% endif %}</p>
+<ul class="filelist">
+{% for f in result.files %}<li>{% if f.rel %}<a href="/files/download?path={{ f.rel|urlencode }}">{{ f.name }}</a>{% else %}{{ f.name }}{% endif %} <span class="muted small num">{{ f.size|bytes }}</span></li>{% endfor %}
+</ul>
+</section>
+<section class="card">
+<h2>{{ _("Preview") }} <span class="unit muted">({{ result.lines }} {{ _("lines") }})</span></h2>
+<div class="prose">{{ result.preview_html }}</div>
+{% if result.truncated %}<p class="muted small">{{ _("…") }} {{ _("The whole file is in the download.") }}</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

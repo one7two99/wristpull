@@ -6,12 +6,15 @@
 <h1>{{ _("Sleep") }}</h1>
 <p class="muted">{{ _("Watch and strap side by side, by wake-up date.") }}</p>
 </header>
-{{ period("/sleep", d.weeks, choices) }}
+{{ period("/sleep", d.weeks, choices, ("&source=" ~ d.source) if d.source != "all" else "") }}
+<nav class="chips" aria-label="{{ _('Source') }}">
+{% for s in d.sources %}<a href="/sleep?weeks={{ d.weeks }}{% if s != "all" %}&amp;source={{ s }}{% endif %}" {% if s == d.source %}aria-current="page"{% endif %}>{% if s == "all" %}{{ _("All") }}{% elif s == "watch" %}{{ _("Watch") }}{% else %}{{ _("Strap") }}{% endif %}</a>{% endfor %}
+</nav>
 <ul class="list">
 {% for r in d.rows %}
 <li class="row nights">
 <span class="row-title">{{ r.date }}</span>
-{% for key, label in (("watch", "Watch"), ("strap", "Strap")) %}
+{% for key, label in (("watch", "Watch"), ("strap", "Strap")) if d.source == "all" or d.source == key %}
 {% set n = r[key] %}
 {% if n %}<a class="night" href="/sleep/{{ n.id }}"><span class="muted small">{{ _(label) }}</span><span class="num">{{ n.duration_s|hm }}{% if n.score %} · {{ n.score }}{% endif %}</span></a>
 {% else %}<span class="night empty"><span class="muted small">{{ _(label) }}</span><span class="muted">–</span></span>{% endif %}

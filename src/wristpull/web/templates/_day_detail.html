@@ -1,0 +1,12 @@
+<section class="card" id="day-detail" aria-live="polite">
+{% if detail %}
+<h2>{{ _("Detail") }} {{ detail.date }}</h2>
+<div class="table-box"><table>
+<thead><tr><th></th><th>{{ _("Garmin") }}</th><th>{{ _("Strap") }}</th></tr></thead>
+<tbody>{% for c in detail.cells %}<tr><td>{{ _(c.label) }}</td><td class="num">{{ c.garmin }}</td><td class="num">{{ c.strap }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted small">{{ _("Sources: {sources}").format(sources=detail.sources) }}</p>
+{% else %}
+<p class="muted">{{ _("Pick a day in the table.") }}</p>
+{% endif %}
+</section>

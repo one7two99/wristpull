@@ -256,7 +256,7 @@ step. Download routes serve only the data directory without `adb/`.
 - **W0** this section, CLAUDE.md.
 - **W1** agent (`src/wristpull/agent/`, schema v7, `wristpull agent`, Compose service), `jobtext.py`,
   the Sync page, the device card on Today, the shared job partial.
-- **W2** Days, Files, Export, the activity and sleep filters.
+- **W2** (done 2026-11-14 as wave P2 of the analysis concept) Days, Files, Export, the activity and sleep filters, the "More" sheet on the phone.
 - **W3** Settings (config read-write in Compose), coach check, profile editor, wizard, dry run, language switch.
 - **W4** workouts over the agent: push, verify, delete, the watch view.
 - **W5** Help, navigation, screenshots, README table "TUI key ↔ web page".

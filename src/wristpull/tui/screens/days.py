@@ -9,66 +9,22 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import DataTable
 
+from ...detail import DAY_DETAIL_FIELDS, day_detail_rows
 from ..format import fmt_date, fmt_duration, fmt_float, fmt_int
 from ..i18n import _
 from ..queries import day_rows
 from ..widgets import Panel
 from .base import PeriodMixin, WristpullScreen
 
-DETAIL_FIELDS: tuple[tuple[str, str, str], ...] = (
-    # (label msgid, garmin column, kind) kind: int | float | duration | km
-    ("Steps", "steps", "int"),
-    ("Distance", "distance_m", "km"),
-    ("Active calories", "active_calories", "int"),
-    ("Moderate minutes", "moderate_min", "int"),
-    ("Vigorous minutes", "vigorous_min", "int"),
-    ("HR min / avg / max", "hr", "hr"),
-    ("Resting HR", "resting_hr", "int"),
-    ("Stress avg / max", "stress", "stress"),
-    ("Body battery min / max", "body_battery", "bb"),
-    ("SpO2 avg / min", "spo2", "spo2"),
-    ("Respiration avg", "respiration_avg", "float"),
-    ("Temperature avg", "temperature_avg", "float"),
-    ("Sleep", "sleep_duration_s", "duration"),
-    ("Sleep score", "sleep_score", "int"),
-    ("HRV last night", "hrv_last_night_avg_ms", "float"),
-    ("Activities", "activities_count", "int"),
-    ("Training load", "training_load", "float"),
-)
-
-
-def _value(row: dict[str, Any], prefix: str, column: str, kind: str) -> str:
-    g = lambda name: row.get(f"{prefix}_{name}")  # noqa: E731
-    if kind == "int":
-        return fmt_int(g(column))
-    if kind == "float":
-        return fmt_float(g(column), 1)
-    if kind == "km":
-        v = g(column)
-        return "–" if v is None else f"{fmt_float(v / 1000, 1)} km"
-    if kind == "duration":
-        v = g(column)
-        return "–" if v is None else fmt_duration(v) + " h"
-    if kind == "hr":
-        return f"{fmt_int(g('hr_min'))} / {fmt_int(g('hr_avg'))} / {fmt_int(g('hr_max'))}"
-    if kind == "stress":
-        return f"{fmt_float(g('stress_avg'), 0)} / {fmt_int(g('stress_max'))}"
-    if kind == "bb":
-        return f"{fmt_int(g('body_battery_min'))} / {fmt_int(g('body_battery_max'))}"
-    if kind == "spo2":
-        return f"{fmt_float(g('spo2_avg'), 0)} / {fmt_int(g('spo2_min'))}"
-    return "–"
+DETAIL_FIELDS = DAY_DETAIL_FIELDS  # kept for callers of the old name
 
 
 def detail_lines(row: dict[str, Any]) -> list[str]:
     """Garmin and strap values of one day, side by side."""
     lines = [f"{'':<24}{_('Garmin'):>12}{_('Strap'):>12}"]
-    for label, column, kind in DETAIL_FIELDS:
-        garmin = _value(row, "garmin", column, kind)
-        strap = _value(row, "strap", column, kind)
-        if garmin == "–" and strap == "–":
-            continue
-        lines.append(f"{_(label):<24}{garmin:>12}{strap:>12}")
+    for cell in day_detail_rows(row):
+        label = cell["label"]  # a msgid from detail.DAY_DETAIL_FIELDS (in the catalog), translated here at render time
+        lines.append(f"{_(label):<24}{cell['garmin']:>12}{cell['strap']:>12}")
     lines.append("")
     lines.append(_("Sources: {sources}").format(sources=row.get("sources") or "–"))
     return lines

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Files") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Files") }}</h1>
+<p class="muted">{{ _("The data directory on the host:") }} <code>{{ d.root }}</code></p>
+</header>
+<nav class="crumbs" aria-label="{{ _('Folder') }}">
+<a href="/files">{{ _("Data") }}</a>{% for c in d.listing.crumbs %} / <a href="/files?dir={{ c.rel|urlencode }}">{{ c.name }}</a>{% endfor %}
+</nav>
+<div class="filesgrid">
+<section class="card" aria-label="{{ _('Folder') }}">
+<ul class="filelist">
+{% if d.listing.parent is not none %}<li><a href="/files{% if d.listing.parent %}?dir={{ d.listing.parent|urlencode }}{% endif %}">↑ ..</a></li>{% endif %}
+{% for f in d.listing.dirs %}<li><a href="/files?dir={{ f.rel|urlencode }}">📁 {{ f.name }}/</a></li>{% endfor %}
+{% for f in d.listing.files %}<li><a href="/files?dir={{ d.listing.rel|urlencode }}&amp;file={{ f.rel|urlencode }}" {% if d.file and d.file.rel == f.rel %}aria-current="true"{% endif %}>{{ f.name }}</a> <span class="muted small num">{{ f.size|bytes }}</span></li>{% endfor %}
+{% if not d.listing.dirs and not d.listing.files %}<li class="muted">{{ _("Empty folder.") }}</li>{% endif %}
+</ul>
+</section>
+<section class="card" aria-label="{{ _('File') }}">
+{% if d.file %}
+<h2>{{ d.file.name }}</h2>
+<dl class="kv">
+<dt>{{ _("Size") }}</dt><dd>{{ d.file.size|bytes }}</dd>
+<dt>{{ _("Modified") }}</dt><dd>{{ d.file.mtime }}</dd>
+<dt>{{ _("Path") }}</dt><dd>{{ d.file.host_path }} <button type="button" class="copy" data-copy="{{ d.file.host_path }}">{{ _("Copy") }}</button></dd>
+{% if d.file.archive %}
+<dt>{{ _("Source") }}</dt><dd>{{ d.file.archive.source }} · {{ d.file.archive.kind }}</dd>
+<dt>SHA-256</dt><dd>{{ d.file.archive.sha256[:16] }}…</dd>
+<dt>{{ _("Imported") }}</dt><dd>{{ d.file.archive.imported_at_utc }}</dd>
+<dt>{{ _("Parse status") }}</dt><dd>{{ d.file.archive.parse_status }}{% if d.file.archive.parse_error %}: {{ d.file.archive.parse_error }}{% endif %}</dd>
+{% if d.file.archive.device_product %}<dt>{{ _("Device") }}</dt><dd>{{ d.file.archive.device_product }}</dd>{% endif %}
+{% if d.file.archive.origin_path %}<dt>{{ _("Origin") }}</dt><dd>{{ d.file.archive.origin_path }}</dd>{% endif %}
+{% endif %}
+</dl>
+<p><a class="btn-link secondary" href="/files/download?path={{ d.file.rel|urlencode }}">{{ _("Download") }}</a></p>
+{% if d.file.inspect %}
+<h2>{{ _("Messages (inspect)") }}</h2>
+{% if d.file.inspect.error %}<p class="muted">{{ _("Could not decode: {error}").format(error=d.file.inspect.error) }}</p>
+{% else %}
+<p class="muted small">{{ d.file.inspect.header.type }} · {{ d.file.inspect.header.product or "" }} · {{ _("{n} messages in {t} types; created {created}").format(n=d.file.inspect.header.messages|num, t=d.file.inspect.messages|length, created=d.file.inspect.header.created or "–") }}{% if d.file.inspect.header.warnings %} · {{ _("{n} decoder warnings").format(n=d.file.inspect.header.warnings) }}{% endif %}</p>
+<div class="table-box"><table>
+<thead><tr><th>{{ _("Message") }}</th><th>#</th><th>{{ _("Count") }}</th><th>{{ _("Fields") }}</th></tr></thead>
+<tbody>{% for m in d.file.inspect.messages %}<tr><td>{{ m.name }}</td><td class="num">{{ m.num }}</td><td class="num">{{ m.count|num }}</td><td class="fields">{{ m.fields|join(", ") }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% endif %}
+{% if d.file.preview is not none %}
+<h2>{{ _("Preview") }}</h2>
+<pre class="joblog">{% for line in d.file.preview %}{{ line }}
+{% endfor %}</pre>
+{% endif %}
+{% else %}
+<p class="muted">{{ _("Select a file: FIT files are inspected, text files previewed, everything can be downloaded.") }}</p>
+{% endif %}
+</section>
+</div>
+{% endblock %}
