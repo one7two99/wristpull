@@ -509,11 +509,14 @@ def test_metric_page_data(seeded: Config, conn):
     assert all(s["role"] in ("watch", "strap") for s in page["compare_chart"]["series"])
     assert page["stats"]["latest_date"] == "2026-10-06" and page["stats"]["n"] >= 6 and page["table"][0]["date"] == "2026-10-06"
     assert page["curve"]["day"] == "2026-10-06" and page["curve"]["prev"] == "2026-10-05" and page["curve"]["next"] is None and page["curve"]["series"]
-    assert page["weekday"]["labels"][0] == "Mon" and len(page["weekday"]["series"][0]["data"]) == 7
+    assert page["weekday"]["labels"][0] == "Mon" and len(page["weekday"]["series"][0]["data"]) == 7 and page["weekday"]["deviation"]  # a level: differences from the mean
+    deviations = [v for v in page["weekday"]["series"][0]["data"] if v is not None]
+    assert deviations and abs(sum(deviations)) < 5  # around zero, not bars from zero
     earlier = pages.metric_page(conn, "resting_hr", TODAY, 4, day="2026-10-03", compare="none", tz=tz)
     assert earlier["compare"] is None and earlier["compare_chart"] is None and earlier["curve"]["day"] == "2026-10-03" and earlier["curve"]["next"] == "2026-10-04"
     sleep = pages.metric_page(conn, "sleep_duration", TODAY, 104, day=None, compare="sleep_duration", tz=tz)
     assert sleep["curve"] is None and sleep["weekly"] and sleep["compare"] == "hrv"  # comparing with itself falls back to the default
+    assert not sleep["weekday"]["deviation"] and sleep["weekday"]["title"] == "Weekday pattern"  # a volume: means from zero
     assert len(sleep["chart"]["labels"]) == len(sleep["chart"]["series"][0]["data"]) and sleep["chart"]["labels"][0] <= sleep["start"]
     assert pages.metric_page(conn, "nope", TODAY, 4, day=None, compare=None, tz=tz) is None
     vo2 = pages.metric_page(conn, "vo2max", TODAY, 12, day=None, compare=None, tz=tz)

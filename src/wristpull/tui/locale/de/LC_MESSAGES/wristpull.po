@@ -1851,8 +1851,14 @@ msgstr "Atemzüge pro Minute im Tagesmittel; ein Anstieg über deine Basis kann 
 msgid "Click a day to see its curve below."
 msgstr "Tippe auf einen Tag, um seinen Verlauf unten zu sehen."
 
-msgid "Colours: rest (blue), low, medium and high stress."
-msgstr "Farben: Ruhe (blau), niedriger, mittlerer und hoher Stress."
+msgid "The lines at 25, 50 and 75 separate rest, low, medium and high stress."
+msgstr "Die Linien bei 25, 50 und 75 trennen Ruhe, niedrigen, mittleren und hohen Stress."
+
+msgid "Weekday pattern (difference from the period mean)"
+msgstr "Wochentagsmuster (Abweichung vom Mittel des Zeitraums)"
+
+msgid "difference from the period mean per weekday"
+msgstr "Abweichung vom Mittel des Zeitraums je Wochentag"
 
 msgid "Compare with"
 msgstr "Vergleichen mit"

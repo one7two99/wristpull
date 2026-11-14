@@ -123,5 +123,7 @@ def test_rolling_acwr():
     spike = [100.0] * 28 + [300.0] * 7
     assert series.rolling_acwr(days, spike)[-1] == pytest.approx(300 * 7 / ((100 * 21 + 300 * 7) / 28 * 7), abs=0.01)
     gaps = [None] * 20 + [50.0] * 15
-    assert all(v is None for v in series.rolling_acwr(days, gaps))  # fewer than 28 days with data
+    assert all(v is None for v in series.rolling_acwr(days, gaps))  # fewer than 28 days with a load
+    sparse = [100.0 if i % 3 == 0 else None for i in range(35)]  # training every third day, the watch worn every day
+    assert series.rolling_acwr(days, sparse)[-1] is None and series.rolling_acwr(days, sparse, present=[True] * 35)[-1] is not None
     assert series.rolling_acwr([], []) == []

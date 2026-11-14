@@ -146,6 +146,8 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
     jobs = deps.jobs or JobRegistry(config.db_path)
     tz = ZoneInfo(config.timezone)
     templates = Jinja2Templates(directory=str(HERE / "templates"))
+    # cache buster for the app's own CSS/JS: browsers keep /static/ files, a new image must not serve stale charts
+    templates.env.globals["asset_v"] = str(int(max(p.stat().st_mtime for p in (HERE / "static").glob("*.*"))))
 
     @pass_context
     def num(ctx: Any, value: float | None, digits: int = 0) -> str:

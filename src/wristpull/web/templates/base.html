@@ -6,9 +6,9 @@
 <meta name="color-scheme" content="light dark">
 <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
 <title>{% block title %}wristpull{% endblock %}</title>
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/app.css?v={{ asset_v }}">
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-<script src="/static/theme.js"></script>
+<script src="/static/theme.js?v={{ asset_v }}"></script>
 <script src="/static/vendor/htmx.min.js" defer></script>
 {% block head %}{% endblock %}
 </head>
@@ -59,6 +59,6 @@
 {% block public %}{% endblock %}
 {% endif %}
 {% block scripts %}{% endblock %}
-<script src="/static/app.js" defer></script>
+<script src="/static/app.js?v={{ asset_v }}" defer></script>
 </body>
 </html>

@@ -7,7 +7,7 @@
 </div>
 {% if d.curve.series %}
 <div class="chart intraday" id="chart-curve" data-chart="curve" role="img" aria-label="{{ _(d.m.title) }} {{ d.curve.day }}"></div>
-<p class="muted small legend-note">{{ _("Local time; the shaded parts are the nights the watch recorded.") }}{% if d.curve.stress %} {{ _("Colours: rest (blue), low, medium and high stress.") }}{% endif %}</p>
+<p class="muted small legend-note">{{ _("Local time; the shaded parts are the nights the watch recorded.") }}{% if d.curve.stress %} {{ _("The lines at 25, 50 and 75 separate rest, low, medium and high stress.") }}{% endif %}</p>
 <script type="application/json" data-charts>{{ curve_json|safe }}</script>
 {% else %}
 <p class="muted">{{ _("No samples for this day.") }}</p>

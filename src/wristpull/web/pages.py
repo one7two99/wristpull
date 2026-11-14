@@ -201,7 +201,7 @@ def trends_data(conn: sqlite3.Connection, today: date, weeks: int) -> dict[str, 
     all_days = [(history_days[0] if history_days and history_days[0] < days[0] else days[0])]
     all_days = [(date.fromisoformat(all_days[0]) + timedelta(days=i)).isoformat() for i in range((today - date.fromisoformat(all_days[0])).days + 1)]
     loads = [by_day[d].get("garmin_training_load") if d in by_day else None for d in all_days]
-    acwr = series.rolling_acwr(all_days, loads)[-len(days) :]
+    acwr = series.rolling_acwr(all_days, loads, present=[d in by_day for d in all_days])[-len(days) :]
     charts = [
         {"id": "volume", "title": "Training per week", "unit": "h", "kind": "bar", "labels": [str(w["week"]) for w in week_rows],
          "series": [{"name": "Hours", "data": [_r(w.get("training_h"), 2) for w in week_rows]}]},
@@ -270,6 +270,10 @@ def metric_page(conn: sqlite3.Connection, key: str, today: date, weeks: int, *, 
     chosen = day if day in sample_days else (sample_days[-1] if sample_days else None)
     curve = intraday_chart(conn, key, date.fromisoformat(chosen), tz, sample_days) if chosen else None
     weekday = series.weekday_pattern(window_days, window_values, digits=max(1, m.digits))
+    deviation = m.kind == "line"  # a level (HR, HRV, score): show each weekday's difference from the period mean, not bars from zero
+    present_values = [v for v in window_values if v is not None]
+    overall = sum(present_values) / len(present_values) if present_values else None
+    weekday_data = [round(w["mean"] - overall, max(1, m.digits)) if deviation and w["mean"] is not None and overall is not None else w["mean"] for w in weekday]
     table = [
         {"date": d, "garmin": g, "strap": s, "mean": round(mu, max(1, m.digits)) if mu is not None else None}
         for d, g, s, mu in zip(reversed(window_days), reversed(got["garmin"][offset:]), reversed(got["strap"][offset:] if got["strap"] else [None] * len(window_days)), reversed(series.rolling_baseline(values)[0][offset:]))
@@ -287,8 +291,8 @@ def metric_page(conn: sqlite3.Connection, key: str, today: date, weeks: int, *, 
         "compare_chart": compare_chart,
         "compare_options": [o for o in series.METRICS if o.key != key],
         "curve": curve,
-        "weekday": {"id": "weekday", "title": "Weekday pattern", "unit": m.unit, "kind": "bar", "labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-                    "series": [{"name": m.title, "data": [w["mean"] for w in weekday]}], "counts": [w["n"] for w in weekday]},
+        "weekday": {"id": "weekday", "title": "Weekday pattern (difference from the period mean)" if deviation else "Weekday pattern", "unit": m.unit, "kind": "bar",
+                    "labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], "series": [{"name": m.title, "data": weekday_data}], "counts": [w["n"] for w in weekday], "deviation": deviation},
         "table": table,
         "has_strap": got["strap"] is not None and any(v is not None for v in got["strap"]),
     }

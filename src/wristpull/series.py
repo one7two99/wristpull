@@ -149,15 +149,16 @@ def smooth(values: list[float | None], window: int = SMOOTH_DAYS, digits: int = 
     return out
 
 
-def rolling_acwr(days: list[str], loads: list[float | None], *, acute: int = 7, chronic: int = 28, min_history: int = 28) -> list[float | None]:
+def rolling_acwr(days: list[str], loads: list[float | None], *, present: list[bool] | None = None, acute: int = 7, chronic: int = 28, min_history: int = 28) -> list[float | None]:
     """Acute (7-day sum) to chronic (28-day mean × 7) training load per calendar day, None until ``min_history``
-    days with any data exist; missing days count as no load. Linear in the number of days."""
+    days with data exist (``present``: days the watch recorded anything; default: days with a load); a day
+    without activities counts as no load. Linear in the number of days."""
     out: list[float | None] = []
     values = [v or 0.0 for v in loads]
     seen = 0
     acute_sum = chronic_sum = 0.0
     for i, v in enumerate(values):
-        if loads[i] is not None:
+        if (present[i] if present is not None else loads[i] is not None):
             seen += 1
         acute_sum += v
         chronic_sum += v

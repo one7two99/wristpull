@@ -90,7 +90,7 @@
       slot += 1;
       visible.push(s.name);
       const base = { name: s.name, data: s.data, itemStyle: { color }, z: 3 };
-      if (def.kind === "bar") series.push({ ...base, type: "bar", barMaxWidth: 14, barGap: "10%", itemStyle: { color, borderRadius: [3, 3, 0, 0] } });
+      if (def.kind === "bar") series.push({ ...base, type: "bar", barMaxWidth: def.deviation ? 28 : 14, barGap: "10%", itemStyle: { color: def.deviation ? undefined : color, borderRadius: def.deviation ? 3 : [3, 3, 0, 0] }, ...(def.deviation ? { data: s.data.map((v) => ({ value: v, itemStyle: { color: v == null || v >= 0 ? colors[0] : colors[1] } })) } : {}) });
       else if (def.kind === "points") series.push({ ...base, type: "line", connectNulls: true, showSymbol: true, symbolSize: 7, lineStyle: { width: 1, type: "dotted", color } });
       else series.push({ ...base, type: "line", connectNulls: false, showSymbol: def.labels.length <= 40, symbolSize: 5, lineStyle: { width: 2, color } });
     }
@@ -98,12 +98,15 @@
       series[0].markArea = { silent: true, itemStyle: { color: css("--band") }, data: [[{ yAxis: def.band[0] }, { yAxis: def.band[1] }]] };
     }
     const zoom = def.zoom && def.labels.length > 14;
-    return chrome(def, {
+    const option = chrome(def, {
       grid: { left: 44, right: 12, top: visible.length > 1 ? 30 : 12, bottom: zoom ? 48 : 28 },
       legend: visible.length > 1 ? { top: 0, right: 0, data: visible, textStyle: { color: css("--muted") }, itemWidth: 14, itemHeight: 8 } : undefined,
-      dataZoom: zoom ? [{ type: "inside", filterMode: "none" }, { type: "slider", height: 16, bottom: 4, brushSelect: false, filterMode: "none", borderColor: css("--border") }] : undefined,
+      // the inside zoom only answers to pinch, so the wheel and a finger keep scrolling the page; the slider does the rest
+      dataZoom: zoom ? [{ type: "inside", filterMode: "none", zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false }, { type: "slider", height: 16, bottom: 4, brushSelect: false, filterMode: "none", borderColor: css("--border") }] : undefined,
       series,
     });
+    if (def.kind === "acwr") { option.yAxis.min = 0; option.yAxis.max = 3; option.yAxis.scale = false; }  // a lone workout after a break is "4": off the chart, in the tooltip
+    return option;
   }
 
   function sparkline(def) {
@@ -136,10 +139,8 @@
     option.xAxis = { type: "value", min: 0, max: 1440, interval: 180, axisLabel: { color: css("--muted"), formatter: fmtTime }, axisLine: { lineStyle: { color: css("--border") } }, splitLine: { show: false } };
     option.tooltip = { trigger: "axis", valueFormatter: withUnit(def), axisPointer: { label: { formatter: (p) => fmtTime(p.value) } } };
     if (def.range) { option.yAxis.min = def.range[0]; option.yAxis.max = def.range[1]; option.yAxis.scale = false; }
-    if (def.stress && series.length) {
-      option.visualMap = { show: false, seriesIndex: 0, dimension: 1, pieces: [
-        { lte: 25, color: css("--stress-rest") }, { gt: 25, lte: 50, color: css("--stress-low") }, { gt: 50, lte: 75, color: css("--stress-medium") }, { gt: 75, color: css("--stress-high") },
-      ] };
+    if (def.stress && series.length) {  // Garmin's bands as quiet horizontal guides: rest / low / medium / high
+      series[0].markLine = { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: css("--border"), type: "solid", width: 1 }, data: [{ yAxis: 25 }, { yAxis: 50 }, { yAxis: 75 }] };
     }
     return option;
   }

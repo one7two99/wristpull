@@ -38,7 +38,7 @@
 </section>
 {% if d.m.samples %}{% include "_intraday.html" %}{% endif %}
 <article class="card chart-card">
-<h2>{{ _("Weekday pattern") }} <span class="unit muted">({{ _("mean per weekday in the period") }})</span></h2>
+<h2>{{ _("Weekday pattern") }} <span class="unit muted">({% if d.weekday.deviation %}{{ _("difference from the period mean per weekday") }}{% else %}{{ _("mean per weekday in the period") }}{% endif %})</span></h2>
 <div class="chart" id="chart-weekday" data-chart="weekday" role="img" aria-label="{{ _('Weekday pattern') }}"></div>
 </article>
 <details class="card">
