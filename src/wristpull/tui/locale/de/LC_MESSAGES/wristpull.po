@@ -1972,7 +1972,7 @@ msgid "Theme: light"
 msgstr "Design: hell"
 
 msgid "Theme: system"
-msgstr "Design: wie das System"
+msgstr "Design: System"
 
 msgid "Time asleep in the main night, by wake-up date."
 msgstr "Schlafzeit der Hauptnacht, nach Aufwachdatum."
