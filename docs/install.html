@@ -38,7 +38,7 @@
     <div class="step">
       <div>
         <h3>Clone and run the setup</h3>
-        <p>The script builds the image, writes the environment, installs the udev rule (import on plug-in) and sets up the dashboard — asking before every change.</p>
+        <p>The script builds the image, writes the environment, installs the udev rule and starts the dashboard with its device agent — asking before every change. The first login takes the start password <code>wristpull</code> and asks for your own at once; keys and the rest of the configuration live on the Settings page.</p>
 <pre><code><span class="p">$</span> git clone https://github.com/one7two99/wristpull.git ~/dev/wristpull
 <span class="p">$</span> cd ~/dev/wristpull
 <span class="p">$</span> contrib/bin/wristpull-setup</code></pre>
@@ -47,7 +47,7 @@
     <div class="step">
       <div>
         <h3>First import</h3>
-        <p>Watch on the cable, or the band in Bluetooth range — either alone already works.</p>
+        <p>Watch on the cable, or the band in Bluetooth range — either alone already works. In the browser: Sync → "Import from the watch" or "Pull the strap". The same from the terminal:</p>
 <pre><code><span class="p">$</span> contrib/bin/wristpull import garmin
 <span class="p">$</span> contrib/bin/wristpull pull strap</code></pre>
       </div>
@@ -55,16 +55,18 @@
     <div class="step">
       <div>
         <h3>Look at your data</h3>
-        <p>The dashboard is already running for your home network; the terminal UI is one command.</p>
+        <p>The dashboard is already running for your home network: Today, trends, one page per metric, insights, sleep, activities, reports — and every job the terminal UI can run. The terminal UI stays one command away.</p>
 <pre><code><span class="p">$</span> contrib/bin/wristpull tui   <span class="c"># or: open the dashboard on your phone</span></code></pre>
       </div>
     </div>
     <div class="step">
       <div>
         <h3>Optional: rescue your history and meet the coach</h3>
+        <p>The goal wizard, the dry run and the coach itself are on the Coach page of the dashboard too.</p>
 <pre><code><span class="p">$</span> contrib/bin/wristpull import garmin-export ~/Downloads/&lt;your-garmin-export&gt;.zip
 <span class="p">$</span> contrib/bin/wristpull coach profile --wizard
-<span class="p">$</span> contrib/bin/wristpull coach daily --dry-run   <span class="c"># read the prompt before anything is sent</span></code></pre>
+<span class="p">$</span> contrib/bin/wristpull coach daily --dry-run   <span class="c"># read the prompt before anything is sent</span>
+<span class="p">$</span> contrib/bin/wristpull coach insights          <span class="c"># the readiness and correlation report</span></code></pre>
       </div>
     </div>
   </div>
@@ -117,8 +119,9 @@
       <h2 style="font-size:1.4rem">Built like infrastructure</h2>
       <ul style="margin:0;padding-left:1.1rem;color:var(--ink-2);display:grid;gap:.4rem;font-size:.95rem">
         <li>Raw files immutable, SHA-256-deduplicated, never deleted on the device</li>
-        <li>Dashboard: HTTPS via Caddy, scrypt-hashed password, rate-limited login, strict CSP, zero external requests</li>
-        <li>Secrets only in the environment — never in config files or the repo</li>
+        <li>Dashboard: HTTPS via Caddy (its own CA or your certificate), scrypt-hashed password, rate-limited login, strict CSP, zero external requests</li>
+        <li>The dashboard container has no device access; a separate agent with the USB and Bluetooth rights runs the jobs it queues</li>
+        <li>Secrets in a 0600 file in the data directory or the environment — never in config files or the repo</li>
         <li>Tests run on synthetic data only; the repository has never contained a real heartbeat</li>
         <li>Full-state backup and restore for moving to a new machine</li>
       </ul>
@@ -130,7 +133,7 @@
 <section style="padding-top:0">
   <figure>
     <div class="shot"><img src="screenshots/01-overview.svg" alt="The wristpull terminal UI: overview screen with device status, 7-day KPIs with sparklines and recent activities" loading="lazy"></div>
-    <figcaption>Prefer a terminal? The TUI has ten screens, German and English — rendered here from synthetic test data.</figcaption>
+    <figcaption>Prefer a terminal? The TUI has ten screens, German and English — rendered here from synthetic test data. Every one of them has a page in the dashboard; the <a href="features.html#look">features page</a> shows them.</figcaption>
   </figure>
 </section>
 

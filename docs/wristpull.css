@@ -189,3 +189,9 @@ footer{border-top:1px solid var(--line);padding-block:2.4rem calc(2.4rem + env(s
   color:var(--ink-2);font-size:.92rem;display:grid;gap:.5rem}
 footer .row{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 footer b{color:var(--ink)}
+
+/* screenshot gallery (features page) */
+.gallery{display:grid;gap:1.2rem;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.gallery figure{margin:0}
+.gallery .shot{background:var(--panel)}
+.gallery figcaption{font-size:.9rem;color:var(--ink-2);margin-top:.5rem}

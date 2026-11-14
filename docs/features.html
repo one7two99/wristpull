@@ -32,7 +32,7 @@ ul.feat b{color:var(--ink);font-weight:600}
 <div class="phero">
   <p class="kicker">What it can do</p>
   <h1>One system, five jobs</h1>
-  <p class="lede">wristpull collects your data, shows it to you, helps you understand it, turns it into training — and makes sure you keep it forever. Everything below ships today and runs <b>every morning on real hardware</b>.</p>
+  <p class="lede">wristpull collects your data, shows it to you, helps you understand it, turns it into training — and makes sure you keep it forever. Everything below ships today, runs <b>every morning on real hardware</b>, and since November 2026 every bit of it works <b>from the browser</b>, no terminal required.</p>
 </div>
 
 <section class="benefit" id="collect">
@@ -43,23 +43,29 @@ ul.feat b{color:var(--ink);font-weight:600}
     <li><b>Gadgetbridge supported too.</b> Already syncing with the open-source app? wristpull pulls its export over ADB and imports years of its history on day one.</li>
     <li><b>Your whole Garmin history.</b> Request your account export from Garmin, hand wristpull the zip: ten years — roughly 15,000 files — import in about 25 minutes, including activity names, VO2max and weight history.</li>
     <li><b>Plug in and forget.</b> On the full setup, connecting the watch starts the import automatically; a guided morning routine walks through watch, band and coach in one go.</li>
+    <li><b>Or press a button in the browser.</b> A small device agent next to the dashboard does the USB and Bluetooth work, so "import from the watch" or "pull the band" is one tap on your phone — with a live log and a stop button. The dashboard itself never touches a device.</li>
   </ul>
 </section>
 
 <section class="benefit" id="look">
   <div class="bhead"><div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 17l5-6 4 3 5-8 4 5"/><path d="M3 21h18"/></svg></div><h2>Look — today and ten years back</h2></div>
   <ul class="feat">
-    <li><b>Dashboard on your phone.</b> Today's recovery against your 28-day baseline, trends from four weeks to ten years, activities with heart-rate curves and laps, nights with sleep stages — served over HTTPS from your own network, password-protected.</li>
+    <li><b>Dashboard on your phone.</b> Today's recovery against your 28-day baseline, trends from four weeks to ten years, activities with heart-rate curves and laps, nights with sleep stages — served over HTTPS from your own network, password-protected, light and dark, German and English.</li>
+    <li><b>One page per metric.</b> Resting heart rate, HRV, sleep, stress, Body Battery, steps, SpO2 and more: the full chart with your own 28-day band and 7-day mean, zoom, a second metric to compare, the day's minute-by-minute curve with the night shaded, and the weekday pattern.</li>
+    <li><b>Nights and runs in detail.</b> A hypnogram with the night's heart-rate, HRV, respiration and SpO2 curves on one axis; runs with pace, elevation, cadence and power linked, heart-rate zones, laps and the GPS track drawn without a map — nothing leaves the machine.</li>
     <li><b>Watch and band side by side.</b> Two devices on one body rarely agree; wristpull shows both honestly instead of averaging the difference away.</li>
-    <li><b>A terminal UI for terminal people.</b> Ten screens, keyboard-first, German and English — the same numbers as the dashboard.</li>
-    <li><b>Reports and exports.</b> Weekly and monthly Markdown reports with charts, plus a compact export you can paste into any AI chat for a second opinion.</li>
+    <li><b>A terminal UI for terminal people.</b> Ten screens, keyboard-first, German and English — the same numbers as the dashboard, which covers every one of them.</li>
+    <li><b>Reports and exports.</b> Weekly and monthly reports as pages with charts or as Markdown files, plus a compact export you can paste into any AI chat for a second opinion — all from the browser.</li>
   </ul>
 </section>
 
 <section class="benefit" id="understand">
   <div class="bhead"><div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg></div><h2>Understand — an AI coach you can audit</h2></div>
   <ul class="feat">
-    <li><b>Morning check &amp; weekly review.</b> Recovery status, a suggestion for today, and on Sundays a plan for next week — built on your sleep, load and heart-rate baselines.</li>
+    <li><b>Readiness you can take apart.</b> A 0–100 index from HRV, resting HR, sleep, sleep score, Body Battery, yesterday's stress and training load — each against your own baseline, each with its weight and its contribution on the page. No black box.</li>
+    <li><b>Relationships and sweet spots.</b> How your sleep relates to the next day's Body Battery, how bedtime relates to sleep score, how training load relates to HRV: correlations of your own deviations with lags, binned response curves, and a sweet spot only when one bin clearly beats its neighbours. Small effects are called weak on purpose.</li>
+    <li><b>Day tags.</b> Alcohol, sauna, late meal, travel, sick, race … one tap per day; the insights compare the following night and day with the rest.</li>
+    <li><b>Morning check, weekly review, insights report.</b> Recovery status and a suggestion for today, a plan for next week on Sundays, and an insights report that narrates the statistics above — the model interprets, it never recomputes.</li>
     <li><b>The model you choose.</b> A local model on your own machine (nothing leaves the house), or a cloud model when you want sharper answers — your choice, per run.</li>
     <li><b>A tiny, visible extract.</b> The coach receives a few hundred words of daily aggregates. Never raw samples, never GPS, never serial numbers.</li>
     <li><b>Dry run before trust.</b> One flag writes the exact prompt to disk before anything is sent — read it, then decide.</li>
@@ -72,7 +78,7 @@ ul.feat b{color:var(--ink);font-weight:600}
   <div class="bhead"><div class="ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 12h6m4 0h6M10 12a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/><path d="M7 5v14M17 5v14"/></svg></div><h2>Train — the plan lands on your wrist</h2></div>
   <ul class="feat">
     <li><b>Workouts as simple text files.</b> Warm-up, main part, cool-down, interval repeats — each step with a heart-rate target.</li>
-    <li><b>Pushed to the watch over the same cable.</b> No Garmin Connect account: unplug, and the watch guides every step of the session.</li>
+    <li><b>Pushed to the watch over the same cable — from the browser.</b> Tick the files, press push; the device agent writes them, verify reads the watch back, and the watch view shows what is on the wrist. No Garmin Connect account: unplug, and the watch guides every step of the session.</li>
     <li><b>From the coach's plan.</b> One command turns the weekly plan into draft workouts; verify reads the watch back to confirm what it accepted.</li>
     <li><b>Knows the watch's quirks.</b> Warns before the watch's workout limit silently swallows files, and guards against duplicate names.</li>
   </ul>
@@ -97,6 +103,22 @@ ul.feat b{color:var(--ink);font-weight:600}
     <div class="note"><h3>Not a medical device</h3><p class="dim" style="font-size:.93rem">The coach refuses diagnoses and points you to a doctor when values look off. Treat it as a training partner with a good memory, not a clinician.</p></div>
     <div class="note"><h3>Verified on real wrists — two of them</h3><p class="dim" style="font-size:.93rem">Daily drivers are a Garmin fēnix 6X Pro and an Amazfit Helio Strap, cross-checked value by value. Other Garmin watches and Gadgetbridge-supported bands should work; some need small parser additions — that's what the issues tab is for.</p></div>
     <div class="note"><h3>Sync is a race</h3><p class="dim" style="font-size:.93rem">A Garmin watch deletes monitoring files once any app has fetched them. If the vendor app syncs first, those hours are gone for everyone else. wristpull documents the order that keeps your archive complete.</p></div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="sec-head">
+    <p class="kicker">The dashboard</p>
+    <h2>What it looks like</h2>
+    <p class="dim">Rendered from synthetic test data — no real heartbeat has ever been in the repository or on this site.</p>
+  </div>
+  <div class="gallery">
+    <figure><div class="shot"><img src="screenshots/web-today.jpg" alt="Today: readiness ring with its three biggest reasons, today's tags, key values with sparklines" loading="lazy"></div><figcaption>Today: readiness with its reasons, tags, key values against your baseline.</figcaption></figure>
+    <figure><div class="shot"><img src="screenshots/web-metric.jpg" alt="A metric page: resting heart rate with the 28-day band, the 7-day mean and a zoom slider" loading="lazy"></div><figcaption>One page per metric: your own baseline band, zoom, comparison, the day's curve.</figcaption></figure>
+    <figure><div class="shot"><img src="screenshots/web-insights.jpg" alt="Insights: the readiness components with value, z-score, weight and contribution" loading="lazy"></div><figcaption>Insights: every component of the readiness index, visible.</figcaption></figure>
+    <figure><div class="shot"><img src="screenshots/web-relationships.jpg" alt="Relationships: scatter plots of sleep against Body Battery and bedtime against sleep score with bin means and a sweet spot" loading="lazy"></div><figcaption>Relationships with sweet spots — and "insufficient" when the data is thin.</figcaption></figure>
+    <figure><div class="shot"><img src="screenshots/web-night.jpg" alt="A night: hypnogram of the sleep stages and the heart-rate curve on the same time axis" loading="lazy"></div><figcaption>A night: hypnogram and the night's curves.</figcaption></figure>
+    <figure><div class="shot"><img src="screenshots/web-activity.jpg" alt="A run: pace, elevation and cadence curves, the GPS track as a line, heart-rate zones" loading="lazy"></div><figcaption>A run: linked curves, zones, laps and the track without a map.</figcaption></figure>
   </div>
 </section>
 

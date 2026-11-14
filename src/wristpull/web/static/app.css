@@ -432,3 +432,6 @@ td.good, span.good { color: var(--good); } td.bad, span.bad { color: var(--bad);
 .pick { min-height: 0; }
 .pick input { width: 20px; height: 20px; }
 .chip.state-dry_run { border-color: var(--border); color: var(--muted); }
+.helptable th, .helptable td { text-align: left; white-space: normal; vertical-align: top; }
+.helptable td.num { text-align: center; }
+.helptable code { white-space: nowrap; }

@@ -26,6 +26,7 @@
 .price{font-size:1.05rem}.price b{font-size:1.6rem}
 .hubbox{display:grid;place-items:center}
 .hubbox svg{width:min(100%,320px);height:auto}
+.heroshot{margin:0}
 </style>
 </head>
 <body>
@@ -53,27 +54,10 @@
       <span><svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7.6 13.2 4.4 10l-1.3 1.3 4.5 4.5 9-9L15.3 5.5z"/></svg>No tracking — not even here</span>
     </div>
   </div>
-  <div class="dash" role="img" aria-label="The wristpull dashboard with synthetic sample data: today's recovery numbers and a falling resting heart rate trend">
-    <div class="dbar"><b>wristpull</b><span class="tab on">Today</span><span class="tab">Trends</span><span class="tab">Sleep</span>
-      <span class="lock"><svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5 9V6a5 5 0 0 1 10 0v3h1v9H4V9h1Zm2 0h6V6a3 3 0 0 0-6 0v3Z"/></svg>local</span></div>
-    <div class="tiles">
-      <div class="tile"><small>Resting HR</small><b>46</b> <span class="delta">▾ 2</span></div>
-      <div class="tile"><small>HRV</small><b>42 ms</b> <span class="delta">▴ 3</span></div>
-      <div class="tile"><small>Sleep</small><b>7:12</b> <span class="delta">▴ 0:18</span></div>
-      <div class="tile"><small>Load ratio</small><b>0.9</b> <span class="delta">in range</span></div>
-    </div>
-    <div class="chart">
-      <h4>Resting heart rate · last 30 days</h4>
-      <svg viewBox="0 0 640 180" aria-hidden="true">
-        <line x1="8" y1="12" x2="632" y2="12" stroke="var(--line)" stroke-dasharray="3 5"/>
-        <line x1="8" y1="84" x2="632" y2="84" stroke="var(--line)" stroke-dasharray="3 5"/>
-        <line x1="8" y1="156" x2="632" y2="156" stroke="var(--line)" stroke-dasharray="3 5"/>
-        <path d="M8.0,29.4 L29.5,50.2 L51.0,57.7 L72.6,67.9 L94.1,51.0 L115.6,37.2 L137.1,12.0 L158.6,29.5 L180.1,29.2 L201.7,49.7 L223.2,70.8 L244.7,76.7 L266.2,107.9 L287.7,130.1 L309.2,128.3 L330.8,132.1 L352.3,153.1 L373.8,154.6 L395.3,144.3 L416.8,156.0 L438.3,146.0 L459.9,141.7 L481.4,156.0 L502.9,156.0 L524.4,138.0 L545.9,152.8 L567.4,156.0 L589.0,156.0 L610.5,143.8 L632.0,144.5 L632,170 L8,170 Z" fill="var(--red)" opacity=".08"/>
-        <polyline points="8.0,29.4 29.5,50.2 51.0,57.7 72.6,67.9 94.1,51.0 115.6,37.2 137.1,12.0 158.6,29.5 180.1,29.2 201.7,49.7 223.2,70.8 244.7,76.7 266.2,107.9 287.7,130.1 309.2,128.3 330.8,132.1 352.3,153.1 373.8,154.6 395.3,144.3 416.8,156.0 438.3,146.0 459.9,141.7 481.4,156.0 502.9,156.0 524.4,138.0 545.9,152.8 567.4,156.0 589.0,156.0 610.5,143.8 632.0,144.5" fill="none" stroke="var(--red)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-        <circle cx="632" cy="144.5" r="4.5" fill="var(--red)" stroke="var(--panel)" stroke-width="2"/>
-      </svg>
-    </div>
-  </div>
+  <figure class="heroshot">
+    <div class="shot"><img src="screenshots/web-today.jpg" alt="The wristpull dashboard with synthetic sample data: a readiness ring with its reasons, today's tags and the key values against the 28-day baseline" loading="eager"></div>
+    <figcaption class="dim" style="font-size:.85rem;margin-top:.5rem">The dashboard, rendered from synthetic test data. Readiness with its reasons, tags, key values against your own baseline.</figcaption>
+  </figure>
 </section>
 
 <section style="padding-top:1.5rem">
@@ -105,15 +89,15 @@
     <a class="card pillarlink" href="features.html#understand">
       <div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg></div>
       <h3>You see what leaves</h3>
-      <p>The AI coach gets a few hundred words of daily aggregates — never raw data, GPS or serial numbers. Local model or cloud model: your choice, per run.</p>
+      <p>The AI coach gets a few hundred words of daily aggregates — never raw data, GPS or serial numbers. Every statistic is computed on your machine first; the model only narrates. Local model or cloud model: your choice, per run.</p>
       <p class="claim">A dry run writes the exact prompt to disk before anything is sent.</p>
       <p class="more">How the coach works</p>
     </a>
     <a class="card pillarlink" href="features.html">
       <div class="ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 21s-7-4.6-9.5-9A5.6 5.6 0 0 1 12 6.3 5.6 5.6 0 0 1 21.5 12c-2.5 4.4-9.5 9-9.5 9Z"/></svg></div>
       <h3>A complete system</h3>
-      <p>Watch over USB, band over Bluetooth without a phone, a dashboard for your phone, a coach — and your training plan pushed back to the watch.</p>
-      <p class="claim">Not a script. A system you live with.</p>
+      <p>Watch over USB, band over Bluetooth without a phone, a dashboard for your phone that does everything the terminal does, a readiness index you can take apart, correlations with sweet spots, a coach — and your training plan pushed back to the watch.</p>
+      <p class="claim">Not a script. A system you live with — no terminal required.</p>
       <p class="more">Everything it can do</p>
     </a>
   </div>
