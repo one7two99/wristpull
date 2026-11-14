@@ -3,10 +3,12 @@
 {% block main %}
 <header class="page-head">
 <h1>{{ _("Workouts") }}</h1>
-<p class="muted">{{ _("To get them onto the watch, run on the laptop:") }} <code>wristpull workout push --upcoming</code></p>
+<p class="muted">{{ _("Workout files from last week on; the device agent pushes them to the watch over USB.") }} <a href="/workouts/watch">{{ _("Workouts on the watch") }} →</a></p>
 </header>
 {% if drafts is not none %}<p class="note ok">{{ _("{n} drafts written, {m} days skipped.").format(n=drafts, m=skipped) }}</p>{% endif %}
 {% if message == "noplan" %}<p class="note warn-text">{{ _("No weekly plan stored yet: run the weekly review first.") }}</p>{% endif %}
+{% if message == "deleted" %}<p class="note ok">{{ _("Workout file deleted.") }}</p>{% endif %}
+{% if error == "none" %}<p class="note warn-text">{{ _("Tick at least one workout first.") }}</p>{% endif %}
 <section class="card actions">
 <form method="post" action="/workouts/new" class="inline wrap">
 <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -22,15 +24,54 @@
 <button type="submit" class="secondary">{{ _("Drafts from the weekly plan") }}</button>
 </form>
 </section>
+
+{% if confirm %}
+<section class="card warn" aria-live="assertive">
+<p>{{ _("Delete the workout file {name}? The watch keeps what was pushed already.").format(name=confirm) }}</p>
+<form method="post" action="/workouts/delete" class="inline wrap">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="file" value="{{ confirm }}">
+<input type="hidden" name="confirm" value="1">
+<button type="submit" class="primary">{{ _("Delete") }}</button>
+<a class="secondary btn-link" href="/workouts">{{ _("Cancel") }}</a>
+</form>
+</section>
+{% endif %}
+
+<form method="post" action="/workouts/push" hx-post="/workouts/push" hx-target="#job" hx-swap="outerHTML" class="card actions pushform" id="pushform">
+<input type="hidden" name="csrf" value="{{ csrf }}">
 <ul class="list">
 {% for w in d.rows %}
-<li><a class="row" href="/workouts/edit?file={{ w.file|urlencode }}">
-<span class="row-main"><span class="row-title">{{ w.name }}</span><span class="muted small">{{ w.day or "–" }} · {{ _(w.sport) }} · {{ ngettext("{n} step", "{n} steps", w.steps).format(n=w.steps) }}{% if w.minutes %} · {{ w.minutes }} min{% endif %}{% if w.metres %} · {{ w.metres|km }}{% endif %}</span>
-{% if w.errors %}<span class="check-error small">✗ {{ w.errors[0] }}</span>{% endif %}</span>
-<span class="chip state-{{ w.state }}">{{ _(w.state) }}</span>
-</a></li>
+<li class="row workout">
+<label class="check-label pick"><input type="checkbox" name="names" value="{{ w.file }}"> <span class="sr-only">{{ w.name }}</span></label>
+<a class="row-main" href="/workouts/edit?file={{ w.file|urlencode }}"><span class="row-title">{{ w.name }}</span><span class="muted small">{{ w.day or "–" }} · {{ _(w.sport) }} · {{ ngettext("{n} step", "{n} steps", w.steps).format(n=w.steps) }}{% if w.minutes %} · {{ w.minutes }} min{% endif %}{% if w.metres %} · {{ w.metres|km }}{% endif %}</span>
+{% if w.errors %}<span class="check-error small">✗ {{ w.errors[0] }}</span>{% endif %}</a>
+<span class="row-side"><span class="chip state-{{ w.state }}">{{ _(w.state) }}</span>
+<button type="submit" class="copy" formaction="/workouts/delete" formmethod="post" hx-post="/workouts/delete" hx-target="body" hx-swap="outerHTML" name="file" value="{{ w.file }}" aria-label="{{ _('Delete') }} {{ w.name }}">{{ _("Delete") }}</button></span>
+</li>
 {% else %}
 <li class="card muted">{{ _("No workout files from last week on.") }}</li>
 {% endfor %}
 </ul>
+<div class="inline wrap">
+<button type="submit" class="primary">{{ _("Push ticked") }}</button>
+<button type="submit" name="upcoming" value="1" class="secondary">{{ _("Push upcoming") }}</button>
+<button type="submit" class="secondary" formaction="/workouts/verify" hx-post="/workouts/verify">{{ _("Verify") }}</button>
+<label class="check-label"><input type="checkbox" name="dry_run" value="1"> {{ _("Dry run") }}</label>
+<label class="check-label"><input type="checkbox" name="force" value="1"> {{ _("Force") }}</label>
+<label class="check-label"><input type="checkbox" name="schedule" value="1"> {{ _("Schedule file") }}</label>
+</div>
+<p class="hint">{{ _("Push copies the FIT files to GARMIN/NewFiles; the watch takes them over when it is unplugged. Force pushes files the watch already has; verify reads GARMIN/Workouts.") }}</p>
+{% include "_job.html" %}
+</form>
+
+{% if d.history %}
+<section class="card">
+<h2>{{ _("Push history") }}</h2>
+<div class="table-box"><table>
+<thead><tr><th>{{ _("When") }}</th><th>{{ _("Workout") }}</th><th>{{ _("Day") }}</th><th>{{ _("Status") }}</th></tr></thead>
+<tbody>{% for p in d.history %}<tr><td class="num">{{ p.when }}</td><td>{{ p.name }}</td><td class="num">{{ p.day or "–" }}</td><td><span class="chip state-{{ p.status }}">{{ _(p.status) }}</span></td></tr>{% endfor %}</tbody>
+</table></div>
+</section>
+{% endif %}
 {% endblock %}

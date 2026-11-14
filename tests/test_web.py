@@ -363,7 +363,7 @@ def test_workouts_pages_new_edit_check_save(seeded: Config, password_hash: str):
     client = client_for(seeded, password_hash)
     login(client)
     page = client.get("/workouts", headers={"accept-language": "de"})
-    assert page.status_code == 200 and "Trainings" in page.text and "workout push --upcoming" in page.text
+    assert page.status_code == 200 and "Trainings" in page.text and "Angehakte pushen" in page.text and 'href="/workouts/watch"' in page.text
     token = csrf_of(page.text)
     created = client.post("/workouts/new", data={"csrf": token, "kind": "intervals", "date": "2026-10-09"})
     assert created.status_code == 303 and created.headers["location"].startswith("/workouts/edit?file=2026-10-09-intervals")
@@ -504,10 +504,11 @@ def test_web_strings_have_german_translations():
     ids.update(correlate.TITLES.values())
     ids.update({"ready", "moderate", "recover", "none", "weak", "strong", "Readiness", "Bedtime", "Wake-up", "Bin mean", "Nights come from both the watch and the strap; their scales may differ."})
     ids.update({"Coach: insights report", "insights"})
+    ids.update({"wristpull", "other", "dry_run", "active", "pending"})
     missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio",
                                                                             "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max",
                                                                             "Detail", "Garmin", "Export", "Export & Report", "BB", "Int.", "…", "Filter",
-                                                                            "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm", "Readiness", "Sauna", "Tag", "Report"})
+                                                                            "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm", "Readiness", "Sauna", "Tag", "Report", "Status", "Workout", "wristpull", "NewFiles"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"
 
@@ -934,6 +935,81 @@ def test_insights_report_run_and_report_pages(seeded: Config, password_hash: str
     assert month.status_code == 200 and "Monthly report 2026-10" in month.text and 'href="/report?kind=month&amp;date=2026-11-01"' in month.text
     assert client.get("/report?kind=nope").status_code == 404 and client.get("/report?kind=week&date=x").status_code == 200
     assert 'href="/report?kind=week"' in client.get("/export").text
+
+
+# ---- workouts over the device agent (parity wave P4) ---------------------------------------------
+
+
+def test_workouts_push_verify_delete_and_watch_view(seeded: Config, password_hash: str, tmp_path: Path, garmin_tree: Path):
+    from datetime import UTC, datetime
+
+    from fake_adb import FakeAdb
+    from fake_mtp import FakeMtp
+    from wristpull.agent import queue
+    from wristpull.agent.deps import AgentDeps
+    from wristpull.agent.runner import AgentRunner
+    from wristpull.db import connect
+    from wristpull.workouts.store import workouts_dir
+
+    now = [datetime(2026, 10, 7, 6, 0, tzinfo=UTC)]
+    client = client_for(seeded, password_hash, now=lambda: now[0])
+    login(client)
+    page = client.get("/workouts")
+    token = csrf_of(page.text)
+    client.post("/workouts/new", data={"csrf": token, "kind": "time", "date": "2026-10-09"})
+    page = client.get("/workouts", headers={"accept-language": "de"})
+    name = re.search(r'name="names" value="([^"]+)"', page.text).group(1)
+    assert name.endswith(".md") and "Angehakte pushen" in page.text and 'href="/workouts/watch"' in page.text
+    assert client.post("/workouts/push", data={"csrf": token}).headers["location"] == "/workouts?error=none"
+    assert client.post("/workouts/push", data={"csrf": token}, headers={"hx-request": "true"}).status_code == 400
+    queued = client.post("/workouts/push", data={"csrf": token, "names": [name], "dry_run": "1"}, headers={"hx-request": "true"})
+    assert queued.status_code == 200 and "queued" in queued.text and 'hx-get="/sync/job?poll=1"' in queued.text
+    with connect(seeded.db_path) as conn:
+        job = queue.current(conn)
+        assert job.kind == "workout_push" and job.params["names"] == [name] and job.params["dry_run"] is True and job.params["force"] is False
+    deps = AgentDeps(adb_factory=lambda: FakeAdb(tmp_path / "phone", devices=[]), mtp_factory=lambda: FakeMtp(garmin_tree.parent), sleep=lambda _s: None,
+                     today=lambda: TODAY, now=lambda: now[0], sysfs=tmp_path / "no-sysfs")
+    runner = AgentRunner(None, deps, load=lambda _p: seeded)
+    assert runner.run_once().status == "done"
+    poll = client.get("/sync/job?poll=1")
+    assert poll.headers.get("hx-refresh") == "true" and "dry run" in poll.text.lower()
+    assert "Push history" in client.get("/workouts").text and 'class="chip state-dry_run"' in client.get("/workouts").text
+    # upcoming, with force; then verify
+    up = client.post("/workouts/push", data={"csrf": token, "upcoming": "1", "force": "1", "schedule": "1"})
+    assert up.status_code == 303
+    with connect(seeded.db_path) as conn:
+        assert queue.current(conn).kind == "workout_push_upcoming" and queue.current(conn).params == {"dry_run": False, "force": True}
+    assert runner.run_once().status == "done"
+    assert client.post("/workouts/verify", data={"csrf": token}).status_code == 303
+    with connect(seeded.db_path) as conn:
+        assert queue.current(conn).kind == "workout_verify"
+    assert runner.run_once().status == "done"
+    # the watch view: nothing read yet, then a watch_list job through the agent
+    watch = client.get("/workouts/watch", headers={"accept-language": "de"})
+    assert watch.status_code == 200 and "Noch nicht gelesen" in watch.text and "Uhr lesen" in watch.text
+    assert client.post("/workouts/watch/read", data={"csrf": token}).headers["location"] == "/workouts/watch"
+    assert runner.run_once().status == "done"
+    watch = client.get("/workouts/watch")
+    assert "Last read" in watch.text and ("No workouts on the watch." in watch.text or "<td>" in watch.text)
+    # remove needs a confirmation step; the second post enqueues watch_remove
+    assert client.post("/workouts/watch/remove", data={"csrf": token}).status_code == 400
+    ask = client.post("/workouts/watch/remove", data={"csrf": token, "key": "x.fit"})
+    assert ask.status_code == 200 and "Remove x.fit from the watch?" in ask.text
+    assert client.post("/workouts/watch/remove", data={"csrf": token, "key": "../x.fit", "confirm": "1"}).status_code == 400
+    go = client.post("/workouts/watch/remove", data={"csrf": token, "key": "x.fit", "confirm": "1"})
+    assert go.status_code == 303
+    with connect(seeded.db_path) as conn:
+        assert queue.current(conn).kind == "watch_remove" and queue.current(conn).params == {"keys": ["x.fit"]}
+    assert runner.run_once().status == "done"
+    assert client.get("/workouts/watch").status_code == 200
+    # deleting a file: confirmation first, then gone; names outside the folder are refused
+    ask = client.post("/workouts/delete", data={"csrf": token, "file": name})
+    assert ask.status_code == 200 and f"Delete the workout file {name}?" in ask.text and (workouts_dir(seeded) / name).exists()
+    done = client.post("/workouts/delete", data={"csrf": token, "file": name, "confirm": "1"})
+    assert done.status_code == 303 and done.headers["location"] == "/workouts?message=deleted" and not (workouts_dir(seeded) / name).exists()
+    assert client.post("/workouts/delete", data={"csrf": token, "file": name, "confirm": "1"}).status_code == 404
+    assert client.post("/workouts/delete", data={"csrf": token, "file": "../secrets.json", "confirm": "1"}).status_code == 400
+    assert "Workout file deleted." in client.get("/workouts?message=deleted").text
 
 
 # ---- devices & sync: jobs for the device agent (parity W1) ------------------------------------

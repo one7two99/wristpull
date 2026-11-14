@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Workouts on the watch") }}{% endblock %}
+{% block main %}
+<a class="back" href="/workouts">← {{ _("Workouts") }}</a>
+<header class="page-head">
+<h1>{{ _("Workouts on the watch") }}</h1>
+<p class="muted">{{ _("What GARMIN/Workouts and GARMIN/NewFiles hold, as the device agent last read them over USB.") }}</p>
+</header>
+<section class="card actions">
+<form method="post" action="/workouts/watch/read" hx-post="/workouts/watch/read" hx-target="#job" hx-swap="outerHTML">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button type="submit" class="primary" {% if not agent.watch_present %}title="{{ _('The watch is not attached') }}"{% endif %}>{{ _("Read the watch") }}</button>
+<span class="hint">{% if agent.watch_present %}{{ _("watch attached") }}{% elif agent.online %}{{ _("watch not attached") }}{% else %}{{ _("device agent offline") }}{% endif %}</span>
+</form>
+{% include "_job.html" %}
+</section>
+
+{% if confirm %}
+<section class="card warn" aria-live="assertive">
+<p>{{ _("Remove {name} from the watch? A backup is written to workouts/watch-backup/ first.").format(name=confirm) }}</p>
+<form method="post" action="/workouts/watch/remove" hx-post="/workouts/watch/remove" hx-target="#job" hx-swap="outerHTML" class="inline wrap">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="key" value="{{ confirm }}">
+<input type="hidden" name="confirm" value="1">
+<button type="submit" class="primary">{{ _("Remove") }}</button>
+<a class="secondary btn-link" href="/workouts/watch">{{ _("Cancel") }}</a>
+</form>
+</section>
+{% endif %}
+
+<section class="card">
+{% if d.job %}
+<h2>{{ _("Last read") }} <span class="unit muted">({{ d.job.when }})</span></h2>
+{% if d.listing.root is none %}
+<p class="note warn-text">{{ _("The watch could not be opened.") }}{% if d.listing.device_message %} {{ d.listing.device_message }}{% endif %}</p>
+{% else %}
+<p class="muted small">{{ _("{active} active, {pending} waiting for unplugging (of ~{limit})").format(active=d.listing.active, pending=d.listing.pending, limit=d.limit) }}{% if d.listing.near_limit %} · <span class="warn-text">{{ _("near the watch's limit: remove old workouts before pushing more") }}</span>{% endif %}</p>
+<div class="table-box"><table>
+<thead><tr><th>{{ _("Workout") }}</th><th>{{ _("Sport") }}</th><th>{{ _("Steps") }}</th><th>{{ _("Where") }}</th><th>{{ _("Origin") }}</th><th>{{ _("Created") }}</th><th></th></tr></thead>
+<tbody>
+{% for i in d["items"] %}
+<tr{% if confirm == i.file %} aria-current="true"{% endif %}>
+<td>{{ i.name }}{% if i.error %} <span class="check-error small">✗ {{ i.error }}</span>{% endif %}</td>
+<td>{{ _(i.sport) if i.sport else "–" }}</td><td class="num">{{ i.steps }}</td>
+<td>{% if i.location == "active" %}{{ _("active") }}{% else %}{{ _("NewFiles") }}{% endif %}</td>
+<td>{{ _(i.origin) }}</td><td class="num">{{ i.created }}</td>
+<td><form method="post" action="/workouts/watch/remove" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="key" value="{{ i.file }}"><button type="submit" class="copy">{{ _("Remove") }}</button></form></td>
+</tr>
+{% else %}
+<tr><td colspan="7" class="muted">{{ _("No workouts on the watch.") }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% endif %}
+{% else %}
+<p class="muted">{{ _("Not read yet: attach the watch and press the button.") }}</p>
+{% endif %}
+</section>
+{% endblock %}

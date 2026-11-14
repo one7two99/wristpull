@@ -677,8 +677,11 @@ reloads when the answer is there), lists the recent runs with tokens, cost, dura
 buttons (+1/0/−1, also under the daily check on Today), edits the goal profile (`/coach/profile`,
 open placeholders are counted), runs the goal wizard as a form (`/coach/wizard`, your own notes
 survive) and keeps the journal. **Workouts** lists the workout files, creates new ones from the time, distance or
-interval template, drafts the week from the coach's plan, and edits a file as Markdown with a live
-check (the steps as the watch will show them, name clashes in the same week). It shows the same
+interval template, drafts the week from the coach's plan, edits a file as Markdown with a live
+check (the steps as the watch will show them, name clashes in the same week), pushes the ticked or the
+upcoming files to the watch through the device agent (dry run, force, schedule file), verifies what the
+watch took over, deletes a file after a confirmation and shows the push history; `/workouts/watch` reads
+the watch's own workout folders and removes a workout after a confirmation (backup first). It shows the same
 numbers as CLI and TUI because it calls the same library functions
 ([concept](docs/dashboard-concept.md)). **Sync** starts the device jobs from the browser: import
 from the watch, pull the phone, pull the strap (each with the options of the command line, a live
@@ -707,7 +710,7 @@ everything downloadable; `adb/` and `staging/` stay hidden. **Export** writes th
 links and shows the Markdown preview; the activity page offers the FIT file for download, the
 activity list filters by name, the sleep list by device. On the phone the pages that do not fit
 into the bottom bar sit behind "More". The goal is every TUI function in the browser; still open
-are workouts on the watch and a help page ([concept](docs/dashboard-concept.md), "Parity with the TUI"); charts, analysis
+is the help page ([concept](docs/dashboard-concept.md), "Parity with the TUI"); charts, analysis
 (readiness, correlations, tags) and the AI insights report follow
 [docs/analysis-concept.md](docs/analysis-concept.md).
 

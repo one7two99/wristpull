@@ -902,14 +902,107 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
                 add_note(conn, today().isoformat(), note[:2000])
         return RedirectResponse("/coach?saved=note#journal", status_code=303)
 
-    def workouts_page(request: Request) -> Response:
-        session = require_user(request)
+    def workouts_page(request: Request, session: dict[str, Any] | None = None, *, confirm: str | None = None) -> Response:
+        session = session or require_user(request)
         if isinstance(session, Response):
             return session
         with closing(connect(config.db_path)) as conn:
             data = pages.workouts_data(config, conn, today())
+            job = queue.current(conn)
+            view = agent_view(conn, job, request) if job else None
+            online = queue.device_state(conn, now=now())["online"]
         q = request.query_params
-        return render(request, "workouts.html", session, {"page": "workouts", "d": data, "drafts": q.get("drafts"), "skipped": q.get("skipped"), "message": q.get("message")})
+        for push in data["history"]:
+            push["when"] = local_time(push["when"], tz)
+        return render(request, "workouts.html", session, {"page": "workouts", "d": data, "drafts": q.get("drafts"), "skipped": q.get("skipped"), "message": q.get("message"),
+                                                          "confirm": confirm, "job": view, "busy": False, "poll_url": "/sync/job", "show_log": False, "offline": bool(view and view.active and not online), "error": q.get("error")})
+
+    def enqueue_and_answer(request: Request, session: dict[str, Any], kind: str, params: dict[str, Any], back: str) -> Response:
+        """Hand a workout job to the device agent; htmx gets the job partial, a plain post goes back to the page."""
+        try:
+            with closing(connect(config.db_path)) as conn:
+                job = queue.enqueue(conn, kind, params, now=now())
+        except ValueError as exc:
+            return PlainTextResponse(str(exc), status_code=400)
+        if is_htmx(request):
+            return agent_partial(request, session, busy=job is None)
+        return RedirectResponse(back, status_code=303)
+
+    async def workout_push(request: Request) -> Response:
+        """Push the ticked files (or the upcoming ones) to the watch through the agent; dry run and force as options."""
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        flags = {k: "1" for k in ("dry_run", "force", "schedule") if form.get(k) is not None}
+        if form.get("upcoming") is not None:
+            return enqueue_and_answer(request, session, "workout_push_upcoming", {k: v for k, v in flags.items() if k != "schedule"}, "/workouts")
+        names = [str(n) for n in form.getlist("names")]
+        if not names:
+            return RedirectResponse("/workouts?error=none", status_code=303) if not is_htmx(request) else PlainTextResponse("no workouts selected", status_code=400)
+        return enqueue_and_answer(request, session, "workout_push", {"names": names, **flags}, "/workouts")
+
+    async def workout_verify(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, _form = got
+        return enqueue_and_answer(request, session, "workout_verify", {}, "/workouts")
+
+    async def workout_delete(request: Request) -> Response:
+        """Two steps: the first post shows the confirmation, the second (with confirm=1) deletes the file."""
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        from ..workouts.store import delete
+
+        name = str(form.get("file") or "")
+        if form.get("confirm") is None:
+            return workouts_page(request, session, confirm=name)
+        try:
+            delete(config, name)
+        except FileNotFoundError:
+            return PlainTextResponse("unknown workout file", status_code=404)
+        except ValueError:
+            return PlainTextResponse("bad file name", status_code=400)
+        return RedirectResponse("/workouts?message=deleted", status_code=303)
+
+    def watch_page(request: Request, session: dict[str, Any] | None = None, *, confirm: str | None = None) -> Response:
+        session = session or require_user(request)
+        if isinstance(session, Response):
+            return session
+        with closing(connect(config.db_path)) as conn:
+            data = pages.watch_data(conn, now=now())
+            job = queue.current(conn)
+            view = agent_view(conn, job, request) if job else None
+            state = queue.device_state(conn, now=now())
+        if data["job"]:
+            data["job"]["when"] = local_time(data["job"]["when"], tz)
+        for item in data["items"]:
+            item["created"] = local_time(item["created"], tz)
+        return render(request, "workouts_watch.html", session, {"page": "workouts", "d": data, "confirm": confirm, "agent": state, "job": view, "busy": False, "poll_url": "/sync/job", "show_log": False,
+                                                                "offline": bool(view and view.active and not state["online"])})
+
+    async def watch_read(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, _form = got
+        return enqueue_and_answer(request, session, "watch_list", {}, "/workouts/watch")
+
+    async def watch_remove(request: Request) -> Response:
+        """Two steps as well: confirm, then the agent removes the file (after its backup) and re-reads the watch."""
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        key = str(form.get("key") or "")
+        if not key:
+            return PlainTextResponse("no workout chosen", status_code=400)
+        if form.get("confirm") is None:
+            return watch_page(request, session, confirm=key)
+        return enqueue_and_answer(request, session, "watch_remove", {"keys": [key]}, "/workouts/watch")
 
     async def workout_new(request: Request) -> Response:
         got = await posted(request)
@@ -1053,6 +1146,12 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             Route("/journal", journal_add, methods=["POST"]),
             Route("/workouts", workouts_page),
             Route("/workouts/new", workout_new, methods=["POST"]),
+            Route("/workouts/push", workout_push, methods=["POST"]),
+            Route("/workouts/verify", workout_verify, methods=["POST"]),
+            Route("/workouts/delete", workout_delete, methods=["POST"]),
+            Route("/workouts/watch", watch_page),
+            Route("/workouts/watch/read", watch_read, methods=["POST"]),
+            Route("/workouts/watch/remove", watch_remove, methods=["POST"]),
             Route("/workouts/drafts", workout_drafts, methods=["POST"]),
             Route("/workouts/edit", workout_edit),
             Route("/workouts/check", workout_check, methods=["POST"]),

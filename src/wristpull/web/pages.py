@@ -29,7 +29,7 @@ from ..status import last_imports
 from ..timeutil import parse_iso_utc
 from ..tui.queries import day_rows
 from ..workouts.model import MAX_NAME_LEN, Workout, describe_steps, template
-from ..workouts.store import list_workouts, push_status, save, workouts_dir
+from ..workouts.store import list_workouts, push_status, pushes, save, workouts_dir
 
 # (metric, label msgid, unit, display kind, which direction is good)
 TILES: tuple[tuple[str, str, str, str, str | None], ...] = (
@@ -731,7 +731,38 @@ def workouts_data(config: Config, conn: sqlite3.Connection, today: date) -> dict
             "state": state,
             "errors": list(w.errors),
         })
-    return {"rows": rows, "folder": str(workouts_dir(config)), "kinds": TEMPLATE_KINDS, "tomorrow": (today + timedelta(days=1)).isoformat()}
+    history = []
+    for push in pushes(conn, limit=PUSH_HISTORY):
+        history.append({"name": push["name"], "day": push.get("local_date"), "status": push["status"], "when": push["pushed_at_utc"], "file": Path(push["path"]).name if push.get("path") else "", "target": push.get("target")})
+    return {"rows": rows, "folder": str(workouts_dir(config)), "kinds": TEMPLATE_KINDS, "tomorrow": (today + timedelta(days=1)).isoformat(), "history": history}
+
+
+PUSH_HISTORY = 15
+WATCH_KINDS = ("watch_list", "watch_remove")
+
+
+def watch_data(conn: sqlite3.Connection, *, now: datetime) -> dict[str, Any]:
+    """The workouts on the watch as the agent last read them (a watch_list or watch_remove job), or nothing yet."""
+    from ..agent import queue
+    from ..jobtext import result_from_json
+    from ..workouts.watch import WORKOUT_LIMIT
+
+    job = next((j for j in queue.recent(conn, limit=50) if j.kind in WATCH_KINDS and j.status == "done" and j.result is not None), None)
+    if job is None:
+        return {"job": None, "listing": None, "items": [], "limit": WORKOUT_LIMIT}
+    result = result_from_json(job.result)
+    listing = getattr(result, "listing", result)  # a RemoveResult carries the re-read listing
+    items = []
+    for item in getattr(listing, "items", []) or []:
+        items.append({"key": item.key, "name": item.name, "sport": item.sport, "steps": item.steps, "size": item.size, "created": item.time_created_utc,
+                      "origin": item.origin, "location": item.location, "error": item.error, "file": Path(item.path).name})
+    return {
+        "job": {"id": job.id, "kind": job.kind, "when": job.finished_utc, "status": job.status},
+        "listing": {"root": str(listing.root) if getattr(listing, "root", None) else None, "device_message": getattr(listing, "device_message", None),
+                    "near_limit": bool(getattr(listing, "near_limit", False)), "active": sum(1 for i in items if i["location"] == "active"), "pending": sum(1 for i in items if i["location"] == "pending")},
+        "items": items,
+        "limit": WORKOUT_LIMIT,
+    }
 
 
 def check_lines(workout: Workout) -> dict[str, Any]:

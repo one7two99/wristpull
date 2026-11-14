@@ -86,6 +86,15 @@ def workout_file(config: Config, name: str) -> Path:
     return path
 
 
+def delete(config: Config, name: str) -> Path:
+    """Delete one workout file of the folder by its bare name (the only deletion the dashboard allows)."""
+    path = workout_file(config, name)
+    if not path.is_file():
+        raise FileNotFoundError(name)
+    path.unlink()
+    return path
+
+
 def check_text(config: Config, name: str | None, text: str) -> Workout:
     """Parse edited Markdown as if it were saved under ``name`` (for a live check), name clashes included."""
     path = workout_file(config, name) if name else None

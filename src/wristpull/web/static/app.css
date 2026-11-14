@@ -422,3 +422,13 @@ td.good, span.good { color: var(--good); } td.bad, span.bad { color: var(--bad);
 .today-ready { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: center; }
 @media (min-width: 760px) { .today-ready { grid-template-columns: 120px minmax(0, 1fr); } .today-ready .ring { width: 104px; height: 104px; border-width: 8px; } .today-ready .ring strong { font-size: 1.6rem; } }
 .reasons-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: 0.9rem; }
+
+/* ---- workouts over the agent (parity wave P4) */
+.pushform { gap: 10px; }
+.pushform .list { width: 100%; }
+.row.workout { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 8px 12px; }
+.row.workout .row-main { text-decoration: none; color: inherit; }
+.row.workout .row-side { flex-direction: row; align-items: center; gap: 8px; }
+.pick { min-height: 0; }
+.pick input { width: 20px; height: 20px; }
+.chip.state-dry_run { border-color: var(--border); color: var(--muted); }

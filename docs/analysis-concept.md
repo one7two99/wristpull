@@ -168,7 +168,12 @@ the test list are in the plan of 2026-11-14 and move here with wave A3.
   recomputing; model `[coach] insights_model` → `weekly_model` → `model`; CLI `wristpull coach insights
   [--weeks N]`, button and last report on `/insights` (with a hint when newer days exist), also on `/coach`.
   `/report?kind=week|month&date=` shows the CLI's weekly/monthly Markdown with the period's charts.
-- **P4** parity: workouts through the agent (push, verify, delete, watch view).
+- **P4** (done 2026-11-14) parity: the Workouts page ticks files and pushes them through the agent
+  (`workout_push` with dry run, force and schedule; `workout_push_upcoming`), verifies (`workout_verify`),
+  deletes a file after a confirmation step (`workouts.store.delete`, never outside the folder), shows the
+  push history; `/workouts/watch` reads the watch (`watch_list`), lists active and pending workouts with
+  the limit warning and removes one after a confirmation (`watch_remove`, backup first). The job partial
+  polls `/sync/job` like the Sync page.
 - **A5/P5** Help page, "more" menu, parity test, screenshots, README table, memory.
 
 Verification per wave: `uv run pyflakes src tests && uv run pytest -q`, the boundary and catalog

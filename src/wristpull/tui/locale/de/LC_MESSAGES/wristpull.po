@@ -2416,3 +2416,91 @@ msgstr "über die letzten {n} Wochen"
 
 msgid "the Export page writes it as a file."
 msgstr "die Export-Seite schreibt ihn als Datei."
+
+# ---- workouts over the device agent (parity wave P4)
+msgid "Day"
+msgstr "Tag"
+
+msgid "Delete"
+msgstr "Löschen"
+
+msgid "Delete the workout file {name}? The watch keeps what was pushed already."
+msgstr "Workout-Datei {name} löschen? Was schon gepusht wurde, bleibt auf der Uhr."
+
+msgid "Force"
+msgstr "Erzwingen"
+
+msgid "Last read"
+msgstr "Zuletzt gelesen"
+
+msgid "Not read yet: attach the watch and press the button."
+msgstr "Noch nicht gelesen: Uhr anstecken und den Knopf drücken."
+
+msgid "Push copies the FIT files to GARMIN/NewFiles; the watch takes them over when it is unplugged. Force pushes files the watch already has; verify reads GARMIN/Workouts."
+msgstr "Push kopiert die FIT-Dateien nach GARMIN/NewFiles; die Uhr übernimmt sie beim Abziehen. Erzwingen pusht auch Dateien, die die Uhr schon hat; Prüfen liest GARMIN/Workouts."
+
+msgid "Push history"
+msgstr "Push-Verlauf"
+
+msgid "Push ticked"
+msgstr "Angehakte pushen"
+
+msgid "Push upcoming"
+msgstr "Anstehende pushen"
+
+msgid "Read the watch"
+msgstr "Uhr lesen"
+
+msgid "Remove"
+msgstr "Entfernen"
+
+msgid "Remove {name} from the watch? A backup is written to workouts/watch-backup/ first."
+msgstr "{name} von der Uhr entfernen? Vorher wird eine Sicherung nach workouts/watch-backup/ geschrieben."
+
+msgid "Schedule file"
+msgstr "Kalenderdatei"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "The watch could not be opened."
+msgstr "Die Uhr ließ sich nicht öffnen."
+
+msgid "The watch is not attached"
+msgstr "Die Uhr ist nicht angesteckt"
+
+msgid "Tick at least one workout first."
+msgstr "Hake zuerst mindestens ein Workout an."
+
+msgid "Verify"
+msgstr "Prüfen"
+
+msgid "What GARMIN/Workouts and GARMIN/NewFiles hold, as the device agent last read them over USB."
+msgstr "Was GARMIN/Workouts und GARMIN/NewFiles enthalten, wie der Geräte-Agent sie zuletzt über USB gelesen hat."
+
+msgid "Where"
+msgstr "Wo"
+
+msgid "Workout"
+msgstr "Workout"
+
+msgid "Workout file deleted."
+msgstr "Workout-Datei gelöscht."
+
+msgid "Workout files from last week on; the device agent pushes them to the watch over USB."
+msgstr "Workout-Dateien ab letzter Woche; der Geräte-Agent pusht sie über USB auf die Uhr."
+
+msgid "device agent offline"
+msgstr "Geräte-Agent nicht erreichbar"
+
+msgid "other"
+msgstr "fremd"
+
+msgid "pending"
+msgstr "wartend"
+
+msgid "watch attached"
+msgstr "Uhr angesteckt"
+
+msgid "watch not attached"
+msgstr "Uhr nicht angesteckt"
