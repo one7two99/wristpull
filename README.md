@@ -344,6 +344,8 @@ The training coach sends an aggregated data package to an LLM and stores the ans
 | `coach ask "…"` | a free question over the daily data package |
 | `coach show [--last N] [--kind K]` | print stored answers with their rating |
 | `coach rate RUN -1|0|1 [--note …]` | rate a run; the coach sees ratings and notes in later runs |
+| `coach insights [--weeks N]` | the insights report: readiness with its components, sleep regularity, lagged correlations with sweet spots and tag effects (all computed in Python, see the Insights page) → what the data shows, what it means, one thing to try, numbers used; model `[coach] insights_model`, else the weekly one |
+| `coach tag DATE +tag -tag` | set or clear day tags for the insights (`alcohol`, `alcohol_free`, `caffeine_late`, `late_meal`, `sick`, `travel`, `sauna`, `nap`, `stress_high`, `rest_day`, `race`); `today` works as the date |
 | `coach note "…" [--date D]` | one journal line per day (how you felt, what you did off the record); the last 7 days go into every data package |
 | `coach notes [--last N]` | print recent journal lines |
 | `coach plan-ics [--out F] [--hour H]` | the last weekly plan as an iCalendar file: timed events for sessions, all-day notes for rest days |
@@ -1014,6 +1016,7 @@ All timestamps are ISO-8601 UTC strings (`2026-10-31T06:12:33Z`). Every sample r
 | `daily_summary` | derived per day and source, rebuilt after every import |
 | `coach_runs`, `coach_feedback`, `journal` | training-coach runs (prompts, answer, tokens, cost), the user's ratings, a daily note |
 | `workout_pushes` | every workout FIT written to the watch: name, date, SHA-256, target path, watch serial, status `dry_run` / `pushed` / `verified` |
+| `day_tags` | the day tags of the insights (date, tag), schema version 8 |
 
 Verification status (fenix 6X Pro and Helio Strap, 2026-11-01): activity files (sessions, records
 with GPS/altitude/HR, laps, HR zone times, training load) and the wellness fields steps, all-day

@@ -262,7 +262,7 @@ step. Download routes serve only the data directory without `adb/`.
 - **W2** (done 2026-11-14 as wave P2 of the analysis concept) Days, Files, Export, the activity and sleep filters, the "More" sheet on the phone.
 - **W3** Settings (config read-write in Compose), coach check, profile editor, wizard, dry run, language switch. *(done 2026-11-14: settings as of 2026-11-13, the coach pages and the language switch as wave P3 of the analysis concept)*
 - **W4** workouts over the agent: push, verify, delete, the watch view. *(done 2026-11-14 as wave P4 of the analysis concept)*
-- **W5** Help, navigation, screenshots, README table "TUI key ↔ web page".
+- **W5** Help, navigation, screenshots, README table "TUI key ↔ web page". *(done 2026-11-14 as wave A5/P5 of the analysis concept: `/help`, `tests/test_web_parity.py`, `docs/screenshots/web-*.jpg`)*
 
 ## Docker
 
