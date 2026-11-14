@@ -29,9 +29,7 @@
 <details {% if loop.first %}open{% endif %}>
 <summary><span class="run-kind">{{ _(r.kind) }}</span> <span class="muted small">{{ r.when }} · {{ r.backend }}{% if r.model %} · {{ r.model }}{% endif %}{% if r.cost_usd %} · ${{ "%.3f"|format(r.cost_usd) }}{% endif %}</span></summary>
 {% if r.question %}<p class="question">„{{ r.question }}“</p>{% endif %}
-<div class="prose">
-{% for b in r.blocks %}{% if b.kind == "heading" %}<h3>{{ b.text }}</h3>{% else %}<p>{{ b.text }}</p>{% endif %}{% endfor %}
-</div>
+<div class="prose">{{ r.answer_md|markdown }}</div>
 </details>
 {{ rating(r.id, r.rating) }}
 </article>

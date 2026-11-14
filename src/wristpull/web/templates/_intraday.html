@@ -1,0 +1,18 @@
+<section class="card chart-card" id="intraday" aria-label="{{ _('Day view') }}">
+{% if d.curve %}
+<div class="daynav">
+{% if d.curve.prev %}<a href="/metrics/{{ d.m.key }}?weeks={{ d.weeks }}&day={{ d.curve.prev }}" hx-get="/metrics/{{ d.m.key }}/day?day={{ d.curve.prev }}&weeks={{ d.weeks }}" hx-target="#intraday" hx-swap="outerHTML" aria-label="{{ _('Previous day') }}">←</a>{% else %}<span class="nav-gap"></span>{% endif %}
+<span class="day">{{ _("Day view") }} · {{ d.curve.day }}</span>
+{% if d.curve.next %}<a href="/metrics/{{ d.m.key }}?weeks={{ d.weeks }}&day={{ d.curve.next }}" hx-get="/metrics/{{ d.m.key }}/day?day={{ d.curve.next }}&weeks={{ d.weeks }}" hx-target="#intraday" hx-swap="outerHTML" aria-label="{{ _('Next day') }}">→</a>{% else %}<span class="nav-gap"></span>{% endif %}
+</div>
+{% if d.curve.series %}
+<div class="chart intraday" id="chart-curve" data-chart="curve" role="img" aria-label="{{ _(d.m.title) }} {{ d.curve.day }}"></div>
+<p class="muted small legend-note">{{ _("Local time; the shaded parts are the nights the watch recorded.") }}{% if d.curve.stress %} {{ _("Colours: rest (blue), low, medium and high stress.") }}{% endif %}</p>
+<script type="application/json" data-charts>{{ curve_json|safe }}</script>
+{% else %}
+<p class="muted">{{ _("No samples for this day.") }}</p>
+{% endif %}
+{% else %}
+<p class="muted">{{ _("No samples in this period.") }}</p>
+{% endif %}
+</section>

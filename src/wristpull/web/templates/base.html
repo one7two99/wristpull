@@ -8,6 +8,7 @@
 <title>{% block title %}wristpull{% endblock %}</title>
 <link rel="stylesheet" href="/static/app.css">
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<script src="/static/theme.js"></script>
 <script src="/static/vendor/htmx.min.js" defer></script>
 {% block head %}{% endblock %}
 </head>
@@ -40,6 +41,9 @@
 <a href="/settings" {% if page == "settings" %}aria-current="page"{% endif %}>
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6zM19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3a1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8a1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
 <span>{{ _("Settings") }}</span></a>
+<button type="button" class="theme" data-theme-toggle data-label-system="{{ _('Theme: system') }}" data-label-light="{{ _('Theme: light') }}" data-label-dark="{{ _('Theme: dark') }}">
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18V3z"/><circle cx="12" cy="12" r="9"/></svg>
+<span data-theme-label>{{ _("Theme: system") }}</span></button>
 <form method="post" action="/logout" class="logout">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <button type="submit">

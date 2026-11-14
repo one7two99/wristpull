@@ -1822,3 +1822,181 @@ msgstr "Pfad (leer: die Uhr über USB)"
 
 msgid "a copied GARMIN folder"
 msgstr "ein kopierter GARMIN-Ordner"
+
+# ---- metric pages, day curves, theme (analysis wave A1)
+msgid "28-day band"
+msgstr "28-Tage-Band"
+
+msgid "28-day mean"
+msgstr "Ø 28 Tage"
+
+msgid "7-day mean"
+msgstr "Ø 7 Tage"
+
+msgid "Appearance"
+msgstr "Darstellung"
+
+msgid "Blood oxygen saturation averaged over the day's readings (mostly at night)."
+msgstr "Sauerstoffsättigung des Bluts, gemittelt über die Messungen des Tages (meist nachts)."
+
+msgid "Body Battery and stress today"
+msgstr "Body Battery und Stress heute"
+
+msgid "Body weight from a scale or the Connect export; only the days with a reading."
+msgstr "Körpergewicht von einer Waage oder aus dem Connect-Export; nur Tage mit Messung."
+
+msgid "Breaths per minute averaged over the day; a rise above your baseline can precede illness."
+msgstr "Atemzüge pro Minute im Tagesmittel; ein Anstieg über deine Basis kann einer Erkrankung vorausgehen."
+
+msgid "Click a day to see its curve below."
+msgstr "Tippe auf einen Tag, um seinen Verlauf unten zu sehen."
+
+msgid "Colours: rest (blue), low, medium and high stress."
+msgstr "Farben: Ruhe (blau), niedriger, mittlerer und hoher Stress."
+
+msgid "Compare with"
+msgstr "Vergleichen mit"
+
+msgid "Daily average of the watch's 0–100 stress level (from heart-rate variability); lower is calmer."
+msgstr "Tagesmittel des Stresslevels der Uhr (0–100, aus der Herzfrequenzvariabilität); niedriger ist ruhiger."
+
+msgid "Daily values"
+msgstr "Tageswerte"
+
+msgid "Daily values as a table"
+msgstr "Tageswerte als Tabelle"
+
+msgid "Day view"
+msgstr "Tagesverlauf"
+
+msgid "Mon"
+msgstr "Mo"
+
+msgid "Tue"
+msgstr "Di"
+
+msgid "Wed"
+msgstr "Mi"
+
+msgid "Thu"
+msgstr "Do"
+
+msgid "Fri"
+msgstr "Fr"
+
+msgid "Sat"
+msgstr "Sa"
+
+msgid "Sun"
+msgstr "So"
+
+msgid "Heart-rate variability averaged over the night; higher than your baseline points to a rested nervous system."
+msgstr "Herzfrequenzvariabilität im Nachtmittel; höher als deine Basis spricht für ein erholtes Nervensystem."
+
+msgid "Highest"
+msgstr "Höchster Wert"
+
+msgid "Intensity minutes"
+msgstr "Intensitätsminuten"
+
+msgid "Latest"
+msgstr "Zuletzt"
+
+msgid "Local time; the shaded parts are the nights the watch recorded."
+msgstr "Ortszeit; die schattierten Bereiche sind die von der Uhr erfassten Nächte."
+
+msgid "Lowest"
+msgstr "Niedrigster Wert"
+
+msgid "Metrics"
+msgstr "Messwerte"
+
+msgid "Moderate plus twice the vigorous minutes, as the watch credits them; the WHO suggests 150 per week."
+msgstr "Moderate plus doppelt gezählte intensive Minuten, wie die Uhr sie gutschreibt; die WHO empfiehlt 150 pro Woche."
+
+msgid "Next day"
+msgstr "Nächster Tag"
+
+msgid "No samples for this day."
+msgstr "Keine Messwerte an diesem Tag."
+
+msgid "No samples in this period."
+msgstr "Keine Messwerte in diesem Zeitraum."
+
+msgid "Previous day"
+msgstr "Vorheriger Tag"
+
+msgid "Remembered in this browser; tap to cycle system, light, dark."
+msgstr "Wird in diesem Browser gemerkt; tippen wechselt zwischen System, Hell und Dunkel."
+
+msgid "Same days, own scale: compare the shapes, not the heights."
+msgstr "Gleiche Tage, eigene Skala: vergleiche die Verläufe, nicht die Höhen."
+
+msgid "Show"
+msgstr "Anzeigen"
+
+msgid "Steps per day as the watch counts them."
+msgstr "Schritte pro Tag, wie die Uhr sie zählt."
+
+msgid "Sum of the training load (EPOC-based) of the day's activities; the trend matters more than one day."
+msgstr "Summe der Trainingslast (EPOC-basiert) aller Aktivitäten des Tages; der Trend zählt mehr als ein einzelner Tag."
+
+msgid "The acute:chronic ratio compares the last 7 days with the weekly mean of the last 28 (band 0.8–1.3)."
+msgstr "Das Verhältnis akut:chronisch vergleicht die letzten 7 Tage mit dem Wochenmittel der letzten 28 (Band 0,8–1,3)."
+
+msgid "The day's highest Body Battery, usually right after waking; it charges with sleep and rest and drains with stress and activity."
+msgstr "Der höchste Body-Battery-Wert des Tages, meist direkt nach dem Aufwachen; er lädt mit Schlaf und Ruhe und sinkt mit Stress und Aktivität."
+
+msgid "The lowest sustained heart rate of the day; lower than your baseline usually means better recovery."
+msgstr "Der niedrigste anhaltende Puls des Tages; unter deiner Basis bedeutet meist bessere Erholung."
+
+msgid "The shaded band is the mean ± 1 SD of the preceding 28 days, the thin line the 7-day mean; gaps mean no data for that day, not zero."
+msgstr "Das schattierte Band ist Mittel ± 1 Standardabweichung der vorangehenden 28 Tage, die dünne Linie das 7-Tage-Mittel; Lücken heißen keine Daten, nicht null."
+
+msgid "The watch's 0–100 rating of the night (duration, stages, restlessness)."
+msgstr "Die Bewertung der Nacht durch die Uhr (0–100: Dauer, Phasen, Unruhe)."
+
+msgid "The watch's estimate of maximal oxygen uptake after runs and rides."
+msgstr "Die Schätzung der maximalen Sauerstoffaufnahme durch die Uhr nach Läufen und Radfahrten."
+
+msgid "Theme: dark"
+msgstr "Design: dunkel"
+
+msgid "Theme: light"
+msgstr "Design: hell"
+
+msgid "Theme: system"
+msgstr "Design: wie das System"
+
+msgid "Time asleep in the main night, by wake-up date."
+msgstr "Schlafzeit der Hauptnacht, nach Aufwachdatum."
+
+msgid "Weekday pattern"
+msgstr "Wochentagsmuster"
+
+msgid "Weight"
+msgstr "Gewicht"
+
+msgid "before the latest day"
+msgstr "vor dem letzten Tag"
+
+msgid "latest"
+msgstr "zuletzt"
+
+msgid "mean per weekday in the period"
+msgstr "Mittel je Wochentag im Zeitraum"
+
+msgid "no data in this period"
+msgstr "keine Daten in diesem Zeitraum"
+
+msgid "nothing"
+msgstr "nichts"
+
+msgid "one point per week"
+msgstr "ein Punkt je Woche"
+
+msgid "z-score"
+msgstr "z-Wert"
+
+msgid "Open a metric for the full chart, its baseline and the day's curve."
+msgstr "Öffne einen Messwert für das große Diagramm, seine Basislinie und den Tagesverlauf."

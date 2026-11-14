@@ -33,7 +33,7 @@ from .. import secrets as store
 from ..agent import queue
 from ..config import Config, default_config_path, validate_config, write_config
 from ..db import connect
-from . import jobview, pages
+from . import jobview, markdown, pages
 from .auth import RateLimiter, SessionCodec, hash_password, new_session, verify_password
 from .i18n import pick_language, translations
 from .jobs import JobRegistry
@@ -86,6 +86,18 @@ def format_delta(value: float | None, kind: str, lang: str) -> str:
     rounded = round(value)
     sign = "+" if rounded > 0 else ("−" if rounded < 0 else "±")
     return sign + _number(abs(rounded), 0, lang)
+
+
+def format_metric(value: float | None, digits: int, lang: str, *, signed: bool = False) -> str:
+    """Metric values with the registry's decimals; ``signed`` for deltas (+1.5 / −2 / ±0)."""
+    if value is None:
+        return "–" if not signed else ""
+    rounded = round(value, digits)
+    text = _number(abs(rounded) if signed else rounded, digits, lang)
+    if not signed:
+        return text
+    sign = "+" if rounded > 0 else ("−" if rounded < 0 else "±")
+    return sign + text
 
 
 def format_duration(seconds: float | None) -> str:
@@ -144,6 +156,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         return format_km(metres, ctx.get("lang", "en"))
 
     templates.env.filters["num"] = num
+    templates.env.filters["markdown"] = markdown.render
     templates.env.filters["km"] = km
     templates.env.filters["dur"] = format_duration
     templates.env.filters["hm"] = format_hm
@@ -243,18 +256,19 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             return session
         lang = pick_language(config.ui_language, request.headers.get("accept-language"))
         with closing(connect(config.db_path)) as conn:
-            data = pages.today_data(conn, today())
+            data = pages.today_data(conn, today(), tz)
         for tile in data["tiles"]:
             tile["text"] = format_value(tile["value"], tile["kind"], lang)
             tile["delta_text"] = format_delta(tile["delta_28d"], tile["kind"], lang)
             tile["mean_text"] = format_value(tile["mean_28d"], tile["kind"], lang)
+        charts_json = chart_json([t["spark"] for t in data["tiles"]] + ([data["curve"]] if data["curve"] else []), lang)
         imports = {source: local_time(stamp, tz) for source, stamp in data["imports"].items()}
         coach_time = local_time(data["coach"]["created_at_utc"], tz) if data["coach"] else None
         with closing(connect(config.db_path)) as conn:
             devices = pages.devices_data(conn, config, now=now())
             devices["agent"]["last_seen"] = local_time(devices["agent"]["last_seen"], tz) if devices["agent"]["last_seen"] else None
             devices["job"] = agent_view(conn, devices["job"], request) if devices["job"] else None
-        return render(request, "today.html", session, {"page": "today", "d": data, "imports": imports, "coach_time": coach_time, "today": today(), "source_labels": pages.SOURCE_LABELS, "devices": devices})
+        return render(request, "today.html", session, {"page": "today", "d": data, "imports": imports, "coach_time": coach_time, "today": today(), "source_labels": pages.SOURCE_LABELS, "devices": devices, "charts_json": charts_json})
 
     def trends_page(request: Request) -> Response:
         session = require_user(request)
@@ -267,8 +281,52 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         lang = pick_language(config.ui_language, request.headers.get("accept-language"))
         with closing(connect(config.db_path)) as conn:
             data = pages.trends_data(conn, today(), weeks)
-        charts_json = chart_json(data["charts"], lang)  # "<" escaped: no "</script>" inside the data block
+        for tile in data["tiles"]:
+            tile["text"] = format_metric(tile["latest"], tile["digits"], lang)
+            tile["delta_text"] = format_metric(tile["delta"], tile["digits"], lang, signed=True)
+            tile["mean_text"] = format_metric(tile["mean_28d"], tile["digits"], lang)
+        charts_json = chart_json([t["chart"] for t in data["tiles"]] + data["charts"], lang)  # "<" escaped: no "</script>" inside the data block
         return render(request, "trends.html", session, {"page": "trends", "d": data, "charts_json": charts_json, "choices": pages.TREND_WEEKS})
+
+    def metric_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        key = request.path_params["key"]
+        with closing(connect(config.db_path)) as conn:
+            data = pages.metric_page(conn, key, today(), weeks_of(request), day=request.query_params.get("day"), compare=request.query_params.get("compare"), tz=tz)
+        if data is None:
+            return render(request, "missing.html", session, {"page": "trends"}, status_code=404)
+        digits = data["m"].digits
+        st = data["stats"]
+        data["texts"] = {k: format_metric(st[k], digits, lang) for k in ("latest", "mean_7d", "mean_28d", "min", "max")}
+        data["texts"]["z"] = format_metric(st["z"], 1, lang, signed=True) if st["z"] is not None else "–"
+        for row in data["table"]:
+            row["texts"] = {k: format_metric(row[k], digits, lang) for k in ("garmin", "strap", "mean")}
+        charts = [data["chart"]] + ([data["compare_chart"]] if data["compare_chart"] else []) + [data["weekday"]]
+        curve_json = chart_json([data["curve"]], lang) if data["curve"] else None
+        return render(request, "metric.html", session, {"page": "trends", "d": data, "charts_json": chart_json(charts, lang), "curve_json": curve_json, "choices": pages.TREND_WEEKS})
+
+    def metric_day(request: Request) -> Response:
+        """The day's curve of a metric (htmx partial behind the ← → links and the chart clicks)."""
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        key = request.path_params["key"]
+        spec = pages.series.spec(key)
+        try:
+            day = date.fromisoformat(request.query_params.get("day", ""))
+        except ValueError:
+            day = None
+        if spec is None or not spec.samples or day is None:
+            return PlainTextResponse("unknown metric or day", status_code=404)
+        start, _weeks, _by_week = pages._window(today(), weeks_of(request))
+        with closing(connect(config.db_path)) as conn:
+            sample_days = pages.series.days_with_samples(conn, key, start, today())
+            curve = pages.intraday_chart(conn, key, day, tz, sample_days)
+        return render(request, "_intraday.html", session, {"page": "trends", "d": {"curve": curve, "m": spec, "weeks": weeks_of(request)}, "curve_json": chart_json([curve], lang)})
 
     def weeks_of(request: Request) -> int:
         try:
@@ -661,6 +719,8 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         routes=[
             Route("/", today_page),
             Route("/trends", trends_page),
+            Route("/metrics/{key}", metric_page),
+            Route("/metrics/{key}/day", metric_day),
             Route("/activities", activities_page),
             Route("/activities/{activity_id:int}", activity_page),
             Route("/sleep", sleep_page),

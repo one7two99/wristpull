@@ -5,7 +5,9 @@ scrypt hash, signed session, CSRF, rate limit, pages Today and Trends, Dockerfil
 detail pages); D3 the same day (coach runs as background jobs, rating, journal, workout list, templates,
 drafts from the plan, Markdown editor with live check).
 Implementation waves at the end. The parity plan of 2026-11-13 (every TUI function in the browser,
-device jobs through the `agent` service) is the section "Parity with the TUI".
+device jobs through the `agent` service) is the section "Parity with the TUI". Charts, metric pages
+and the analysis layer (readiness, correlations, AI insights report) have their own concept since
+2026-11-14: [analysis-concept.md](analysis-concept.md); its waves interleave with the parity waves.
 
 ## Why
 
@@ -92,12 +94,17 @@ training load.
 ## Pages
 
 1. **Today** – tiles for resting HR, HRV, sleep, stress, steps and body battery, each against the
-   user's 28-day baseline; recovery flags; the latest coach daily check (excerpt, rating
+   user's 28-day baseline with a 14-day sparkline and a link to the metric page; the day's Body
+   Battery and stress curve; recovery flags; the latest coach daily check (Markdown, rating
    buttons); "last sync: watch … / phone …".
-2. **Trends** – 4, 12, 52, 104, 260 or 520 weeks (beyond a year aggregated per ISO week): resting HR (watch and strap), HRV, sleep hours and score,
-   stress, weekly volume (hours, km), acute:chronic workload ratio with the 0.8–1.3 band;
-   weight and VO2max as point series when the window holds values (`merge.merged_metric_by_day`,
-   fed by the Garmin Connect export and the watch's metrics files).
+2. **Trends** – 4, 12, 52, 104, 260 or 520 weeks (beyond a year aggregated per ISO week): one
+   sparkline tile per metric of `series.METRICS` (latest value, delta against the 28-day mean,
+   link), weight and VO2max only when the window holds values; the training hours per week and the
+   acute:chronic ratio with the 0.8–1.3 band.
+   **Metric pages** `/metrics/<key>` (since 2026-11-14, [analysis-concept.md](analysis-concept.md)):
+   the full chart with the 28-day band and the 7-day mean, zoom, a second metric to compare
+   (own chart, same days), the day's curve with the nights shaded, the weekday pattern and the
+   daily table.
 3. **Activities** – list with sport filter; detail with HR curve, zone minutes, laps.
 4. **Sleep** – nights list; detail with a stage band, HRV, SpO2, watch vs strap.
 5. **Coach** – runs with sections, rating (−1/0/+1 with note), "run daily / weekly / ask" as a

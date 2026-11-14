@@ -48,9 +48,10 @@ def test_import_weight_history_reparse_and_merged_series(conn, config, tmp_path:
     assert reparse(conn, config, source=SOURCE, kind="biometrics").ok == 1
     assert conn.execute("SELECT COUNT(*) FROM metrics WHERE metric = 'weight_kg'").fetchone()[0] == before
     trends = pages.trends_data(conn, date(2026, 10, 6), 4)
-    ids = [c["id"] for c in trends["charts"]]
-    assert ids[-2:] == ["weight", "vo2max"]
-    weight = next(c for c in trends["charts"] if c["id"] == "weight")
-    assert weight["kind"] == "points" and weight["unit"] == "kg"
-    assert weight["series"][0]["data"][weight["labels"].index("2026-10-01")] == 70.0 and weight["series"][0]["data"][0] is None
-    assert pages.trends_data(conn, date(2020, 1, 1), 4)["charts"][-1]["id"] == "acwr"  # no metrics in that window: no empty charts
+    keys = [t["key"] for t in trends["tiles"]]
+    assert keys[-2:] == ["weight", "vo2max"]
+    weight = next(t for t in trends["tiles"] if t["key"] == "weight")
+    assert weight["kind"] == "points" and weight["unit"] == "kg" and weight["latest"] == 70.0 and weight["latest_date"] == "2026-10-01"
+    chart = weight["chart"]
+    assert chart["series"][0]["data"][chart["labels"].index("2026-10-01")] == 70.0 and chart["series"][0]["data"][0] is None
+    assert "weight" not in [t["key"] for t in pages.trends_data(conn, date(2020, 1, 1), 4)["tiles"]]  # no readings in that window: no empty tile

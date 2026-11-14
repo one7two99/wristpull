@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period with context %}
+{% block title %}wristpull · {{ _(d.m.title) }}{% endblock %}
+{% block main %}
+<a class="back" href="/trends?weeks={{ d.weeks }}">← {{ _("Trends") }}</a>
+<header class="page-head">
+<h1>{{ _(d.m.title) }}{% if d.m.unit %} <span class="unit">({{ _(d.m.unit) }})</span>{% endif %}</h1>
+<p class="muted">{{ _(d.m.explain) }}</p>
+</header>
+{{ period("/metrics/" ~ d.m.key, d.weeks, choices, "&compare=" ~ (d.compare or "none")) }}
+<section class="kpi-strip" aria-label="{{ _('Key values') }}">
+<div><span>{{ _("Latest") }}</span><strong class="num">{{ d.texts.latest }}</strong><small class="muted">{{ d.stats.latest_date or "" }}</small></div>
+<div><span>{{ _("7-day mean") }}</span><strong class="num">{{ d.texts.mean_7d }}</strong><small class="muted">{{ _("before the latest day") }}</small></div>
+<div><span>{{ _("28-day mean") }}</span><strong class="num">{{ d.texts.mean_28d }}</strong><small class="muted">{{ _("z-score") }} {{ d.texts.z }}</small></div>
+<div><span>{{ _("Lowest") }}</span><strong class="num">{{ d.texts.min }}</strong><small class="muted">{{ d.stats.min_date or "" }}</small></div>
+<div><span>{{ _("Highest") }}</span><strong class="num">{{ d.texts.max }}</strong><small class="muted">{{ d.stats.max_date or "" }}</small></div>
+</section>
+<article class="card chart-card">
+<h2>{{ _("Daily values") }}{% if d.weekly %} <span class="unit muted">({{ _("one point per week") }})</span>{% endif %}</h2>
+<div class="chart main" id="chart-main" data-chart="main" data-day-url="/metrics/{{ d.m.key }}/day" data-weeks="{{ d.weeks }}" role="img" aria-label="{{ _(d.m.title) }}: {{ _('latest') }} {{ d.texts.latest }}, {{ _('28-day mean') }} {{ d.texts.mean_28d }}"></div>
+<p class="muted small legend-note">{{ _("The shaded band is the mean ± 1 SD of the preceding 28 days, the thin line the 7-day mean; gaps mean no data for that day, not zero.") }}{% if d.m.samples and not d.weekly %} {{ _("Click a day to see its curve below.") }}{% endif %}</p>
+</article>
+<section class="card chart-card">
+<form method="get" action="/metrics/{{ d.m.key }}" class="inline wrap compare">
+<input type="hidden" name="weeks" value="{{ d.weeks }}">
+<label for="compare">{{ _("Compare with") }}</label>
+<select id="compare" name="compare">
+<option value="none" {% if not d.compare %}selected{% endif %}>{{ _("nothing") }}</option>
+{% for o in d.compare_options %}<option value="{{ o.key }}" {% if o.key == d.compare %}selected{% endif %}>{{ _(o.title) }}</option>{% endfor %}
+</select>
+<button type="submit" class="secondary">{{ _("Show") }}</button>
+</form>
+{% if d.compare_chart %}
+<h2>{{ _(d.compare_chart.title) }}{% if d.compare_chart.unit %} <span class="unit">({{ _(d.compare_chart.unit) }})</span>{% endif %}</h2>
+<div class="chart" id="chart-compare" data-chart="compare" role="img" aria-label="{{ _(d.compare_chart.title) }}"></div>
+<p class="muted small legend-note">{{ _("Same days, own scale: compare the shapes, not the heights.") }}</p>
+{% endif %}
+</section>
+{% if d.m.samples %}{% include "_intraday.html" %}{% endif %}
+<article class="card chart-card">
+<h2>{{ _("Weekday pattern") }} <span class="unit muted">({{ _("mean per weekday in the period") }})</span></h2>
+<div class="chart" id="chart-weekday" data-chart="weekday" role="img" aria-label="{{ _('Weekday pattern') }}"></div>
+</article>
+<details class="card">
+<summary>{{ _("Daily values as a table") }} ({{ d.table|length }})</summary>
+<div class="table-box"><table>
+<thead><tr><th>{{ _("Date") }}</th><th>{{ _("Watch") }}</th>{% if d.has_strap %}<th>{{ _("Strap") }}</th>{% endif %}<th>{{ _("28-day mean") }}</th></tr></thead>
+<tbody>
+{% for row in d.table %}<tr><td>{{ row.date }}</td><td class="num">{{ row.texts.garmin }}</td>{% if d.has_strap %}<td class="num">{{ row.texts.strap }}</td>{% endif %}<td class="num">{{ row.texts.mean }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+</details>
+<script type="application/json" id="chart-data" data-charts>{{ charts_json|safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js" defer></script>
+{% endblock %}

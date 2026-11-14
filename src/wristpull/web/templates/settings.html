@@ -78,6 +78,16 @@
 </form>
 
 <section class="card settings-section">
+<h2>{{ _("Appearance") }}</h2>
+<div class="theme-row">
+<button type="button" class="secondary" data-theme-toggle data-label-system="{{ _('Theme: system') }}" data-label-light="{{ _('Theme: light') }}" data-label-dark="{{ _('Theme: dark') }}">
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18V3z"/><circle cx="12" cy="12" r="9"/></svg>
+<span data-theme-label>{{ _("Theme: system") }}</span></button>
+<span class="hint">{{ _("Remembered in this browser; tap to cycle system, light, dark.") }}</span>
+</div>
+</section>
+
+<section class="card settings-section">
 <h2>{{ _("Set on the host (.env)") }}</h2>
 <p class="muted small">{{ _("Docker needs these before the containers start, so they stay in .env next to compose.yaml.") }}</p>
 <dl class="kv">

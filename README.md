@@ -653,13 +653,20 @@ first contact `Monitor/` held just the current day), so import regularly, ideall
 ## Web dashboard
 
 A small web app for the phone and the browser: **Today** (resting HR, HRV, sleep, stress, steps
-and body battery against your 28-day mean, warning signs, training load, the latest coach check,
-when each source last synced) and **Trends** (4 weeks, 12 weeks, 1, 2, 5 or 10 years – beyond a year one point per week: resting HR and HRV of
-watch and strap, sleep, stress, training hours per week, acute:chronic load with the 0.8–1.3
-band, weight and VO2max when the window has values), **Activities** (period and sport filter, Garmin duplicates from USB and phone merged; detail
+and body battery against your 28-day mean, each with a two-week sparkline, today's Body Battery and
+stress curve, warning signs, training load, the latest coach check, when each source last synced),
+**Trends** (4 weeks, 12 weeks, 1, 2, 5 or 10 years – beyond a year one point per week: a sparkline
+tile per metric, training hours per week, acute:chronic load with the 0.8–1.3 band) and one
+**metric page** per tile (`/metrics/resting_hr`, `/metrics/hrv`, sleep, sleep score, stress, Body
+Battery, steps, intensity minutes, training load, SpO2, respiration, weight, VO2max): the full
+chart of watch and strap with the 28-day band (mean ± 1 SD of the preceding days) and the 7-day
+mean, zoom, a second metric to compare below, the day's curve for the sample-based metrics (5-minute
+slots, nights shaded, stress by band; click a day or step through them), the weekday pattern and a
+daily table. **Activities** (period and sport filter, Garmin duplicates from USB and phone merged; detail
 with heart-rate and altitude curves, zone times and laps) and **Sleep** (watch and strap side by
 side per night; detail with a stage band, HRV, SpO2, respiration and the other device's night).
-Missing days stay gaps. **Coach** starts a daily check, a weekly review or a question in the
+Missing days stay gaps. Light and dark follow the system; a toggle in the navigation (desktop) and
+under Settings → Appearance pins one. **Coach** starts a daily check, a weekly review or a question in the
 background (one at a time; the page shows the progress and reloads when the answer is there),
 lists the recent runs with rating buttons (+1/0/−1, also under the daily check on Today) and keeps
 the journal. **Workouts** lists the workout files, creates new ones from the time, distance or
@@ -674,7 +681,9 @@ agent** (Compose service `agent`, `wristpull agent`) runs next to it with the ri
 service, takes the jobs from a queue in the database and writes log and result back; Today shows
 whether it is online. The goal is every TUI function in the browser; the remaining pages (days,
 files, export and reports, settings, the coach's wizard and profile, workouts on the watch) follow
-wave by wave ([concept](docs/dashboard-concept.md), "Parity with the TUI").
+wave by wave ([concept](docs/dashboard-concept.md), "Parity with the TUI"); charts, analysis
+(readiness, correlations, tags) and the AI insights report follow
+[docs/analysis-concept.md](docs/analysis-concept.md).
 
 **Docker (recommended, reachable from the phone over HTTPS):**
 

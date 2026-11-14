@@ -16,8 +16,9 @@ from ..aggregate import daily_frame, weekly_frame
 from ..coach.metrics import acute_chronic, deltas, recovery_flags, value
 from ..coach.store import recent_notes, recent_runs
 from ..config import Config
+from .. import series
 from ..detail import activity_detail, downsample, local_clock, sleep_night, sports
-from ..merge import STRAP_PRIORITY, merged_activities, merged_metric_by_day, merged_sleep
+from ..merge import STRAP_PRIORITY, merged_activities, merged_sleep
 from ..status import last_imports
 from ..timeutil import parse_iso_utc
 from ..tui.queries import day_rows
@@ -66,8 +67,13 @@ def coach_blocks(markdown: str) -> list[dict[str, str]]:
     return blocks
 
 
-def today_data(conn: sqlite3.Connection, today: date) -> dict[str, Any]:
-    """Tiles against the 28-day baseline, recovery flags, load, the latest coach check, last syncs."""
+def _spark(days: list[str], values: list[float | None], *, last: int = 14) -> dict[str, Any]:
+    return {"labels": days[-last:], "data": values[-last:]}
+
+
+def today_data(conn: sqlite3.Connection, today: date, tz: ZoneInfo | None = None) -> dict[str, Any]:
+    """Tiles against the 28-day baseline (with a 14-day sparkline and a link to the metric page), recovery
+    flags, load, today's Body Battery and stress curve, the latest coach check, last syncs."""
     rows = day_rows(conn, today - timedelta(days=60), today)
     tiles = []
     for metric, label, unit, kind, good in TILES:
@@ -75,9 +81,12 @@ def today_data(conn: sqlite3.Connection, today: date) -> dict[str, Any]:
         scale = 3600 if metric == "sleep_duration_s" else 1
         tolerance = 0.25 if metric == "sleep_duration_s" else (200 if metric == "steps" else 1)
         delta = d["delta_28d"] / scale if d["delta_28d"] is not None else None
+        key = series.TILE_KEYS[metric]
+        recent = series.metric_series(conn, key, today - timedelta(days=13), today)
         tiles.append(
             {
                 "metric": metric,
+                "page": key,
                 "label": label,
                 "unit": unit,
                 "kind": kind,
@@ -86,6 +95,8 @@ def today_data(conn: sqlite3.Connection, today: date) -> dict[str, Any]:
                 "delta_28d": delta,
                 "tone": tone(delta, good, tolerance=tolerance),
                 "n_28d": d["n_28d"],
+                "spark": {"id": f"spark-{key}", "kind": "sparkline", "title": label, "unit": unit, "labels": recent["days"],
+                          "series": [{"name": label, "data": series.merged(recent["garmin"], recent["strap"])}]},
             }
         )
     load = acute_chronic(rows) if rows else {}
@@ -94,15 +105,19 @@ def today_data(conn: sqlite3.Connection, today: date) -> dict[str, Any]:
     if runs:
         run = runs[0]
         text = (run.get("answer_md") or "").strip()
+        excerpt = text[:COACH_EXCERPT_CHARS] + ("…" if len(text) > COACH_EXCERPT_CHARS else "")
         coach = {
             "id": run["id"],
             "created_at_utc": run.get("created_at_utc"),
             "backend": run.get("backend"),
             "model": run.get("model"),
             "rating": run.get("rating"),
-            "excerpt": text[:COACH_EXCERPT_CHARS] + ("…" if len(text) > COACH_EXCERPT_CHARS else ""),
-            "blocks": coach_blocks(text[:COACH_EXCERPT_CHARS] + ("…" if len(text) > COACH_EXCERPT_CHARS else "")),
+            "excerpt": excerpt,
+            "blocks": coach_blocks(excerpt),
         }
+    curve = None
+    if tz is not None:
+        curve = day_curve(conn, today, tz)
     return {
         "as_of": rows[-1]["date"] if rows else None,
         "tiles": tiles,
@@ -111,7 +126,23 @@ def today_data(conn: sqlite3.Connection, today: date) -> dict[str, Any]:
         "load": load,
         "coach": coach,
         "imports": last_imports(conn),
+        "curve": curve,
     }
+
+
+def day_curve(conn: sqlite3.Connection, day: date, tz: ZoneInfo) -> dict[str, Any] | None:
+    """Body Battery and stress of one day on the same 0–100 scale (one chart, one axis), or None without samples."""
+    bb = series.intraday(conn, "body_battery", day, tz) or {"series": [], "nights": []}
+    st = series.intraday(conn, "stress", day, tz) or {"series": [], "nights": []}
+    picked = []
+    for name, got in (("Body Battery", bb), ("Stress", st)):
+        watch = next((s for s in got["series"] if s["device"] == "garmin"), None)
+        if watch:
+            picked.append({"name": name, "points": watch["points"]})
+    if not picked:
+        return None
+    return {"id": "day-curve", "kind": "intraday", "title": "Body Battery and stress today", "unit": "", "labels": [], "series": picked,
+            "nights": bb["nights"] or st["nights"], "range": [0, 100]}
 
 
 def acwr_series(rows: list[dict[str, Any]], days: list[str]) -> list[float | None]:
@@ -124,73 +155,159 @@ def acwr_series(rows: list[dict[str, Any]], days: list[str]) -> list[float | Non
     return out
 
 
-def week_labels(days: list[str]) -> list[str]:
-    """The first day of every ISO week touched by ``days`` (the chart's x axis beyond a year)."""
-    labels: list[str] = []
-    for d in days:
-        monday = (date.fromisoformat(d) - timedelta(days=date.fromisoformat(d).weekday())).isoformat()
-        if not labels or labels[-1] != monday:
-            labels.append(monday)
-    return labels
+week_labels = series.week_labels
 
 
 def weekly_points(days: list[str], values: list[float | None], agg: str = "mean", digits: int = 1) -> list[float | None]:
-    """Fold daily values into one per ISO week: the mean of the days with a value, or (``last``) the latest one."""
-    buckets: dict[str, list[float]] = {}
-    order: list[str] = []
-    for d, v in zip(days, values):
-        monday = (date.fromisoformat(d) - timedelta(days=date.fromisoformat(d).weekday())).isoformat()
-        if monday not in buckets:
-            buckets[monday] = []
-            order.append(monday)
-        if v is not None:
-            buckets[monday].append(float(v))
-    out: list[float | None] = []
-    for monday in order:
-        vals = buckets[monday]
-        out.append(None if not vals else (round(vals[-1], digits) if agg == "last" else round(sum(vals) / len(vals), digits)))
-    return out
+    """Fold daily values into one per ISO week (see ``series.fold_weekly``)."""
+    return series.fold_weekly(days, values, agg, digits)
+
+
+def _window(today: date, weeks: int) -> tuple[date, int, bool]:
+    weeks = weeks if weeks in TREND_WEEKS else TREND_WEEKS[0]
+    return today - timedelta(days=7 * weeks - 1), weeks, weeks > 52
 
 
 def trends_data(conn: sqlite3.Connection, today: date, weeks: int) -> dict[str, Any]:
-    """Daily series for the last ``weeks`` weeks plus weekly training volume, ready for ECharts."""
-    weeks = weeks if weeks in TREND_WEEKS else TREND_WEEKS[0]
-    start = today - timedelta(days=7 * weeks - 1)
+    """One tile per metric (latest value, delta against the 28-day mean, sparkline over the period, link to the
+    metric page) plus the training-load charts (weekly hours, ACWR); beyond a year the series fold per ISO week."""
+    start, weeks, by_week = _window(today, weeks)
     rows = day_rows(conn, start - timedelta(days=35), today)  # history before the window feeds the ACWR
     by_day = {r["date"]: r for r in rows}
     days = [(start + timedelta(days=i)).isoformat() for i in range((today - start).days + 1)]
-
-    def col(name: str, scale: float = 1.0, digits: int = 1) -> list[float | None]:
-        return [_r(by_day[d][name] / scale, digits) if d in by_day and by_day[d].get(name) is not None else None for d in days]
-
+    labels = series.week_labels(days) if by_week else days
+    shared = {d: by_day[d] for d in days if d in by_day}
+    tiles = []
+    for m in series.METRICS:
+        got = series.metric_series(conn, m.key, start, today, rows=shared)
+        values = series.merged(got["garmin"], got["strap"])
+        if m.metric and not any(v is not None for v in values):
+            continue  # a scale or VO2max estimate the user never had: no empty tile
+        st = series.stats(days, values, digits=max(1, m.digits))
+        delta = st["latest"] - st["mean_28d"] if st["latest"] is not None and st["mean_28d"] is not None else None
+        folded = series.fold_weekly(days, values, m.week_agg, max(1, m.digits)) if by_week else values
+        tiles.append({
+            "key": m.key, "title": m.title, "unit": m.unit, "kind": m.kind, "digits": m.digits,
+            "latest": st["latest"], "latest_date": st["latest_date"], "mean_28d": st["mean_28d"],
+            "delta": round(delta, max(1, m.digits)) if delta is not None else None,
+            "tone": tone(delta, m.good, tolerance=m.tolerance),
+            "n": st["n"],
+            "chart": {"id": f"spark-{m.key}", "kind": "sparkline", "title": m.title, "unit": m.unit, "labels": labels,
+                      "series": [{"name": m.title, "data": folded}]},
+        })
     weekly = weekly_frame(daily_frame(conn, start.isoformat(), today.isoformat()))
     week_rows = weekly.to_dicts() if not weekly.is_empty() else []
-    by_week = weeks > 52  # one point per ISO week keeps a multi-year chart readable
-    labels = week_labels(days) if by_week else days
-
-    def series(values: list[float | None], agg: str = "mean", digits: int = 1) -> list[float | None]:
-        return weekly_points(days, values, agg, digits) if by_week else values
-
+    history_days = [r["date"] for r in rows]
+    all_days = [(history_days[0] if history_days and history_days[0] < days[0] else days[0])]
+    all_days = [(date.fromisoformat(all_days[0]) + timedelta(days=i)).isoformat() for i in range((today - date.fromisoformat(all_days[0])).days + 1)]
+    loads = [by_day[d].get("garmin_training_load") if d in by_day else None for d in all_days]
+    acwr = series.rolling_acwr(all_days, loads)[-len(days) :]
     charts = [
-        {"id": "rhr", "title": "Resting HR", "unit": "bpm", "kind": "line", "labels": labels,
-         "series": [{"name": "Watch", "data": series(col("garmin_resting_hr"))}, {"name": "Strap", "data": series(col("strap_resting_hr"))}]},
-        {"id": "hrv", "title": "HRV last night", "unit": "ms", "kind": "line", "labels": labels,
-         "series": [{"name": "Watch", "data": series(col("garmin_hrv_last_night_avg_ms"))}, {"name": "Strap", "data": series(col("strap_hrv_last_night_avg_ms"))}]},
-        {"id": "sleep", "title": "Sleep", "unit": "h", "kind": "bar", "labels": labels,
-         "series": [{"name": "Watch", "data": series(col("garmin_sleep_duration_s", 3600, 2), "mean", 2)}, {"name": "Strap", "data": series(col("strap_sleep_duration_s", 3600, 2), "mean", 2)}]},
-        {"id": "stress", "title": "Stress", "unit": "avg", "kind": "line", "labels": labels,
-         "series": [{"name": "Watch", "data": series(col("garmin_stress_avg"))}, {"name": "Strap", "data": series(col("strap_stress_avg"))}]},
         {"id": "volume", "title": "Training per week", "unit": "h", "kind": "bar", "labels": [str(w["week"]) for w in week_rows],
          "series": [{"name": "Hours", "data": [_r(w.get("training_h"), 2) for w in week_rows]}]},
         {"id": "acwr", "title": "Acute:chronic load", "unit": "", "kind": "acwr", "labels": labels,
-         "series": [{"name": "ACWR", "data": series(acwr_series(rows, days), "mean", 2)}], "band": [0.8, 1.3]},
+         "series": [{"name": "ACWR", "data": series.fold_weekly(days, acwr, "mean", 2) if by_week else acwr}], "band": [0.8, 1.3]},
     ]
-    for metric, chart_id, title, unit in (("weight_kg", "weight", "Weight", "kg"), ("vo2_max", "vo2max", "VO2max", "ml/kg/min")):
-        values = merged_metric_by_day(conn, start.isoformat(), today.isoformat(), metric)
-        if values:  # sparse history (a scale, the watch's estimate): points joined across the gaps
-            daily = [_r(values.get(d), 1) if d in values else None for d in days]
-            charts.append({"id": chart_id, "title": title, "unit": unit, "kind": "points", "labels": labels, "series": [{"name": title, "data": series(daily, "last")}]})
-    return {"weeks": weeks, "start": start.isoformat(), "end": today.isoformat(), "days_with_data": sum(1 for d in days if d in by_day), "charts": charts}
+    return {"weeks": weeks, "start": start.isoformat(), "end": today.isoformat(), "days_with_data": sum(1 for d in days if d in by_day), "tiles": tiles, "charts": charts}
+
+
+# ---- metric pages ------------------------------------------------------------------------
+
+COMPARE_NONE = "none"
+
+
+def _main_chart(m: series.MetricSpec, days: list[str], got: dict[str, Any], *, by_week: bool, chart_id: str = "main") -> dict[str, Any]:
+    """The daily series of a metric as a chart definition: watch and strap, the 28-day band and the 7-day mean."""
+    digits = max(1, m.digits)
+    values = series.merged(got["garmin"], got["strap"])
+    means, stds = series.rolling_baseline(values)
+    band_low = [round(a - b, digits) if a is not None and b is not None else None for a, b in zip(means, stds)]
+    band_high = [round(a + b, digits) if a is not None and b is not None else None for a, b in zip(means, stds)]
+    mean7 = series.smooth(values, digits=digits)
+    chart_series = [{"name": "Watch", "data": got["garmin"], "role": "watch"}]
+    if got["strap"] is not None and any(v is not None for v in got["strap"]):
+        chart_series.append({"name": "Strap", "data": got["strap"], "role": "strap"})
+    if m.kind != "points":  # the 7-day mean and the 28-day band are chrome, drawn below the data series
+        chart_series.append({"name": "7-day mean", "data": mean7, "role": "mean"})
+        chart_series.append({"name": "28-day band", "data": band_low, "role": "band_low"})
+        chart_series.append({"name": "28-day band", "data": band_high, "role": "band_high"})
+    if by_week:
+        labels = series.week_labels(days)
+        for s in chart_series:
+            s["data"] = series.fold_weekly(days, s["data"], m.week_agg if s["role"] in ("watch", "strap") else "mean", digits)
+    else:
+        labels = days
+    return {"id": chart_id, "title": m.title, "unit": m.unit, "kind": m.kind, "labels": labels, "series": chart_series, "zoom": True, "weekly": by_week}
+
+
+def metric_page(conn: sqlite3.Connection, key: str, today: date, weeks: int, *, day: str | None, compare: str | None, tz: ZoneInfo) -> dict[str, Any] | None:
+    """Everything the metric page shows; None for an unknown key."""
+    m = series.spec(key)
+    if m is None:
+        return None
+    start, weeks, by_week = _window(today, weeks)
+    history = start - timedelta(days=series.BASELINE_DAYS)  # the band needs the 28 days before the window
+    days = [(history + timedelta(days=i)).isoformat() for i in range((today - history).days + 1)]
+    got = series.metric_series(conn, key, history, today)
+    values = series.merged(got["garmin"], got["strap"])
+    offset = (start - history).days
+    window_days, window_values = days[offset:], values[offset:]
+    chart = _main_chart(m, days, got, by_week=by_week)  # built over the history so the band exists from day one of the window
+    keep = len(series.week_labels(window_days)) if by_week else len(window_days)
+    chart["labels"] = chart["labels"][-keep:]
+    for s in chart["series"]:
+        s["data"] = s["data"][-keep:]
+    st = series.stats(days, values, digits=max(1, m.digits))
+    compare_key = compare if compare in series.BY_KEY and compare != key else (None if compare == COMPARE_NONE else m.compare)
+    compare_chart = None
+    if compare_key:
+        other = series.spec(compare_key)
+        other_got = series.metric_series(conn, compare_key, start, today)
+        compare_chart = _main_chart(other, window_days, other_got, by_week=by_week, chart_id="compare")
+        compare_chart["series"] = [s for s in compare_chart["series"] if s["role"] in ("watch", "strap")]
+        compare_chart["zoom"] = False
+    sample_days = [d for d, v in zip(window_days, window_values) if v is not None] if m.samples else []
+    chosen = day if day in sample_days else (sample_days[-1] if sample_days else None)
+    curve = intraday_chart(conn, key, date.fromisoformat(chosen), tz, sample_days) if chosen else None
+    weekday = series.weekday_pattern(window_days, window_values, digits=max(1, m.digits))
+    table = [
+        {"date": d, "garmin": g, "strap": s, "mean": round(mu, max(1, m.digits)) if mu is not None else None}
+        for d, g, s, mu in zip(reversed(window_days), reversed(got["garmin"][offset:]), reversed(got["strap"][offset:] if got["strap"] else [None] * len(window_days)), reversed(series.rolling_baseline(values)[0][offset:]))
+        if g is not None or s is not None
+    ]
+    return {
+        "m": m,
+        "weeks": weeks,
+        "start": start.isoformat(),
+        "end": today.isoformat(),
+        "weekly": by_week,
+        "stats": st,
+        "chart": chart,
+        "compare": compare_key,
+        "compare_chart": compare_chart,
+        "compare_options": [o for o in series.METRICS if o.key != key],
+        "curve": curve,
+        "weekday": {"id": "weekday", "title": "Weekday pattern", "unit": m.unit, "kind": "bar", "labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+                    "series": [{"name": m.title, "data": [w["mean"] for w in weekday]}], "counts": [w["n"] for w in weekday]},
+        "table": table,
+        "has_strap": got["strap"] is not None and any(v is not None for v in got["strap"]),
+    }
+
+
+def intraday_chart(conn: sqlite3.Connection, key: str, day: date, tz: ZoneInfo, sample_days: list[str] | None = None) -> dict[str, Any]:
+    """The day's curve as a chart definition plus the neighbouring days that have samples (for the ← → links)."""
+    m = series.BY_KEY[key]
+    got = series.intraday(conn, key, day, tz) or {"series": [], "nights": []}
+    chart_series = [{"name": DEVICE_LABELS.get(s["device"], s["device"]), "points": s["points"]} for s in got["series"]]
+    stamp = day.isoformat()
+    prev_day = next_day = None
+    if sample_days:
+        earlier = [d for d in sample_days if d < stamp]
+        later = [d for d in sample_days if d > stamp]
+        prev_day, next_day = (earlier[-1] if earlier else None), (later[0] if later else None)
+    rng = [0, 100] if m.samples in ("stress", "body_battery") else ([80, 100] if m.samples == "spo2" else None)
+    return {"id": "curve", "kind": "intraday", "title": m.title, "unit": m.unit, "labels": [], "series": chart_series, "nights": got["nights"],
+            "range": rng, "stress": m.samples == "stress", "step": m.samples in series.CUMULATIVE, "day": stamp, "prev": prev_day, "next": next_day, "metric": key}
 
 
 # ---- activities and sleep (wave D2) ---------------------------------------------------------
@@ -343,6 +460,7 @@ def coach_data(conn: sqlite3.Connection, tz: ZoneInfo, *, runs: int = 10, notes:
             "question": run.get("question"),
             "rating": run.get("rating"),
             "cost_usd": run.get("cost_usd"),
+            "answer_md": run.get("answer_md") or "",
             "blocks": coach_blocks(run.get("answer_md") or ""),
         })
     return {"runs": items, "notes": recent_notes(conn, notes)}

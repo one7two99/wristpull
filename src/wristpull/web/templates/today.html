@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% from "_rating.html" import rating with context %}
-{% block title %}wristpull · {{ _("Today") }}{% endblock %}
+{% block title %}wristpull · {{ _("Today") }}<script type="application/json" id="chart-data" data-charts>{{ charts_json|safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js" defer></script>
+{% endblock %}
 {% block main %}
 <header class="page-head">
 <h1>{{ _("Today") }}</h1>
@@ -29,7 +33,7 @@
 
 <section class="tiles" aria-label="{{ _('Key values') }}">
 {% for t in d.tiles %}
-<article class="tile">
+<a class="tile" href="/metrics/{{ t.page }}">
 <h2>{{ _(t.label) }}</h2>
 <p class="value"><span class="num">{{ t.text }}</span>{% if t.unit %} <span class="unit">{{ _(t.unit) }}</span>{% endif %}</p>
 {% if t.delta_text %}
@@ -38,9 +42,18 @@
 <p class="delta neutral">{{ _("no baseline yet") }}</p>
 {% endif %}
 {% if t.metric == "sleep_duration_s" and d.sleep_score is not none %}<p class="delta neutral">{{ _("Score {score}").format(score=d.sleep_score|num) }}</p>{% endif %}
-</article>
+<div class="chart spark" id="chart-spark-{{ t.page }}" aria-hidden="true"></div>
+</a>
 {% endfor %}
 </section>
+
+{% if d.curve %}
+<section class="card chart-card">
+<h2>{{ _("Body Battery and stress today") }} <a class="small" href="/metrics/body_battery">{{ _("Body Battery") }} →</a></h2>
+<div class="chart intraday" id="chart-day-curve" data-chart="day-curve" role="img" aria-label="{{ _('Body Battery and stress today') }}"></div>
+<p class="muted small legend-note">{{ _("Local time; the shaded parts are the nights the watch recorded.") }}</p>
+</section>
+{% endif %}
 
 {% if d.flags %}
 <section class="card warn" aria-label="{{ _('Warning signs') }}">
@@ -62,9 +75,7 @@
 <h2>{{ _("Coach · daily check") }}</h2>
 {% if d.coach %}
 <p class="muted small">{{ coach_time }} · {{ d.coach.backend }}{% if d.coach.model %} · {{ d.coach.model }}{% endif %}</p>
-<div class="prose">
-{% for b in d.coach.blocks %}{% if b.kind == "heading" %}<h3>{{ b.text }}</h3>{% else %}<p>{{ b.text }}</p>{% endif %}{% endfor %}
-</div>
+<div class="prose">{{ d.coach.excerpt|markdown }}</div>
 {{ rating(d.coach.id, d.coach.rating, "/") }}
 <p class="small"><a href="/coach">{{ _("All coach runs") }} →</a></p>
 {% else %}

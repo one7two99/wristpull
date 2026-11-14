@@ -142,18 +142,25 @@ def test_today_and_trends_data(seeded: Config, conn):
     assert steps["value"] is not None and steps["n_28d"] >= 1
     assert today["coach"]["backend"] == "fake" and "Well recovered" in today["coach"]["excerpt"]
     assert "garmin_usb" in today["imports"] and today["load"]["sufficient_history"] is False
+    assert today["tiles"][0]["page"] == "resting_hr" and len(today["tiles"][0]["spark"]["labels"]) == 14 and today["curve"] is None  # no tz: no curve
+    from zoneinfo import ZoneInfo
+
+    with_curve = pages.today_data(conn, date(2026, 10, 6), ZoneInfo("Europe/Berlin"))
+    assert with_curve["curve"]["kind"] == "intraday" and [s["name"] for s in with_curve["curve"]["series"]] == ["Body Battery", "Stress"]
     trends = pages.trends_data(conn, TODAY, 4)
-    assert trends["weeks"] == 4 and trends["start"] == "2026-09-10" and len(trends["charts"][0]["labels"]) == 28
-    rhr = trends["charts"][0]["series"][1]["data"]
-    assert all(v is None for v in rhr)  # no strap data: gaps, not zeros
+    assert trends["weeks"] == 4 and trends["start"] == "2026-09-10" and len(trends["tiles"][0]["chart"]["labels"]) == 28
+    keys = [t["key"] for t in trends["tiles"]]
+    assert keys[:3] == ["resting_hr", "hrv", "sleep_duration"] and "weight" not in keys and "vo2max" in keys  # no scale readings: no weight tile
+    rhr = trends["tiles"][0]
+    assert rhr["latest"] is not None and rhr["latest_date"] == "2026-10-06" and rhr["chart"]["kind"] == "sparkline"
     acwr = next(c for c in trends["charts"] if c["id"] == "acwr")
     assert acwr["kind"] == "acwr" and all(v is None for v in acwr["series"][0]["data"])  # < 28 days history
     assert pages.trends_data(conn, TODAY, 7)["weeks"] == 4  # unknown choice falls back
     years = pages.trends_data(conn, TODAY, 104)  # beyond a year: one point per ISO week
-    assert years["weeks"] == 104 and 104 <= len(years["charts"][0]["labels"]) <= 105 and years["charts"][0]["labels"][0] <= years["start"]
+    labels = years["tiles"][0]["chart"]["labels"]
+    assert years["weeks"] == 104 and 104 <= len(labels) <= 105 and labels[0] <= years["start"]
+    assert all(len(t["chart"]["series"][0]["data"]) == len(t["chart"]["labels"]) for t in years["tiles"])
     assert all(len(c["series"][0]["data"]) == len(c["labels"]) for c in years["charts"])
-    rhr_chart = next(c for c in years["charts"] if c["id"] == "rhr")
-    assert any(v is not None for v in rhr_chart["series"][0]["data"]) and all(v is None for v in rhr_chart["series"][1]["data"])  # watch has values, strap stays gaps
     assert pages.weekly_points(["2026-10-05", "2026-10-06", "2026-10-12"], [50.0, 52.0, None], "mean") == [51.0, None]
     assert pages.weekly_points(["2026-10-05", "2026-10-06", "2026-10-12"], [70.0, 68.5, 68.0], "last") == [68.5, 68.0]
     assert pages.week_labels(["2026-10-07", "2026-10-08", "2026-10-13"]) == ["2026-10-05", "2026-10-12"]
@@ -186,9 +193,11 @@ def test_login_flow_and_pages(seeded: Config, password_hash: str):
     home = client.get("/", headers={"accept-language": "de"})
     assert home.status_code == 200 and "Ruhepuls" in home.text and "Schritte" in home.text
     assert "Well recovered &lt;b&gt;today&lt;/b&gt;" in home.text and "<h3>Status</h3>" in home.text  # coach text is escaped
+    assert 'href="/metrics/resting_hr"' in home.text and 'id="chart-spark-steps"' in home.text
     assert "Uhr (USB)" in home.text and home.headers["cache-control"] == "no-store"
     trends = client.get("/trends?weeks=12")
-    assert trends.status_code == 200 and 'id="chart-rhr"' in trends.text and '"labels":[' in trends.text
+    assert trends.status_code == 200 and 'id="chart-spark-resting_hr"' in trends.text and 'href="/metrics/hrv?weeks=12"' in trends.text and '"labels":[' in trends.text
+    assert 'id="chart-acwr"' in trends.text and 'data-theme-toggle' in trends.text and client.get("/static/theme.js").status_code == 200
     assert 'aria-current="page">12 weeks' in trends.text and client.get("/trends?weeks=x").status_code == 200
     assert client.get("/static/vendor/echarts.min.js").status_code == 200 and client.get("/static/app.css").status_code == 200
     # logout needs the CSRF token of the logged-in session
@@ -328,7 +337,7 @@ def test_coach_page_run_rate_and_journal(seeded: Config, password_hash: str):
         runs = recent_runs(conn, limit=5)
     assert [r["kind"] for r in runs][:2] == ["ask", "daily"] and runs[0]["question"] == "Run today?"
     page = client.get("/coach")
-    assert "Easy 30 min." in page.text and "<h3>Today&#39;s suggestion</h3>" in page.text and "Run today?" in page.text
+    assert "Easy 30 min." in page.text and "<h3>Today's suggestion</h3>" in page.text and "Run today?" in page.text
     rated = client.post("/coach/rate", data={"csrf": token, "run_id": runs[1]["id"], "rating": "1", "next": "/"})
     assert rated.status_code == 303 and rated.headers["location"] == "/"
     assert client.post("/coach/rate", data={"csrf": token, "run_id": runs[1]["id"], "rating": "5"}).status_code == 400
@@ -472,9 +481,70 @@ def test_web_strings_have_german_translations():
     ids.update(pages.TEMPLATE_KINDS)
     ids.update({"draft", "pushed", "verified", "removed", "running", "cycling", "walking", "strength", "cardio"})
     ids.update({"Resting HR", "HRV last night", "Sleep", "Stress", "Training per week", "Acute:chronic load", "Watch", "Strap", "Hours", "ACWR"})
-    missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio"})
+    from wristpull import series
+
+    ids.update(m.title for m in series.METRICS)
+    ids.update(m.unit for m in series.METRICS if m.unit)
+    ids.update(m.explain for m in series.METRICS)
+    ids.update({"7-day mean", "28-day band", "Body Battery and stress today", "Weekday pattern", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"})
+    missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio",
+                                                                            "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"
+
+
+# ---- metric pages, day curves, markdown (analysis wave A1) --------------------------------------
+
+
+def test_metric_page_data(seeded: Config, conn):
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Berlin")
+    page = pages.metric_page(conn, "resting_hr", TODAY, 4, day=None, compare=None, tz=tz)
+    assert page["m"].key == "resting_hr" and page["compare"] == "hrv" and page["compare_chart"]["id"] == "compare"
+    chart = page["chart"]
+    assert chart["id"] == "main" and len(chart["labels"]) == 28 and chart["labels"][0] == "2026-09-10"
+    roles = [s["role"] for s in chart["series"]]
+    assert roles == ["watch", "mean", "band_low", "band_high"] and all(len(s["data"]) == 28 for s in chart["series"])  # no strap data: no strap series
+    assert all(s["role"] in ("watch", "strap") for s in page["compare_chart"]["series"])
+    assert page["stats"]["latest_date"] == "2026-10-06" and page["stats"]["n"] >= 6 and page["table"][0]["date"] == "2026-10-06"
+    assert page["curve"]["day"] == "2026-10-06" and page["curve"]["prev"] == "2026-10-05" and page["curve"]["next"] is None and page["curve"]["series"]
+    assert page["weekday"]["labels"][0] == "Mon" and len(page["weekday"]["series"][0]["data"]) == 7
+    earlier = pages.metric_page(conn, "resting_hr", TODAY, 4, day="2026-10-03", compare="none", tz=tz)
+    assert earlier["compare"] is None and earlier["compare_chart"] is None and earlier["curve"]["day"] == "2026-10-03" and earlier["curve"]["next"] == "2026-10-04"
+    sleep = pages.metric_page(conn, "sleep_duration", TODAY, 104, day=None, compare="sleep_duration", tz=tz)
+    assert sleep["curve"] is None and sleep["weekly"] and sleep["compare"] == "hrv"  # comparing with itself falls back to the default
+    assert len(sleep["chart"]["labels"]) == len(sleep["chart"]["series"][0]["data"]) and sleep["chart"]["labels"][0] <= sleep["start"]
+    assert pages.metric_page(conn, "nope", TODAY, 4, day=None, compare=None, tz=tz) is None
+    vo2 = pages.metric_page(conn, "vo2max", TODAY, 12, day=None, compare=None, tz=tz)
+    assert vo2["chart"]["kind"] == "points" and [s["role"] for s in vo2["chart"]["series"]] == ["watch"]
+
+
+def test_metric_pages_over_http(seeded: Config, password_hash: str):
+    client = client_for(seeded, password_hash)
+    login(client)
+    page = client.get("/metrics/resting_hr?weeks=4", headers={"accept-language": "de"})
+    assert page.status_code == 200 and 'id="chart-main"' in page.text and 'id="chart-curve"' in page.text and "Ruhepuls" in page.text
+    assert 'data-day-url="/metrics/resting_hr/day"' in page.text and "Wochentagsmuster" in page.text and 'id="chart-compare"' in page.text
+    assert client.get("/metrics/nope").status_code == 404
+    assert client.get("/metrics/steps?weeks=12&compare=../etc").status_code == 200  # unknown partner: the default one
+    partial = client.get("/metrics/stress/day?day=2026-10-05&weeks=4")
+    assert partial.status_code == 200 and 'id="intraday"' in partial.text and 'id="chart-curve"' in partial.text and '"nights":[' in partial.text
+    assert client.get("/metrics/stress/day?day=nope").status_code == 404 and client.get("/metrics/sleep_duration/day?day=2026-10-05").status_code == 404
+    empty = client.get("/metrics/stress/day?day=2020-01-01")
+    assert empty.status_code == 200 and 'id="chart-curve"' not in empty.text
+    for key in ("hrv", "sleep_duration", "sleep_score", "stress", "body_battery", "steps", "intensity_minutes", "training_load", "spo2", "respiration", "weight", "vo2max"):
+        assert client.get(f"/metrics/{key}").status_code == 200, key
+
+
+def test_markdown_renderer():
+    from wristpull.web.markdown import render
+
+    html = render("## Status\nWell **recovered** <b>today</b>, `x` and *calm*.\nSecond line.\n\n- one\n- two\n  wrapped\n1. first\n\n| Day | Plan |\n|---|---|\n| Mon | easy |\n\n### Numbers used\nplain")
+    assert "<h3>Status</h3>" in html and "<strong>recovered</strong>" in html and "&lt;b&gt;today&lt;/b&gt;" in html and "<code>x</code>" in html and "<em>calm</em>" in html
+    assert "<br>Second line" in html and "<ul><li>one</li><li>two wrapped</li></ul>" in html and "<ol><li>first</li></ol>" in html
+    assert "<th>Day</th>" in html and "<td>easy</td>" in html and "<h4>Numbers used</h4>" in html and html.endswith("<p>plain</p>")
+    assert render("") == "" and render("2 * 3 * 4") == "<p>2 * 3 * 4</p>"
 
 
 # ---- devices & sync: jobs for the device agent (parity W1) ------------------------------------

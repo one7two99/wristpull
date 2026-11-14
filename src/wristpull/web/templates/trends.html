@@ -1,16 +1,26 @@
 {% extends "base.html" %}
+{% from "_macros.html" import period with context %}
 {% block title %}wristpull · {{ _("Trends") }}{% endblock %}
 {% block main %}
 <header class="page-head">
 <h1>{{ _("Trends") }}</h1>
-<p class="muted">{{ _("{start} to {end}, {n} days with data").format(start=d.start, end=d.end, n=d.days_with_data) }}</p>
+<p class="muted">{{ _("{start} to {end}, {n} days with data").format(start=d.start, end=d.end, n=d.days_with_data) }} · {{ _("Open a metric for the full chart, its baseline and the day's curve.") }}</p>
 </header>
-<nav class="segmented" aria-label="{{ _('Period') }}">
-{% for w in choices %}
-<a href="/trends?weeks={{ w }}" {% if w == d.weeks %}aria-current="page"{% endif %}>{% if w == 52 %}{{ _("1 year") }}{% elif w > 52 %}{{ _("{n} years").format(n=w // 52) }}{% else %}{{ _("{n} weeks").format(n=w) }}{% endif %}</a>
+{{ period("/trends", d.weeks, choices) }}
+<section class="metric-tiles" aria-label="{{ _('Metrics') }}">
+{% for t in d.tiles %}
+<a class="tile metric-tile" href="/metrics/{{ t.key }}?weeks={{ d.weeks }}">
+<h2>{{ _(t.title) }}</h2>
+<p class="value"><span class="num">{{ t.text }}</span>{% if t.unit and t.latest is not none %} <span class="unit">{{ _(t.unit) }}</span>{% endif %}</p>
+{% if t.delta_text %}<p class="delta {{ t.tone }}">{{ _("{delta} vs. 28-day mean {mean}").format(delta=t.delta_text, mean=t.mean_text) }}</p>
+{% elif t.latest is not none %}<p class="delta neutral">{{ _("no baseline yet") }}</p>
+{% else %}<p class="delta neutral">{{ _("no data in this period") }}</p>{% endif %}
+<div class="chart spark" id="chart-spark-{{ t.key }}" data-chart="spark-{{ t.key }}" aria-hidden="true"></div>
+{% if t.latest_date %}<p class="date">{{ t.latest_date }}</p>{% endif %}
+</a>
 {% endfor %}
-</nav>
-<section class="charts">
+</section>
+<section class="charts" aria-label="{{ _('Training load') }}">
 {% for c in d.charts %}
 <article class="card chart-card">
 <h2>{{ c.title }}{% if c.unit %} <span class="unit">({{ _(c.unit) }})</span>{% endif %}</h2>
@@ -18,8 +28,8 @@
 </article>
 {% endfor %}
 </section>
-<p class="muted small">{{ _("Gaps mean no data for that day, not zero.") }}</p>
-<script type="application/json" id="chart-data">{{ charts_json|safe }}</script>
+<p class="muted small">{{ _("Gaps mean no data for that day, not zero.") }} {{ _("The acute:chronic ratio compares the last 7 days with the weekly mean of the last 28 (band 0.8–1.3).") }}</p>
+<script type="application/json" id="chart-data" data-charts>{{ charts_json|safe }}</script>
 {% endblock %}
 {% block scripts %}
 <script src="/static/vendor/echarts.min.js" defer></script>

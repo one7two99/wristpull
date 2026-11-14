@@ -70,6 +70,17 @@
   The Docker stack on Linux is the primary way to run wristpull; the native uv install is for development and for
   macOS/Windows (`docs/platforms.md`). There are no native systemd units or udev rules any more, only the Docker ones.
   `docs/history/` holds the original German work orders, unmaintained.
+- Metric pages and charts (concept `docs/analysis-concept.md`): `src/wristpull/series.py` is the registry (`METRICS`:
+  key, daily_summary column or `metrics` kind, unit, direction, chart kind, sample table) plus `metric_series`,
+  `rolling_baseline` (trailing 28 days, the day excluded, min 7), `smooth`, `stats`, `weekday_pattern`, `fold_weekly`,
+  `intraday` (5-minute slots, local minutes) and `night_windows`; SQL allowed there like in `detail.py`. Pages:
+  `/trends` (sparkline tiles), `/metrics/{key}`, `/metrics/{key}/day` (htmx partial). Chart definitions are plain
+  dicts built in `web/pages.py` (`kind` line|bar|points|acwr|sparkline|intraday, series `role` watch|strap|mean|
+  band_low|band_high) and drawn by `static/app.js` from `<script type="application/json" data-charts>` blocks;
+  never a dual-axis chart (compare = a second chart with the same days). Palette tokens in `app.css` were validated
+  with the dataviz checks; theme toggle via `theme.js` + `data-theme`. Coach answers render through
+  `web/markdown.py` (stdlib, escaped). Analysis waves (insights package, tags, readiness, AI report) and the parity
+  waves P2–P5 are listed in the concept.
 - Device agent (`src/wristpull/agent/`, `wristpull agent`, Compose service `agent`; concept: "Parity with the TUI" in
   `docs/dashboard-concept.md`): the only way the browser reaches the watch, the phone and the band. `agent/queue.py` is
   SQL only (tables `agent_jobs`, `agent_job_log`, `agent_state`); `agent/runner.py` claims one queued job at a time,
