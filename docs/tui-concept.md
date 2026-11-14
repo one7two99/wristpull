@@ -1,6 +1,9 @@
 # wristpull TUI – concept
 
-Status: implemented (MVP 2026-10-31, second wave 2026-11-01: activities, sleep, export & report form, editable settings, cooperative cancel; coach screen 9 and workouts screen 0 followed on 2026-11-02). Snapshot tests remain open. The text mockups that guided the build were removed after the screens existed; `screenshots/` (next to this file) holds renders of the real TUI.
+Status: since 2026-11-14 the web dashboard offers every function of the TUI (and more: metric pages,
+insights, the AI report), see `docs/dashboard-concept.md` "Parity with the TUI" and
+`docs/analysis-concept.md`; `tests/test_web_parity.py` keeps the two in step. The TUI remains the
+terminal alternative. Implemented (MVP 2026-10-31, second wave 2026-11-01: activities, sleep, export & report form, editable settings, cooperative cancel; coach screen 9 and workouts screen 0 followed on 2026-11-02). Snapshot tests remain open. The text mockups that guided the build were removed after the screens existed; `screenshots/` (next to this file) holds renders of the real TUI.
 
 ## Why
 

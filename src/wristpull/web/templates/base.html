@@ -53,6 +53,9 @@
 <a href="/settings" class="more-only" {% if page == "settings" %}aria-current="page"{% endif %}>
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6zM19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3a1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8a1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
 <span>{{ _("Settings") }}</span></a>
+<a href="/help" class="more-only" {% if page == "help" %}aria-current="page"{% endif %}>
+<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg>
+<span>{{ _("Help") }}</span></a>
 <form method="post" action="/lang" class="langswitch">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="next" value="{{ path }}">
@@ -79,6 +82,7 @@
 <a href="/files" {% if page == "files" %}aria-current="page"{% endif %}>{{ _("Files") }}</a>
 <a href="/export" {% if page == "export" %}aria-current="page"{% endif %}>{{ _("Export") }}</a>
 <a href="/settings" {% if page == "settings" %}aria-current="page"{% endif %}>{{ _("Settings") }}</a>
+<a href="/help" {% if page == "help" %}aria-current="page"{% endif %}>{{ _("Help") }}</a>
 <form method="post" action="/lang" class="langswitch">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="next" value="{{ path }}">

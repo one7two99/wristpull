@@ -709,8 +709,8 @@ everything downloadable; `adb/` and `staging/` stay hidden. **Export** writes th
 (Markdown + CSV) or a weekly or monthly report as a background job, lists the files with download
 links and shows the Markdown preview; the activity page offers the FIT file for download, the
 activity list filters by name, the sleep list by device. On the phone the pages that do not fit
-into the bottom bar sit behind "More". The goal is every TUI function in the browser; still open
-is the help page ([concept](docs/dashboard-concept.md), "Parity with the TUI"); charts, analysis
+into the bottom bar sit behind "More". The goal is every TUI function in the browser; the help page
+(`/help`) lists every page with its TUI key and command-line equivalent ([concept](docs/dashboard-concept.md), "Parity with the TUI"); charts, analysis
 (readiness, correlations, tags) and the AI insights report follow
 [docs/analysis-concept.md](docs/analysis-concept.md).
 
@@ -793,6 +793,24 @@ coach runs, ratings, journal notes and edited workout files.
   heartbeat and the current job, `wristpull agent --once` runs one cycle by hand. When the agent and
   `cli` (or the udev import unit) open the watch at the same time, the second one gets the usual
   "device busy" message and can simply be repeated.
+
+**TUI key ↔ web page.** Every function of the terminal UI has a page in the dashboard (the parity rule,
+checked by `tests/test_web_parity.py`):
+
+| TUI | Web page | Notes |
+|---|---|---|
+| 1 Overview | `/` Today | readiness, tags, key values, day curve, devices, coach excerpt |
+| 2 Devices & Sync | `/sync` | device jobs through the agent, log, stop |
+| 3 Days | `/days` | period presets, day detail |
+| 4 Activities | `/activities`, `/activities/<id>` | filters, weekly hours, curves, zones, laps, track, FIT download |
+| 5 Sleep | `/sleep`, `/sleep/<id>` | bed-to-wake bars, hypnogram, night curves, stage shares |
+| 6 Files | `/files`, `/files/download` | archive rows, FIT inspect, previews |
+| 7 Export & Report | `/export`, `/report` | jobs with downloads; reports as pages |
+| 8 Settings | `/settings` | config, keys, password, backend check, theme, language |
+| 9 Coach | `/coach`, `/coach/profile`, `/coach/wizard` | runs, dry run, rating, journal, profile, wizard |
+| 0 Workouts | `/workouts`, `/workouts/watch` | editor, push/verify/delete through the agent, watch view |
+| ? Help, F12 | `/help`, EN/DE switch | page overview with command-line equivalents |
+| – | `/trends`, `/metrics/<key>`, `/insights` | charts and analysis beyond the TUI ([analysis concept](docs/analysis-concept.md)) |
 
 ## Running everything in Docker
 

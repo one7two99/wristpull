@@ -174,7 +174,11 @@ the test list are in the plan of 2026-11-14 and move here with wave A3.
   push history; `/workouts/watch` reads the watch (`watch_list`), lists active and pending workouts with
   the limit warning and removes one after a confirmation (`watch_remove`, backup first). The job partial
   polls `/sync/job` like the Sync page.
-- **A5/P5** Help page, "more" menu, parity test, screenshots, README table, memory.
+- **A5/P5** (done 2026-11-14) `/help` (page overview with TUI keys and command lines, host paths, docs),
+  the phone's "more" menu (since P2), `tests/test_web_parity.py` (every TUI screen and agent job kind has
+  a web counterpart; the help page lists every screen), web screenshots from synthetic data in
+  `docs/screenshots/web-*.jpg`, the README table "TUI key ↔ web page", the setup script's closing note on
+  the agent and the start password.
 
 Verification per wave: `uv run pyflakes src tests && uv run pytest -q`, the boundary and catalog
 tests, `docker compose build web && docker compose up -d web`, and a look at the pages on the

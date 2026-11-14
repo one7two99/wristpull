@@ -505,10 +505,14 @@ def test_web_strings_have_german_translations():
     ids.update({"ready", "moderate", "recover", "none", "weak", "strong", "Readiness", "Bedtime", "Wake-up", "Bin mean", "Nights come from both the watch and the strap; their scales may differ."})
     ids.update({"Coach: insights report", "insights"})
     ids.update({"wristpull", "other", "dry_run", "active", "pending"})
+    ids.update(p[1] for p in pages.HELP_PAGES)
+    ids.update(p[3] for p in pages.HELP_PAGES)
+    ids.update({"Data directory", "Config file", "Workout files", "Goal profile", "Raw archive", "Dashboard concept", "Analysis concept", "Coach concept"})
     missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio",
                                                                             "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max",
                                                                             "Detail", "Garmin", "Export", "Export & Report", "BB", "Int.", "…", "Filter",
-                                                                            "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm", "Readiness", "Sauna", "Tag", "Report", "Status", "Workout", "wristpull", "NewFiles"})
+                                                                            "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm", "Readiness", "Sauna", "Tag", "Report", "Status", "Workout", "wristpull", "NewFiles",
+                                                                            "Coach", "README", "Setup"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"
 
@@ -1010,6 +1014,18 @@ def test_workouts_push_verify_delete_and_watch_view(seeded: Config, password_has
     assert client.post("/workouts/delete", data={"csrf": token, "file": name, "confirm": "1"}).status_code == 404
     assert client.post("/workouts/delete", data={"csrf": token, "file": "../secrets.json", "confirm": "1"}).status_code == 400
     assert "Workout file deleted." in client.get("/workouts?message=deleted").text
+
+
+# ---- help page (closing wave A5/P5) --------------------------------------------------------------
+
+
+def test_help_page(seeded: Config, password_hash: str):
+    client = client_for(seeded, password_hash, env={"WRISTPULL_DATA_DIR": str(seeded.data_dir), "WRISTPULL_HOST_DATA_DIR": "/home/alice/Health/wristpull"})
+    login(client)
+    page = client.get("/help", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "Hilfe" in page.text and 'href="/insights"' in page.text and "wristpull coach insights" in page.text
+    assert "/home/alice/Health/wristpull" in page.text and str(seeded.data_dir) not in page.text  # host paths, not container paths
+    assert "docs/analysis-concept.md" in page.text and 'href="/help"' in client.get("/").text
 
 
 # ---- devices & sync: jobs for the device agent (parity W1) ------------------------------------

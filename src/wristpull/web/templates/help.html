@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Help") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Help") }}</h1>
+<p class="muted">wristpull {{ d.version }} · {{ _("Every page of the dashboard has a counterpart in the terminal UI (its key) and on the command line; the numbers are the same because all three call the same library.") }}</p>
+</header>
+<section class="card">
+<h2>{{ _("Pages") }}</h2>
+<div class="table-box"><table class="helptable">
+<thead><tr><th>{{ _("TUI key") }}</th><th>{{ _("Page") }}</th><th>{{ _("What it does") }}</th><th>{{ _("Command line") }}</th></tr></thead>
+<tbody>
+{% for p in d.pages %}
+<tr><td class="num">{{ p.key }}</td><td><a href="{{ p.path }}">{{ _(p.screen) }}</a></td><td class="wrap">{{ _(p.what) }}</td><td><code>{{ p.cli }}</code></td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+</section>
+<section class="card">
+<h2>{{ _("Paths") }}</h2>
+<dl class="kv">
+{% for label, path in d.paths %}<dt>{{ _(label) }}</dt><dd>{{ path }}{% if path %} <button type="button" class="copy" data-copy="{{ path }}">{{ _("Copy") }}</button>{% endif %}</dd>{% endfor %}
+</dl>
+</section>
+<section class="card">
+<h2>{{ _("Good to know") }}</h2>
+<ul class="small">
+<li>{{ _("Device jobs (watch, phone, strap, workouts on the watch) run in the device agent next to the dashboard; the dashboard itself has no device access.") }}</li>
+<li>{{ _("Gaps in charts mean no data for that day, not zero. Baselines are your own trailing 28 days.") }}</li>
+<li>{{ _("The coach only interprets numbers that were computed here; its answers are stored and can be rated.") }}</li>
+<li>{{ _("Nothing leaves the machine except the data package of a coach run to the backend you chose.") }}</li>
+<li>{{ _("Light and dark follow the system; the theme and language switches remember your choice in this browser.") }}</li>
+</ul>
+</section>
+<section class="card">
+<h2>{{ _("Documentation") }}</h2>
+<ul class="small">
+{% for label, url in d.docs %}<li><a href="{{ url }}" rel="noopener">{{ _(label) }}</a> <span class="muted">{{ url }}</span></li>{% endfor %}
+</ul>
+</section>
+{% endblock %}

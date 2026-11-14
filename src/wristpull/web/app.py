@@ -1092,6 +1092,12 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             response.set_cookie(LANG_COOKIE, code, max_age=365 * 24 * 3600, httponly=True, secure=True, samesite="strict", path="/")
         return response
 
+    def help_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        return render(request, "help.html", session, {"page": "help", "d": pages.help_data(config, dict(env))})
+
     def healthz(request: Request) -> Response:
         return JSONResponse({"ok": True})
 
@@ -1161,6 +1167,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             Route("/login", login_page, methods=["GET"]),
             Route("/login", login_submit, methods=["POST"]),
             Route("/logout", logout, methods=["POST"]),
+            Route("/help", help_page),
             Route("/healthz", healthz),
             Mount("/static", app=StaticFiles(directory=str(HERE / "static")), name="static"),
         ],

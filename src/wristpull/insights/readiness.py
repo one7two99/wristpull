@@ -23,6 +23,7 @@ SLEEP_FLOOR_SCORE = 30.0
 ACWR_FREE = 1.3
 ACWR_ZERO = 1.8
 MIN_COMPONENTS = 2
+MIN_CONFIDENCE = 0.5  # at least half of the weight must have data (stress + ACWR alone say nothing about readiness)
 LABELS = ((70, "ready"), (45, "moderate"), (0, "recover"))
 
 
@@ -64,7 +65,7 @@ def readiness_for(row: dict[str, Any], previous: dict[str, Any] | None) -> dict[
             present_weight += weight
         components.append({"key": key, "title": TITLES[key], "value": value, "z": z, "score": score, "weight": weight, "present": present, "contribution": None})
     present_components = [c for c in components if c["present"]]
-    if len(present_components) < MIN_COMPONENTS or present_weight <= 0:
+    if len(present_components) < MIN_COMPONENTS or present_weight / total_weight < MIN_CONFIDENCE:
         return {"date": row.get("date"), "score": None, "label": None, "confidence": round(present_weight / total_weight, 2), "components": components}
     score = sum(c["weight"] * c["score"] for c in present_components) / present_weight
     for c in present_components:

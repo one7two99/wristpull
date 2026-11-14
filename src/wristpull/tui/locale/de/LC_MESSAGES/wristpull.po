@@ -2504,3 +2504,100 @@ msgstr "Uhr angesteckt"
 
 msgid "watch not attached"
 msgstr "Uhr nicht angesteckt"
+
+# ---- help page (closing wave A5/P5)
+msgid "A sparkline tile per metric and the training load; metric pages with baseline, zoom, day curve and weekday pattern"
+msgstr "Eine Sparkline-Kachel je Messwert und die Trainingslast; Metrik-Seiten mit Basislinie, Zoom, Tagesverlauf und Wochentagsmuster"
+
+msgid "Activities with sport and name filter, hours per week; curves, zones, laps, track and FIT download per activity"
+msgstr "Aktivitäten mit Sport- und Namensfilter, Stunden pro Woche; Kurven, Zonen, Runden, Strecke und FIT-Download je Aktivität"
+
+msgid "Analysis concept"
+msgstr "Analyse-Konzept"
+
+msgid "Claude export and weekly or monthly reports as jobs with downloads; reports also as pages"
+msgstr "Claude-Export und Wochen- oder Monatsreports als Jobs mit Downloads; Reports auch als Seiten"
+
+msgid "Coach concept"
+msgstr "Coach-Konzept"
+
+msgid "Command line"
+msgstr "Kommandozeile"
+
+msgid "Config file"
+msgstr "Konfigurationsdatei"
+
+msgid "Config file, keys, password, coach backend check, appearance and language"
+msgstr "Konfigurationsdatei, Schlüssel, Passwort, Coach-Backend-Prüfung, Darstellung und Sprache"
+
+msgid "Daily check, weekly review, questions, insights report, dry run, goal profile and wizard, journal"
+msgstr "Tagescheck, Wochenrückblick, Fragen, Einblicke-Report, Probelauf, Zielprofil und Assistent, Journal"
+
+msgid "Dashboard concept"
+msgstr "Dashboard-Konzept"
+
+msgid "Data directory"
+msgstr "Datenordner"
+
+msgid "Device jobs (watch, phone, strap, workouts on the watch) run in the device agent next to the dashboard; the dashboard itself has no device access."
+msgstr "Geräte-Jobs (Uhr, Handy, Band, Workouts auf der Uhr) laufen im Geräte-Agenten neben dem Dashboard; das Dashboard selbst hat keinen Gerätezugriff."
+
+msgid "Documentation"
+msgstr "Dokumentation"
+
+msgid "Every page of the dashboard has a counterpart in the terminal UI (its key) and on the command line; the numbers are the same because all three call the same library."
+msgstr "Jede Seite des Dashboards hat ein Gegenstück in der Terminal-Oberfläche (ihre Taste) und auf der Kommandozeile; die Zahlen sind dieselben, weil alle drei dieselbe Bibliothek aufrufen."
+
+msgid "Gaps in charts mean no data for that day, not zero. Baselines are your own trailing 28 days."
+msgstr "Lücken in Diagrammen heißen keine Daten an dem Tag, nicht null. Basislinien sind deine eigenen letzten 28 Tage."
+
+msgid "Good to know"
+msgstr "Gut zu wissen"
+
+msgid "Import from the watch, pull the phone or the strap through the device agent, with log and stop"
+msgstr "Import von der Uhr, Handy oder Band abholen über den Geräte-Agenten, mit Log und Stopp"
+
+msgid "Key values against your baseline, readiness, today's tags and curve, devices, the latest coach check"
+msgstr "Kennwerte gegen deine Basis, Readiness, heutige Tags und Tagesverlauf, Geräte, der letzte Coach-Check"
+
+msgid "Light and dark follow the system; the theme and language switches remember your choice in this browser."
+msgstr "Hell und Dunkel folgen dem System; Design- und Sprachumschalter merken sich deine Wahl in diesem Browser."
+
+msgid "Nights as bed-to-wake bars; hypnogram, night curves and stage shares per night"
+msgstr "Nächte als Balken von Bettzeit bis Aufwachen; Hypnogramm, Nachtkurven und Phasenanteile je Nacht"
+
+msgid "Nothing leaves the machine except the data package of a coach run to the backend you chose."
+msgstr "Nichts verlässt den Rechner außer dem Datenpaket eines Coach-Laufs an das Backend deiner Wahl."
+
+msgid "One row per day with the watch and strap detail of a day"
+msgstr "Eine Zeile je Tag mit dem Uhr- und Band-Detail eines Tages"
+
+msgid "Page"
+msgstr "Seite"
+
+msgid "Paths"
+msgstr "Pfade"
+
+msgid "Raw archive"
+msgstr "Rohdaten-Archiv"
+
+msgid "Readiness with components, sleep regularity, relationships with sweet spots, day tags, the AI report"
+msgstr "Readiness mit Komponenten, Schlafregelmäßigkeit, Zusammenhänge mit Sweet Spots, Tages-Tags, der KI-Report"
+
+msgid "TUI key"
+msgstr "TUI-Taste"
+
+msgid "The coach only interprets numbers that were computed here; its answers are stored and can be rated."
+msgstr "Der Coach deutet nur Zahlen, die hier berechnet wurden; seine Antworten werden gespeichert und lassen sich bewerten."
+
+msgid "The data directory: archive rows, FIT inspect, previews, downloads"
+msgstr "Der Datenordner: Archivzeilen, FIT-Untersuchung, Vorschauen, Downloads"
+
+msgid "What it does"
+msgstr "Was sie tut"
+
+msgid "Workout files"
+msgstr "Workout-Dateien"
+
+msgid "Workout files, templates, drafts from the plan, editor; push, verify, delete; the watch view"
+msgstr "Workout-Dateien, Vorlagen, Entwürfe aus dem Plan, Editor; pushen, prüfen, löschen; die Uhr-Ansicht"

@@ -76,8 +76,10 @@ def test_readiness_monotone_partial_and_floor():
     assert next(c for c in extreme["components"] if c["key"] == "hrv")["score"] == 100.0  # clamped at 2.5 z
     floor = readiness.readiness_for(_row(hrv_z=0.0, resting_hr_z=0.0, sleep_duration_z=1.0, sleep_s=5 * 3600, sleep_score_z=0.0, body_battery_z=0.0, acwr=1.0), previous)
     assert next(c for c in floor["components"] if c["key"] == "sleep_duration")["score"] == 30.0  # under 6 h: capped
-    partial = readiness.readiness_for(_row(hrv_z=1.0, resting_hr_z=0.0, sleep_duration_z=None, sleep_score_z=None, body_battery_z=None, acwr=None), None)
-    assert partial["score"] is not None and partial["confidence"] == pytest.approx(0.45) and not next(c for c in partial["components"] if c["key"] == "stress")["present"]
+    partial = readiness.readiness_for(_row(hrv_z=1.0, resting_hr_z=0.0, sleep_duration_z=0.0, sleep_score_z=None, body_battery_z=None, acwr=None), None)
+    assert partial["score"] is not None and partial["confidence"] == pytest.approx(0.6) and not next(c for c in partial["components"] if c["key"] == "stress")["present"]
+    thin = readiness.readiness_for(_row(hrv_z=None, resting_hr_z=None, sleep_duration_z=None, sleep_score_z=None, body_battery_z=None, acwr=1.0), _row(stress_z=0.0))
+    assert thin["score"] is None and thin["confidence"] == pytest.approx(0.15)  # stress and ACWR alone: no readiness
     one = readiness.readiness_for(_row(hrv_z=1.0, resting_hr_z=None, sleep_duration_z=None, sleep_score_z=None, body_battery_z=None, acwr=None), None)
     assert one["score"] is None and one["label"] is None
     assert readiness.label(70) == "ready" and readiness.label(44.9) == "recover" and readiness.label(None) is None

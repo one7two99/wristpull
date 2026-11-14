@@ -216,7 +216,7 @@
     const s = def.series[0] || { points: [] };
     const option = chrome(def, {
       grid: { left: 48, right: 12, top: 12, bottom: 28 },
-      series: [{ name: s.name, type: "line", data: s.points, symbol: "none", connectNulls: false, lineStyle: { width: 1.5, color }, itemStyle: { color }, areaStyle: { color, opacity: 0.12 } }],
+      series: [{ name: s.name, type: "line", data: s.points, symbol: "circle", showSymbol: s.points.length <= 12, symbolSize: 6, connectNulls: false, lineStyle: { width: 1.5, color }, itemStyle: { color }, areaStyle: { color, opacity: 0.12 } }],
     });
     option.xAxis = nightAxis(def);
     option.tooltip = { trigger: "axis", valueFormatter: withUnit(def), axisPointer: { label: { formatter: (p) => fmtTime((def.x0 + p.value) % 1440) } } };

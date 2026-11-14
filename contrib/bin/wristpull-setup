@@ -181,7 +181,7 @@ step_dashboard() {
         env_set WRISTPULL_WEB_SECRET "$(head -c 32 /dev/urandom | base64 | tr -d '\n=/+')" secret; note "generated; it keeps you logged in across restarts"; fi
     if [ -n "$(env_get WRISTPULL_WEB_PASSWORD_HASH)" ]; then ok "WRISTPULL_WEB_PASSWORD_HASH is set"; return 0; fi
     note "the dashboard password is hashed inside the container; only the hash is stored"
-    ask "set the dashboard password now?" || { todo "no password yet: the dashboard refuses to start until WRISTPULL_WEB_PASSWORD_HASH is set"; return 0; }
+    ask "set the dashboard password now?" || { note "no hash in .env: the first login takes the start password \"wristpull\" and asks for your own at once"; return 0; }
     [ "$dry_run" = 1 ] && { cli serve --hash-password; return 0; }
     local line; line="$(docker compose run --rm cli wristpull serve --hash-password | grep '^WRISTPULL_WEB_PASSWORD_HASH=')"
     if [ -n "$line" ]; then env_set WRISTPULL_WEB_PASSWORD_HASH "${line#*=}" secret; else warn "no hash produced (passwords differed?); run again later"; fi
@@ -233,13 +233,14 @@ step_strap() {
 }
 
 step_start() {
-    step "Dashboard: start and trust its certificate"
-    [ -z "$(env_get WRISTPULL_WEB_PASSWORD_HASH)" ] && { todo "no password hash, not starting the dashboard (step 5)"; return 0; }
+    step "Dashboard and device agent: start and trust the certificate"
     compose up -d || { warn "start failed"; return 1; }
+    note "the device agent (service agent) runs next to the dashboard and does the watch, phone and strap jobs you start in the browser"
     note "Caddy mints a local certificate authority; the phone must trust it once"
     [ "$dry_run" = 1 ] || sleep 3
     compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./wristpull-root.crt && ok "root certificate: $checkout/wristpull-root.crt → install it on the phone (README, Web dashboard)"
     ok "dashboard: $(env_get WRISTPULL_SITE)"
+    [ -z "$(env_get WRISTPULL_WEB_PASSWORD_HASH)" ] && note "first login: the start password \"wristpull\", then set your own"
 }
 
 step_check() {

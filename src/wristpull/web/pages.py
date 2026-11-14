@@ -1201,3 +1201,48 @@ def report_page(conn: sqlite3.Connection, config: Config, kind: str, day: date) 
     following = end + timedelta(days=1)
     return {"kind": kind, "label": label, "start": start.isoformat(), "end": end.isoformat(), "markdown": markdown, "charts": charts,
             "previous": previous.isoformat(), "next": following.isoformat(), "date": day.isoformat()}
+
+
+# ---- help page (closing wave A5/P5) -----------------------------------------------------------------
+
+# (TUI key, TUI screen msgid, web path, what the page does msgid, command-line equivalent)
+HELP_PAGES: tuple[tuple[str, str, str, str, str], ...] = (
+    ("1", "Overview", "/", "Key values against your baseline, readiness, today's tags and curve, devices, the latest coach check", "wristpull status"),
+    ("2", "Devices & Sync", "/sync", "Import from the watch, pull the phone or the strap through the device agent, with log and stop", "wristpull import garmin · pull phone · pull strap"),
+    ("3", "Days", "/days", "One row per day with the watch and strap detail of a day", "wristpull days"),
+    ("4", "Activities", "/activities", "Activities with sport and name filter, hours per week; curves, zones, laps, track and FIT download per activity", "wristpull activities · wristpull inspect FILE"),
+    ("5", "Sleep", "/sleep", "Nights as bed-to-wake bars; hypnogram, night curves and stage shares per night", "wristpull sleep"),
+    ("6", "Files", "/files", "The data directory: archive rows, FIT inspect, previews, downloads", "wristpull inspect FILE"),
+    ("7", "Export & Report", "/export", "Claude export and weekly or monthly reports as jobs with downloads; reports also as pages", "wristpull export --for-claude · wristpull report week|month"),
+    ("8", "Settings", "/settings", "Config file, keys, password, coach backend check, appearance and language", "wristpull config"),
+    ("9", "Coach", "/coach", "Daily check, weekly review, questions, insights report, dry run, goal profile and wizard, journal", "wristpull coach daily|weekly|ask|insights · coach profile --wizard"),
+    ("0", "Workouts", "/workouts", "Workout files, templates, drafts from the plan, editor; push, verify, delete; the watch view", "wristpull workout new|push|verify|watch|remove"),
+    ("–", "Trends", "/trends", "A sparkline tile per metric and the training load; metric pages with baseline, zoom, day curve and weekday pattern", "wristpull trends"),
+    ("–", "Insights", "/insights", "Readiness with components, sleep regularity, relationships with sweet spots, day tags, the AI report", "wristpull coach insights · coach tag DATE +sauna"),
+)
+
+
+def help_data(config: Config, env: dict[str, str] | None = None) -> dict[str, Any]:
+    """The help page: page overview with command-line equivalents, version, host paths, documentation links."""
+    from .. import __version__
+    from ..coach.profile import profile_path
+    from ..runtime import host_path
+
+    return {
+        "version": __version__,
+        "pages": [{"key": k, "screen": screen, "path": path, "what": what, "cli": cli} for k, screen, path, what, cli in HELP_PAGES],
+        "paths": [
+            ("Data directory", str(host_path(config.data_dir, env))),
+            ("Config file", str(config.path or "")),
+            ("Workout files", str(host_path(workouts_dir(config), env))),
+            ("Goal profile", str(host_path(profile_path(config), env))),
+            ("Raw archive", str(host_path(config.raw_dir, env))),
+        ],
+        "docs": [
+            ("README", "https://github.com/one7two99/wristpull#readme"),
+            ("Dashboard concept", "https://github.com/one7two99/wristpull/blob/master/docs/dashboard-concept.md"),
+            ("Analysis concept", "https://github.com/one7two99/wristpull/blob/master/docs/analysis-concept.md"),
+            ("Coach concept", "https://github.com/one7two99/wristpull/blob/master/docs/coach-concept.md"),
+            ("Setup", "https://github.com/one7two99/wristpull/blob/master/docs/setup.md"),
+        ],
+    }
