@@ -255,7 +255,7 @@ def test_activity_and_sleep_data(seeded: Config, conn):
     page = pages.activity_page(conn, act["id"], tz)
     assert page["charts"] and page["charts"][0]["id"] == "hr" and len(page["charts"][0]["labels"]) == len(page["charts"][0]["series"][0]["data"])
     assert pages.activity_page(conn, 99999, tz) is None
-    nights = pages.sleep_list(conn, TODAY, 4)
+    nights = pages.sleep_list(conn, TODAY, 4, tz=tz)
     assert nights["rows"][0]["date"] == "2026-10-06" and nights["rows"][0]["watch"] and nights["rows"][0]["strap"] is None
     night = pages.night_page(conn, nights["rows"][0]["watch"]["id"], tz)
     assert night["device"] == "Watch" and night["band"] and night["stage_totals"] and night["other"] is None
@@ -279,7 +279,7 @@ def test_activity_and_sleep_pages(seeded: Config, password_hash: str):
     assert sleep.status_code == 200 and "2026-10-06" in sleep.text
     night_id = re.search(r'href="/sleep/(\d+)"', sleep.text).group(1)
     night = client.get(f"/sleep/{night_id}", headers={"accept-language": "de"})
-    assert night.status_code == 200 and "Schlafphasen" in night.text and 'class="seg ' in night.text
+    assert night.status_code == 200 and "Schlafphasen" in night.text and 'id="chart-hypnogram"' in night.text  # the CSS band only stands in without stage intervals
     assert client.get("/sleep/99999").status_code == 404 and client.get("/sleep/abc").status_code == 404
 
 
@@ -492,9 +492,12 @@ def test_web_strings_have_german_translations():
     ids.update(label for label, _c, _k in DAY_DETAIL_FIELDS)
     ids.update(pages.EXPORT_TITLES.values())
     ids.update(p["label"] for p in pages.export_form(TODAY, 28)["presets"])
+    ids.update(t for _k, t, _u, _d in pages.NIGHT_CURVES)
+    ids.update({"Pace", "Speed", "Cadence", "Power", "Track", "Pace per lap", "Minutes per lap", "Hours per week", "Other", "Stage shares", "This night"})
     missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio",
                                                                             "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max",
-                                                                            "Detail", "Garmin", "Export", "Export & Report", "BB", "Int.", "…", "Filter"})
+                                                                            "Detail", "Garmin", "Export", "Export & Report", "BB", "Int.", "…", "Filter",
+                                                                            "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"
 
@@ -685,6 +688,76 @@ def test_activity_name_filter_and_sleep_source_filter(seeded: Config, password_h
     strap = client.get("/sleep?weeks=4&source=strap")
     assert strap.status_code == 200 and "No nights in this period." in strap.text  # the fixture has no strap nights
     assert client.get("/sleep?weeks=4&source=nope").status_code == 200
+
+
+# ---- sleep and activity charts (analysis wave A2) -------------------------------------------------
+
+
+def test_activity_page_charts(seeded: Config, conn):
+    from zoneinfo import ZoneInfo
+
+    activity_id = conn.execute("SELECT id FROM activities ORDER BY id LIMIT 1").fetchone()[0]
+    page = pages.activity_page(conn, activity_id, ZoneInfo("Europe/Berlin"))
+    ids = [c["id"] for c in page["charts"]]
+    assert ids[:2] == ["hr", "pace"] and "alt" in ids and page["pace_sport"]  # the fixture is a run with speed and altitude
+    pace = next(c for c in page["charts"] if c["id"] == "pace")
+    assert pace["format"] == "pace" and pace["inverse"] and pace["group"] == "activity" and all(v is None or 2 < v < 20 for v in pace["series"][0]["data"])
+    assert next(c for c in page["charts"] if c["id"] == "alt")["area"] is True
+    assert page["track"] and page["track"]["kind"] == "track" and len(page["track"]["series"][0]["data"]) >= 2 and page["track"]["series"][0]["data"][0][1] == pytest.approx(52.52, abs=0.01)
+    assert page["donut"] is None or page["donut"]["kind"] == "donut"
+    assert pages._pace_min_per_km(None) is None and pages._pace_min_per_km(0.1) is None and pages._pace_min_per_km(1000 / 300) == 5.0
+    weekly = pages.weekly_sport_chart([{"sport": "running", "duration_s": 3600, "date": "2026-10-06"}, {"sport": "cycling", "duration_s": 1800, "date": "2026-10-06"}], date(2026, 10, 1), date(2026, 10, 7))
+    assert weekly["kind"] == "stacked" and [s["name"] for s in weekly["series"]] == ["running", "cycling"] and weekly["series"][0]["data"][-1] == 1.0
+    many = pages.weekly_sport_chart([{"sport": s, "duration_s": 600 * (i + 1), "date": "2026-10-06"} for i, s in enumerate(["a", "b", "c", "d", "e"])], date(2026, 10, 1), date(2026, 10, 7))
+    assert [s["name"] for s in many["series"]] == ["e", "d", "c", "Other"] and many["series"][-1]["data"][-1] == pytest.approx(0.5)  # a + b fold into Other
+    assert pages.weekly_sport_chart([], date(2026, 10, 1), date(2026, 10, 7)) is None
+
+
+def test_night_page_charts_and_sleep_bars(seeded: Config, conn):
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Berlin")
+    sleep_id = conn.execute("SELECT id FROM sleep ORDER BY id LIMIT 1").fetchone()[0]
+    page = pages.night_page(conn, sleep_id, tz)
+    assert page["hypnogram"] and page["hypnogram"]["kind"] == "hypnogram" and page["hypnogram"]["stages"] == ["deep", "light", "rem", "awake"]
+    blocks = page["hypnogram"]["series"][0]["data"]
+    assert blocks and all(0 <= a < b <= page["hypnogram"]["xmax"] and 0 <= k <= 3 for a, b, k in blocks) and 0 <= page["hypnogram"]["x0"] < 1440
+    kinds = {c["id"]: c for c in page["curves"]}
+    assert "heart_rate" in kinds and kinds["heart_rate"]["kind"] == "timeline" and kinds["heart_rate"]["series"][0]["points"][0][0] >= 0
+    assert page["shares"] is None  # only one night in the fixture: no 28-day baseline yet
+    assert [c["id"] for c in page["charts"]][0] == "hypnogram"
+    bar = pages.night_bar("2026-10-05T21:30:00Z", "2026-10-06T05:00:00Z", tz)  # 23:30–07:00 local
+    assert bar["left"] == pytest.approx(100 * 5.5 / 18, abs=0.1) and bar["width"] == pytest.approx(100 * 7.5 / 18, abs=0.1)
+    assert pages.night_bar("2026-10-05T15:00:00Z", "2026-10-05T16:00:00Z", tz) == {"left": 100.0, "width": 0.5}  # an afternoon nap sits off the night axis: a sliver at its end
+    assert pages.score_tone(85) == "good" and pages.score_tone(70) == "mid" and pages.score_tone(10) == "low" and pages.score_tone(None) == "none"
+    rows = pages.sleep_list(conn, TODAY, 4, tz=tz)
+    assert rows["n"] >= 1 and rows["mean_s"] and rows["rows"][0]["watch"]["bar"]["width"] > 0 and rows["rows"][0]["watch"]["tone"] in ("good", "mid", "low", "none")
+
+
+def test_night_samples_and_stage_baseline(seeded: Config, conn):
+    from wristpull.detail import night_samples, stage_baseline
+
+    night = conn.execute("SELECT source, start_utc, end_utc, local_date FROM sleep ORDER BY id LIMIT 1").fetchone()
+    samples = night_samples(conn, night["source"], night["start_utc"], night["end_utc"])
+    assert "heart_rate" in samples and samples["heart_rate"][0][0] >= 0 and samples["heart_rate"] == sorted(samples["heart_rate"])
+    assert stage_baseline(conn, night["source"], night["local_date"])["n"] == 0
+    later = stage_baseline(conn, night["source"], "2026-11-01")
+    assert later["n"] == 1 and later["deep_s"] is not None and later["duration_s"] > 0
+
+
+def test_activity_night_and_sleep_pages_render_charts(seeded: Config, password_hash: str):
+    client = client_for(seeded, password_hash)
+    login(client)
+    detail_id = re.search(r'href="/activities/(\d+)"', client.get("/activities?weeks=4").text).group(1)
+    page = client.get(f"/activities/{detail_id}", headers={"accept-language": "de"})
+    assert page.status_code == 200 and 'id="chart-pace"' in page.text and 'id="chart-track"' in page.text and '"group":"activity"' in page.text and "Tempo" in page.text
+    listing = client.get("/activities?weeks=4")
+    assert 'id="chart-weekly"' in listing.text and '"kind":"stacked"' in listing.text
+    sleep_id = re.search(r'href="/sleep/(\d+)"', client.get("/sleep?weeks=4").text).group(1)
+    night = client.get(f"/sleep/{sleep_id}", headers={"accept-language": "de"})
+    assert night.status_code == 200 and 'id="chart-hypnogram"' in night.text and '"stage_names":[' in night.text and 'id="chart-heart_rate"' in night.text
+    nights = client.get("/sleep?weeks=4")
+    assert 'class="nightbar watch"' in nights.text and "18:00" in nights.text and "Ø" in nights.text
 
 
 # ---- devices & sync: jobs for the device agent (parity W1) ------------------------------------

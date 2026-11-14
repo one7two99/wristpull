@@ -74,7 +74,9 @@
   const two = (n) => String(n).padStart(2, "0");
   const fmtDate = (v) => (typeof v === "string" && v.length === 10 ? v.slice(8, 10) + "." + v.slice(5, 7) + "." : v);
   const fmtTime = (m) => two(Math.floor(m / 60)) + ":" + two(Math.round(m % 60));
-  const withUnit = (def) => (v) => (v == null ? "–" : v + (def.unit ? " " + def.unit : ""));
+  const fmtPace = (v) => { const m = Math.floor(v), sec = Math.round((v - m) * 60); return m + ":" + two(sec === 60 ? 0 : sec) + (sec === 60 ? "" : ""); };
+  const fmtValue = (def) => (v) => (v == null ? "–" : (def.format === "pace" ? fmtPace(v) : v));
+  const withUnit = (def) => (v) => (v == null ? "–" : fmtValue(def)(v) + (def.unit ? " " + def.unit : ""));
 
   function chrome(def, extra) {
     const text = css("--muted");
@@ -84,7 +86,7 @@
       textStyle: { fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" },
       tooltip: { trigger: "axis", valueFormatter: withUnit(def), axisPointer: { type: "line", lineStyle: { color: grid } } },
       xAxis: { type: "category", data: def.labels, axisLabel: { color: text, hideOverlap: true, formatter: fmtDate }, axisLine: { lineStyle: { color: grid } }, axisTick: { show: false } },
-      yAxis: { type: "value", scale: def.kind !== "bar", axisLabel: { color: text }, splitLine: { lineStyle: { color: grid } }, axisLine: { show: false } },
+      yAxis: { type: "value", scale: def.kind !== "bar", inverse: !!def.inverse, axisLabel: { color: text, formatter: def.format === "pace" ? fmtPace : undefined }, splitLine: { lineStyle: { color: grid } }, axisLine: { show: false } },
     }, extra);
   }
 
@@ -117,22 +119,105 @@
       visible.push(s.name);
       const base = { name: s.name, data: s.data, itemStyle: { color }, z: 3 };
       if (def.kind === "bar") series.push({ ...base, type: "bar", barMaxWidth: def.deviation ? 28 : 14, barGap: "10%", itemStyle: { color: def.deviation ? undefined : color, borderRadius: def.deviation ? 3 : [3, 3, 0, 0] }, ...(def.deviation ? { data: s.data.map((v) => ({ value: v, itemStyle: { color: v == null || v >= 0 ? colors[0] : colors[1] } })) } : {}) });
+      else if (def.kind === "stacked") series.push({ ...base, type: "bar", stack: "total", barMaxWidth: 22, itemStyle: { color: s.name === "Other" ? css("--series-mean") : color, borderColor: css("--surface"), borderWidth: 1 } });
       else if (def.kind === "points") series.push({ ...base, type: "line", connectNulls: true, showSymbol: true, symbolSize: 7, lineStyle: { width: 1, type: "dotted", color } });
-      else series.push({ ...base, type: "line", connectNulls: false, showSymbol: def.labels.length <= 40, symbolSize: 5, lineStyle: { width: 2, color } });
+      else series.push({ ...base, type: "line", connectNulls: false, showSymbol: def.labels.length <= 40, symbolSize: 5, lineStyle: { width: 2, color }, areaStyle: def.area ? { color, opacity: 0.14 } : undefined, sampling: def.labels.length > 400 ? "lttb" : undefined });
     }
     if (def.kind === "acwr" && def.band && series.length) {
       series[0].markArea = { silent: true, itemStyle: { color: css("--band") }, data: [[{ yAxis: def.band[0] }, { yAxis: def.band[1] }]] };
     }
     const zoom = def.zoom && def.labels.length > 14;
     const option = chrome(def, {
-      grid: { left: 44, right: 12, top: visible.length > 1 ? 30 : 12, bottom: zoom ? 48 : 28 },
+      grid: { left: 48, right: 12, top: visible.length > 1 ? 30 : 12, bottom: zoom ? 48 : 28 },
       legend: visible.length > 1 ? { top: 0, right: 0, data: visible, textStyle: { color: css("--muted") }, itemWidth: 14, itemHeight: 8 } : undefined,
       // the inside zoom only answers to pinch, so the wheel and a finger keep scrolling the page; the slider does the rest
       dataZoom: zoom ? [{ type: "inside", filterMode: "none", zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false }, { type: "slider", height: 16, bottom: 4, brushSelect: false, filterMode: "none", borderColor: css("--border") }] : undefined,
       series,
     });
     if (def.kind === "acwr") { option.yAxis.min = 0; option.yAxis.max = 3; option.yAxis.scale = false; }  // a lone workout after a break is "4": off the chart, in the tooltip
+    if (def.kind === "stacked") option.yAxis.scale = false;
+    if (def.group === "activity") option.xAxis.axisLabel.formatter = (v) => v + " min";
     return option;
+  }
+
+  // Part-to-whole in at most six slices (the heart-rate zones): a donut with the zone colours and minutes in the tooltip.
+  function donut(def) {
+    const s = def.series[0] || { data: [] };
+    const zoneColors = [1, 2, 3, 4, 5].map((i) => css("--zone-" + i));
+    const total = s.data.reduce((a, v) => a + (v || 0), 0) || 1;
+    return {
+      animation: false,
+      textStyle: { fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" },
+      tooltip: { trigger: "item", formatter: (p) => p.name + ": " + Math.round(p.value) + " min (" + Math.round(100 * p.value / total) + " %)" },
+      legend: { bottom: 0, left: "center", textStyle: { color: css("--muted") }, itemWidth: 12, itemHeight: 10 },
+      series: [{ type: "pie", radius: ["52%", "78%"], center: ["50%", "44%"], avoidLabelOverlap: true, padAngle: 2, itemStyle: { borderRadius: 4, borderColor: css("--surface"), borderWidth: 2 },
+        label: { show: false }, emphasis: { label: { show: true, formatter: (p) => p.name + "\n" + Math.round(100 * p.value / total) + " %", color: css("--text") } },
+        data: def.labels.map((name, i) => ({ name, value: s.data[i] || 0, itemStyle: { color: def.zones ? zoneColors[i % zoneColors.length] : [css("--series-1"), css("--series-2"), css("--series-3")][i % 3] } })) }],
+    };
+  }
+
+  // The GPS track as a line in a plane with equal scale (no map tiles: nothing leaves the machine).
+  function track(def, el) {
+    const pts = (def.series[0] || { data: [] }).data;
+    const lats = pts.map((p) => p[1]), lons = pts.map((p) => p[0]);
+    const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+    const k = Math.cos(midLat * Math.PI / 180);
+    const xs = lons.map((lon) => lon * k);
+    const spanX = Math.max(...xs) - Math.min(...xs), spanY = Math.max(...lats) - Math.min(...lats);
+    const ratio = (el.clientWidth || 600) / (el.clientHeight || 240);
+    let w = Math.max(spanX, spanY * ratio) * 1.1, h = w / ratio;
+    const cx = (Math.max(...xs) + Math.min(...xs)) / 2, cy = (Math.max(...lats) + Math.min(...lats)) / 2;
+    return {
+      animation: false,
+      grid: { left: 4, right: 4, top: 4, bottom: 4 },
+      tooltip: { show: false },
+      xAxis: { type: "value", min: cx - w / 2, max: cx + w / 2, show: false },
+      yAxis: { type: "value", min: cy - h / 2, max: cy + h / 2, show: false },
+      series: [
+        { type: "line", data: xs.map((x, i) => [x, lats[i]]), symbol: "none", lineStyle: { width: 2.5, color: css("--series-1") }, smooth: false },
+        { type: "scatter", data: [[xs[0], lats[0]]], symbolSize: 10, itemStyle: { color: css("--good") } },
+        { type: "scatter", data: [[xs[xs.length - 1], lats[lats.length - 1]]], symbolSize: 10, itemStyle: { color: css("--bad") } },
+      ],
+    };
+  }
+
+  // Night time axis: minutes since bedtime, labelled as clock time (x0 = bedtime as minute of the day).
+  function nightAxis(def) {
+    return { type: "value", min: 0, max: def.xmax, interval: def.xmax > 600 ? 120 : 60, axisLabel: { color: css("--muted"), formatter: (v) => fmtTime((def.x0 + v) % 1440) }, axisLine: { lineStyle: { color: css("--border") } }, splitLine: { show: false } };
+  }
+
+  function timeline(def) {
+    const color = css("--series-1");
+    const s = def.series[0] || { points: [] };
+    const option = chrome(def, {
+      grid: { left: 48, right: 12, top: 12, bottom: 28 },
+      series: [{ name: s.name, type: "line", data: s.points, symbol: "none", connectNulls: false, lineStyle: { width: 1.5, color }, itemStyle: { color }, areaStyle: { color, opacity: 0.12 } }],
+    });
+    option.xAxis = nightAxis(def);
+    option.tooltip = { trigger: "axis", valueFormatter: withUnit(def), axisPointer: { label: { formatter: (p) => fmtTime((def.x0 + p.value) % 1440) } } };
+    return option;
+  }
+
+  // The hypnogram: one block per stage interval, deep at the bottom, awake at the top.
+  function hypnogram(def) {
+    const stageColors = def.stages.map((name) => css("--stage-" + name));
+    const names = def.stage_names || def.stages;
+    const blocks = (def.series[0] || { data: [] }).data;
+    return {
+      animation: false,
+      textStyle: { fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" },
+      grid: { left: 64, right: 12, top: 8, bottom: 28 },
+      tooltip: { trigger: "item", formatter: (p) => names[p.value[2]] + ": " + fmtTime((def.x0 + p.value[0]) % 1440) + " – " + fmtTime((def.x0 + p.value[1]) % 1440) + " (" + Math.round(p.value[1] - p.value[0]) + " min)" },
+      xAxis: nightAxis(def),
+      yAxis: { type: "category", data: names, axisLabel: { color: css("--muted") }, axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: true, lineStyle: { color: css("--border") } } },
+      series: [{ type: "custom", data: blocks, encode: { x: [0, 1], y: 2 },
+        renderItem: (params, api) => {
+          const start = api.coord([api.value(0), api.value(2)]), end = api.coord([api.value(1), api.value(2)]);
+          const height = api.size([0, 1])[1] * 0.7;
+          const rect = window.echarts.graphic.clipRectByRect({ x: start[0], y: start[1] - height / 2, width: Math.max(1, end[0] - start[0]), height }, { x: params.coordSys.x, y: params.coordSys.y, width: params.coordSys.width, height: params.coordSys.height });
+          return rect && { type: "rect", shape: rect, style: { fill: stageColors[api.value(2)] } };
+        } }],
+    };
   }
 
   function sparkline(def) {
@@ -171,9 +256,13 @@
     return option;
   }
 
-  function option(def) {
+  function option(def, el) {
     if (def.kind === "sparkline") return sparkline(def);
     if (def.kind === "intraday") return intraday(def);
+    if (def.kind === "donut") return donut(def);
+    if (def.kind === "track") return track(def, el);
+    if (def.kind === "timeline") return timeline(def);
+    if (def.kind === "hypnogram") return hypnogram(def);
     return daily(def);
   }
 
@@ -188,7 +277,8 @@
         const el = document.getElementById("chart-" + def.id);
         if (!el || instances.has(el)) continue;
         const chart = window.echarts.init(el, null, { renderer: "canvas" });
-        chart.setOption(option(def));
+        chart.setOption(option(def, el));
+        if (def.group) { chart.group = def.group; window.echarts.connect(def.group); }  // linked tooltips across the curves of one activity or night
         instances.set(el, { chart, def });
         const dayUrl = el.getAttribute("data-day-url");
         if (dayUrl && !def.weekly && window.htmx) {
@@ -202,8 +292,8 @@
     });
   }
 
-  const redraw = () => instances.forEach(({ chart, def }) => chart.setOption(option(def), true));
-  window.addEventListener("resize", () => instances.forEach(({ chart }) => chart.resize()));
+  const redraw = () => instances.forEach(({ chart, def }, el) => chart.setOption(option(def, el), true));
+  window.addEventListener("resize", () => { instances.forEach(({ chart }) => chart.resize()); instances.forEach(({ chart, def }, el) => { if (def.kind === "track") chart.setOption(option(def, el), true); }); });
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
   document.addEventListener("wristpull:theme", redraw);
   document.addEventListener("htmx:afterSwap", (event) => init(event.target.ownerDocument ? document : document));

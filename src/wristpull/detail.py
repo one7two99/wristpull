@@ -23,7 +23,7 @@ def activity_detail(conn: sqlite3.Connection, activity_id: int) -> dict[str, Any
     detail["laps"] = _rows(conn, "SELECT * FROM activity_laps WHERE activity_id = ? ORDER BY lap_index", (activity_id,))
     detail["records"] = _rows(
         conn,
-        "SELECT ts_utc, hr, speed_mps, altitude_m, cadence, power_w FROM activity_records WHERE activity_id = ? ORDER BY ts_utc",
+        "SELECT ts_utc, hr, speed_mps, altitude_m, cadence, power_w, lat, lon FROM activity_records WHERE activity_id = ? ORDER BY ts_utc",
         (activity_id,),
     )
     zones: list[float] = []
@@ -77,6 +77,40 @@ def sleep_night(conn: sqlite3.Connection, sleep_id: int) -> dict[str, Any] | Non
     night["respiration"] = {"n": resp[0], "avg": resp[1]}
     night["heart_rate"] = {"n": hr[0], "min": hr[1], "avg": hr[2]}
     return night
+
+
+NIGHT_SAMPLE_SQL = {
+    "heart_rate": "SELECT ts_utc, bpm AS v FROM heart_rate WHERE source = ? AND ts_utc BETWEEN ? AND ? ORDER BY ts_utc",
+    "hrv": "SELECT ts_utc, rmssd_ms AS v FROM hrv_values WHERE source = ? AND ts_utc BETWEEN ? AND ? ORDER BY ts_utc",
+    "respiration": "SELECT ts_utc, breaths_per_min AS v FROM respiration WHERE source = ? AND ts_utc BETWEEN ? AND ? ORDER BY ts_utc",
+    "spo2": "SELECT ts_utc, spo2_pct AS v FROM spo2 WHERE source = ? AND ts_utc BETWEEN ? AND ? ORDER BY ts_utc",
+}
+MAIN_NIGHT_S = 3 * 3600
+
+
+def night_samples(conn: sqlite3.Connection, source: str, start_utc: str, end_utc: str) -> dict[str, list[list[float]]]:
+    """Heart rate, RMSSD, respiration and SpO2 samples of one source inside a night, as [minutes since bedtime, value]."""
+    t0 = parse_iso_utc(start_utc)
+    out: dict[str, list[list[float]]] = {}
+    for key, sql in NIGHT_SAMPLE_SQL.items():
+        rows = conn.execute(sql, (source, start_utc, end_utc)).fetchall()
+        points = [[round((parse_iso_utc(r["ts_utc"]) - t0).total_seconds() / 60, 1), float(r["v"])] for r in rows if r["v"] is not None]
+        if points:
+            out[key] = points
+    return out
+
+
+def stage_baseline(conn: sqlite3.Connection, source: str, local_date: str, *, days: int = 28) -> dict[str, Any]:
+    """Mean seconds per stage over the main nights of the same source in the ``days`` before ``local_date``."""
+    from datetime import date, timedelta
+
+    since = (date.fromisoformat(local_date) - timedelta(days=days)).isoformat()
+    row = conn.execute(
+        """SELECT COUNT(*) AS n, AVG(deep_s) AS deep_s, AVG(light_s) AS light_s, AVG(rem_s) AS rem_s, AVG(awake_s) AS awake_s, AVG(duration_s) AS duration_s
+           FROM sleep WHERE source = ? AND local_date >= ? AND local_date < ? AND duration_s >= ?""",
+        (source, since, local_date, MAIN_NIGHT_S),
+    ).fetchone()
+    return dict(row) if row and row["n"] else {"n": 0, "deep_s": None, "light_s": None, "rem_s": None, "awake_s": None, "duration_s": None}
 
 
 def nights(conn: sqlite3.Connection, start: str, end: str) -> list[dict[str, Any]]:

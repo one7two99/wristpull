@@ -18,7 +18,7 @@ from ..coach.store import recent_notes, recent_runs
 from ..config import Config
 from .. import series
 from ..aggregate import month_bounds, week_bounds
-from ..detail import activity_detail, day_detail_rows, downsample, local_clock, sleep_night, sports
+from ..detail import activity_detail, day_detail_rows, downsample, local_clock, night_samples, sleep_night, sports, stage_baseline
 from ..export import ExportResult
 from ..jobtext import last_days
 from ..report import ReportResult
@@ -371,30 +371,98 @@ def activities_list(conn: sqlite3.Connection, today: date, weeks: int, *, sport:
         "items": items,
         "total_s": sum(i["duration_s"] or 0 for i in items),
         "total_m": sum(i["distance_m"] or 0 for i in items),
+        "weekly": weekly_sport_chart(items, start, today),
     }
 
 
+def weekly_sport_chart(items: list[dict[str, Any]], start: date, end: date) -> dict[str, Any] | None:
+    """Hours per ISO week, stacked by sport (the three biggest sports, the rest as "Other")."""
+    if not items:
+        return None
+    mondays = series.week_labels([(start + timedelta(days=i)).isoformat() for i in range((end - start).days + 1)])
+    totals: dict[str, float] = {}
+    for a in items:
+        totals[a["sport"] or "other"] = totals.get(a["sport"] or "other", 0.0) + (a["duration_s"] or 0)
+    top = [k for k, _v in sorted(totals.items(), key=lambda kv: -kv[1])[:MAX_SPORT_SERIES]]
+    names = top + (["Other"] if len(totals) > len(top) else [])
+    hours = {name: [0.0] * len(mondays) for name in names}
+    index = {m: i for i, m in enumerate(mondays)}
+    for a in items:
+        day = date.fromisoformat(a["date"])
+        monday = (day - timedelta(days=day.weekday())).isoformat()
+        if monday not in index:
+            continue
+        key = a["sport"] or "other"
+        hours[key if key in top else "Other"][index[monday]] += (a["duration_s"] or 0) / 3600
+    return {"id": "weekly", "title": "Hours per week", "unit": "h", "kind": "stacked", "labels": mondays,
+            "series": [{"name": name if name == "Other" else name.replace("_", " "), "data": [round(v, 2) if v else None for v in hours[name]]} for name in names]}
+
+
+PACE_SPORTS = ("running", "walking", "hiking", "trail_running")
+TRACK_POINTS = 600
+MAX_SPORT_SERIES = 3
+
+
+def _pace_min_per_km(speed_mps: float | None) -> float | None:
+    """min/km as a decimal number (5.5 = 5:30); None below walking speed, so stops stay gaps."""
+    if speed_mps is None or speed_mps < 0.5:
+        return None
+    return round(1000 / speed_mps / 60, 2)
+
+
 def activity_page(conn: sqlite3.Connection, activity_id: int, tz: ZoneInfo) -> dict[str, Any] | None:
-    """One activity: key numbers, HR and altitude curves over elapsed minutes, zones, laps."""
+    """One activity: key numbers, linked curves (HR, pace or speed, elevation, cadence, power) over elapsed
+    minutes, the zone donut, the lap chart and the track drawn from the GPS points (no map)."""
     detail = activity_detail(conn, activity_id)
     if detail is None:
         return None
     records = detail.pop("records")
     t0 = parse_iso_utc(records[0]["ts_utc"]) if records else None
     minutes = [round((parse_iso_utc(r["ts_utc"]) - t0).total_seconds() / 60, 1) for r in records] if t0 else []
-    hr = downsample([r["hr"] for r in records], CURVE_POINTS)
-    alt = downsample([r["altitude_m"] for r in records], CURVE_POINTS)
     labels = [str(round(m)) if m is not None else "" for m in downsample(minutes, CURVE_POINTS)]
+    sport = detail.get("sport") or ""
+    pace_sport = sport in PACE_SPORTS
+    curves: list[tuple[str, str, str, list[float | None], int, str | None]] = [  # (id, title, unit, values, digits, format)
+        ("hr", "Heart rate", "bpm", [r["hr"] for r in records], 0, None),
+        ("pace", "Pace", "min/km", [_pace_min_per_km(r["speed_mps"]) for r in records], 2, "pace") if pace_sport
+        else ("speed", "Speed", "km/h", [round(r["speed_mps"] * 3.6, 1) if r["speed_mps"] is not None else None for r in records], 1, None),
+        ("alt", "Altitude", "m", [r["altitude_m"] for r in records], 0, None),
+        ("cadence", "Cadence", "rpm" if sport == "cycling" else "spm", [r["cadence"] for r in records], 0, None),
+        ("power", "Power", "W", [r["power_w"] for r in records], 0, None),
+    ]
     charts = []
-    if any(v is not None for v in hr):
-        charts.append({"id": "hr", "title": "Heart rate", "unit": "bpm", "kind": "line", "labels": labels,
-                       "series": [{"name": "Heart rate", "data": [_r(v, 0) for v in hr]}]})
-    if any(v is not None for v in alt):
-        charts.append({"id": "alt", "title": "Altitude", "unit": "m", "kind": "line", "labels": labels,
-                       "series": [{"name": "Altitude", "data": [_r(v, 0) for v in alt]}]})
+    for chart_id, title, unit, values, digits, fmt in curves:
+        data = downsample(values, CURVE_POINTS)
+        if not any(v is not None for v in data):
+            continue
+        chart = {"id": chart_id, "title": title, "unit": unit, "kind": "line", "labels": labels, "group": "activity", "format": fmt,
+                 "series": [{"name": title, "data": [_r(v, digits) for v in data]}]}
+        if chart_id == "alt":
+            chart["area"] = True
+        if fmt == "pace":
+            chart["inverse"] = True  # faster is up
+        charts.append(chart)
     zones_total = sum(detail["hr_zones_s"]) or 0
     zones = [{"label": f"Z{i}", "seconds": s, "pct": round(100 * s / zones_total) if zones_total else 0}
              for i, s in enumerate(detail["hr_zones_s"], 1)] if zones_total else []
+    donut = {"id": "zones", "title": "Time in heart-rate zones", "unit": "", "kind": "donut", "labels": [z["label"] for z in zones],
+             "series": [{"name": "Time in heart-rate zones", "data": [round(z["seconds"] / 60, 1) for z in zones]}], "zones": True} if zones else None
+    laps = detail["laps"]
+    lap_chart = None
+    if len(laps) > 1:
+        if pace_sport and all(lap.get("distance_m") for lap in laps):
+            values = [_pace_min_per_km((lap["distance_m"] or 0) / (lap.get("timer_s") or lap.get("elapsed_s") or 1)) for lap in laps]
+            lap_chart = {"id": "laps", "title": "Pace per lap", "unit": "min/km", "kind": "bar", "format": "pace", "inverse": True}
+        else:
+            values = [_r((lap.get("timer_s") or lap.get("elapsed_s") or 0) / 60, 1) for lap in laps]
+            lap_chart = {"id": "laps", "title": "Minutes per lap", "unit": "min", "kind": "bar"}
+        lap_chart.update({"labels": [str(lap["lap_index"] + 1) for lap in laps], "series": [{"name": lap_chart["title"], "data": values}]})
+    points = [(r["lon"], r["lat"]) for r in records if r.get("lat") is not None and r.get("lon") is not None]
+    track = None
+    if len(points) >= 2:
+        step = max(1, len(points) // TRACK_POINTS)
+        thinned = points[::step] + ([points[-1]] if (len(points) - 1) % step else [])
+        track = {"id": "track", "title": "Track", "unit": "", "kind": "track", "labels": [], "series": [{"name": "Track", "data": [[round(lon, 6), round(lat, 6)] for lon, lat in thinned]}]}
     archive = detail.get("archive_path")
     return {
         "a": detail,
@@ -402,16 +470,20 @@ def activity_page(conn: sqlite3.Connection, activity_id: int, tz: ZoneInfo) -> d
         "download": f"raw/{archive}" if archive else None,  # relative to the data directory, for /files/download
         "clock": local_clock(detail["start_utc"], tz),
         "duration_s": detail.get("timer_s") or detail.get("elapsed_s"),
+        "pace_sport": pace_sport,
         "charts": charts,
         "zones": zones,
-        "laps": detail["laps"],
+        "donut": donut,
+        "lap_chart": lap_chart,
+        "track": track,
+        "laps": laps,
     }
 
 
 SLEEP_SOURCES = ("all", "watch", "strap")
 
 
-def sleep_list(conn: sqlite3.Connection, today: date, weeks: int, *, source: str = "all") -> dict[str, Any]:
+def sleep_list(conn: sqlite3.Connection, today: date, weeks: int, *, source: str = "all", tz: ZoneInfo) -> dict[str, Any]:
     """One row per wake-up date with the watch's and the strap's night side by side, newest first;
     ``source`` watch|strap keeps only the nights of that device."""
     start, weeks = _period(today, weeks)
@@ -425,7 +497,37 @@ def sleep_list(conn: sqlite3.Connection, today: date, weeks: int, *, source: str
     rows = sorted(by_day.values(), key=lambda d: d["date"], reverse=True)
     if source != "all":
         rows = [r for r in rows if r[source] is not None]
-    return {"weeks": weeks, "start": start.isoformat(), "rows": rows, "source": source, "sources": SLEEP_SOURCES}
+    for r in rows:
+        for key in ("watch", "strap"):
+            if r[key]:
+                r[key]["bar"] = night_bar(r[key]["start_utc"], r[key]["end_utc"], tz)
+                r[key]["tone"] = score_tone(r[key].get("score"))
+    shown = [r[k] for r in rows for k in ("watch", "strap") if r[k] and (source == "all" or source == k)]
+    durations = [n["duration_s"] for n in shown if n.get("duration_s")]
+    scores = [n["score"] for n in shown if n.get("score") is not None]
+    return {"weeks": weeks, "start": start.isoformat(), "rows": rows, "source": source, "sources": SLEEP_SOURCES,
+            "mean_s": sum(durations) / len(durations) if durations else None, "mean_score": sum(scores) / len(scores) if scores else None, "n": len(shown)}
+
+
+NIGHT_AXIS_START_MIN = 18 * 60  # the night axis runs from 18:00 to 12:00 the next day
+NIGHT_AXIS_SPAN_MIN = 18 * 60
+NIGHT_AXIS_TICKS = ("18:00", "21:00", "00:00", "03:00", "06:00", "09:00", "12:00")
+
+
+def night_bar(start_utc: str, end_utc: str, tz: ZoneInfo) -> dict[str, float]:
+    """Left and width (percent of an 18:00–12:00 axis) of one night, for the sleep list's bars."""
+    a, b = parse_iso_utc(start_utc).astimezone(tz), parse_iso_utc(end_utc).astimezone(tz)
+    bed = (a.hour * 60 + a.minute - NIGHT_AXIS_START_MIN) % (24 * 60)
+    length = (b - a).total_seconds() / 60
+    left = max(0.0, min(100.0, 100 * bed / NIGHT_AXIS_SPAN_MIN))
+    width = max(0.5, min(100.0 - left, 100 * length / NIGHT_AXIS_SPAN_MIN))
+    return {"left": round(left, 2), "width": round(width, 2)}
+
+
+def score_tone(score: float | None) -> str:
+    if score is None:
+        return "none"
+    return "good" if score >= 80 else ("mid" if score >= 60 else "low")
 
 
 def stage_band(stages: list[dict[str, Any]], start_utc: str, end_utc: str) -> list[dict[str, Any]]:
@@ -441,8 +543,12 @@ def stage_band(stages: list[dict[str, Any]], start_utc: str, end_utc: str) -> li
     return out
 
 
+NIGHT_CURVES = (("heart_rate", "Heart rate", "bpm", 0), ("hrv", "HRV (RMSSD)", "ms", 0), ("respiration", "Respiration", "/min", 1), ("spo2", "SpO2", "%", 0))
+
+
 def night_page(conn: sqlite3.Connection, sleep_id: int, tz: ZoneInfo) -> dict[str, Any] | None:
-    """One night: stage band and totals, HRV/SpO2/respiration/HR in the window, the other device's night."""
+    """One night: hypnogram, the night curves on the same time axis, stage shares against the 28-day mean,
+    totals, HRV/SpO2/respiration/HR, the other device's night."""
     night = sleep_night(conn, sleep_id)
     if night is None:
         return None
@@ -451,6 +557,40 @@ def night_page(conn: sqlite3.Connection, sleep_id: int, tz: ZoneInfo) -> dict[st
     device = this["device"] if this else ("strap" if night["source"] in STRAP_PRIORITY else "garmin")
     other = max((s for s in same_day if s["device"] != device), key=lambda s: s.get("duration_s") or 0, default=None)
     stage_totals = [{"stage": k, "seconds": night.get(f"{k}_s")} for k in STAGE_ORDER if night.get(f"{k}_s")]
+    t0, t1 = parse_iso_utc(night["start_utc"]), parse_iso_utc(night["end_utc"])
+    span_min = round((t1 - t0).total_seconds() / 60)
+    bed_local = t0.astimezone(tz)
+    x0 = bed_local.hour * 60 + bed_local.minute
+    blocks = []
+    for st in night["stages"]:
+        if st["stage"] not in STAGE_ORDER[:4]:
+            continue
+        a = max(0.0, (parse_iso_utc(st["start_utc"]) - t0).total_seconds() / 60)
+        b = min(float(span_min), (parse_iso_utc(st["end_utc"]) - t0).total_seconds() / 60)
+        if b > a:
+            blocks.append([round(a, 1), round(b, 1), STAGE_ORDER.index(st["stage"])])
+    hypnogram = {"id": "hypnogram", "title": "Sleep stages", "unit": "", "kind": "hypnogram", "labels": [], "x0": x0, "xmax": span_min,
+                 "stages": list(STAGE_ORDER[:4]), "series": [{"name": "Sleep stages", "data": blocks}], "group": "night"} if blocks else None
+    samples = night_samples(conn, night["source"], night["start_utc"], night["end_utc"])
+    curves = []
+    for key, title, unit, digits in NIGHT_CURVES:
+        points = samples.get(key)
+        if not points:
+            continue
+        if len(points) > CURVE_POINTS:
+            step = max(1, len(points) // CURVE_POINTS)
+            points = points[::step]
+        curves.append({"id": key, "title": title, "unit": unit, "kind": "timeline", "labels": [], "x0": x0, "xmax": span_min, "group": "night",
+                       "series": [{"name": title, "points": [[p[0], round(p[1], digits)] for p in points]}]})
+    baseline = stage_baseline(conn, night["source"], night["local_date"])
+    shares = None
+    duration = night.get("duration_s") or sum(t["seconds"] for t in stage_totals) or 0
+    if duration and baseline["n"] and baseline["duration_s"]:
+        labels = [k for k in STAGE_ORDER[:4]]
+        this_pct = [round(100 * (night.get(f"{k}_s") or 0) / duration, 1) for k in labels]
+        base_pct = [round(100 * (baseline.get(f"{k}_s") or 0) / baseline["duration_s"], 1) for k in labels]
+        shares = {"id": "shares", "title": "Stage shares", "unit": "%", "kind": "bar", "labels": labels, "stage_labels": True,
+                  "series": [{"name": "This night", "data": this_pct}, {"name": "28-day mean", "data": base_pct}], "baseline_nights": baseline["n"]}
     return {
         "n": night,
         "device": DEVICE_LABELS.get(device, device),
@@ -458,6 +598,10 @@ def night_page(conn: sqlite3.Connection, sleep_id: int, tz: ZoneInfo) -> dict[st
         "wake": local_clock(night["end_utc"], tz),
         "band": stage_band(night["stages"], night["start_utc"], night["end_utc"]),
         "stage_totals": stage_totals,
+        "hypnogram": hypnogram,
+        "curves": curves,
+        "shares": shares,
+        "charts": ([hypnogram] if hypnogram else []) + curves + ([shares] if shares else []),
         "other": other,
         "other_device": DEVICE_LABELS.get(other["device"], "") if other else None,
     }

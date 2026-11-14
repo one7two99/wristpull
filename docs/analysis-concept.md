@@ -140,7 +140,11 @@ the test list are in the plan of 2026-11-14 and move here with wave A3.
   preview; download route; FIT inspect; `adb/` and `staging/` hidden), `/export` (export and
   reports as in-process jobs with download links and a Markdown preview), activity name filter and
   FIT download, sleep source filter, the phone's "More" sheet in the navigation.
-- **A2** sleep and activities as above.
+- **A2** (done 2026-11-14) sleep and activities: hypnogram (ECharts custom series), the night curves
+  (heart rate, RMSSD, respiration, SpO2) on the bedtime axis with linked tooltips, stage shares against
+  the 28-day mean (`detail.stage_baseline`), the sleep list as bed-to-wake bars on an 18:00–12:00 axis;
+  the activity page with linked HR, pace (or speed), elevation, cadence and power curves, a zone donut,
+  the lap chart and the track drawn from the GPS points; hours per week stacked by sport above the list.
 - **P3** parity: coach check job, profile editor, wizard, dry run, tokens/costs, language switch.
 - **A3** insights package, tags (schema v8), `/insights`, readiness on Today, rolling ACWR.
 - **A4** coach kind `insights`, month/week report as HTML, dry-run link.

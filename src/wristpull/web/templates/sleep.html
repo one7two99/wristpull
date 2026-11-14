@@ -4,24 +4,29 @@
 {% block main %}
 <header class="page-head">
 <h1>{{ _("Sleep") }}</h1>
-<p class="muted">{{ _("Watch and strap side by side, by wake-up date.") }}</p>
+<p class="muted sleep-head"><span>{{ _("Watch and strap side by side, by wake-up date.") }}</span>{% if d.n %}<span>{{ ngettext("{n} night", "{n} nights", d.n).format(n=d.n) }}{% if d.mean_s %} · Ø {{ d.mean_s|hm }} h{% endif %}{% if d.mean_score %} · Ø {{ _("Score {score}").format(score=d.mean_score|num) }}{% endif %}</span>{% endif %}</p>
 </header>
 {{ period("/sleep", d.weeks, choices, ("&source=" ~ d.source) if d.source != "all" else "") }}
 <nav class="chips" aria-label="{{ _('Source') }}">
 {% for s in d.sources %}<a href="/sleep?weeks={{ d.weeks }}{% if s != "all" %}&amp;source={{ s }}{% endif %}" {% if s == d.source %}aria-current="page"{% endif %}>{% if s == "all" %}{{ _("All") }}{% elif s == "watch" %}{{ _("Watch") }}{% else %}{{ _("Strap") }}{% endif %}</a>{% endfor %}
 </nav>
+{% if d.rows %}
+<div class="nightaxis" aria-hidden="true"><span></span><div class="ticks">{% for t in ticks %}<span>{{ t }}</span>{% endfor %}</div></div>
+{% endif %}
 <ul class="list">
 {% for r in d.rows %}
-<li class="row nights">
-<span class="row-title">{{ r.date }}</span>
-{% for key, label in (("watch", "Watch"), ("strap", "Strap")) if d.source == "all" or d.source == key %}
+<li class="row nightrow">
+<span class="row-title"><span>{{ r.date }}</span>{% for key in ("watch", "strap") if (d.source == "all" or d.source == key) and r[key] %}<span class="muted small num">{{ _("Watch") if key == "watch" else _("Strap") }} {{ r[key].duration_s|hm }}{% if r[key].score %} · {{ r[key].score }}{% endif %}</span>{% endfor %}</span>
+<span class="nightbars">
+{% for key in ("watch", "strap") if d.source == "all" or d.source == key %}
 {% set n = r[key] %}
-{% if n %}<a class="night" href="/sleep/{{ n.id }}"><span class="muted small">{{ _(label) }}</span><span class="num">{{ n.duration_s|hm }}{% if n.score %} · {{ n.score }}{% endif %}</span></a>
-{% else %}<span class="night empty"><span class="muted small">{{ _(label) }}</span><span class="muted">–</span></span>{% endif %}
+{% if n %}<a class="nightbar {{ key }}" href="/sleep/{{ n.id }}" aria-label="{{ _('Watch') if key == 'watch' else _('Strap') }} {{ r.date }}: {{ n.duration_s|hm }} h{% if n.score %}, {{ _('Score {score}').format(score=n.score) }}{% endif %}"><span class="fill {{ n.tone }}" style="left: {{ n.bar.left }}%; width: {{ n.bar.width }}%"></span></a>{% endif %}
 {% endfor %}
+</span>
 </li>
 {% else %}
 <li class="card muted">{{ _("No nights in this period.") }}</li>
 {% endfor %}
 </ul>
+<p class="muted small">{{ _("Bars run from bedtime to wake-up on an 18:00–12:00 axis (teal watch, orange strap; paler bars had a lower score). Open a night for stages and curves.") }}</p>
 {% endblock %}

@@ -351,6 +351,10 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             chart["title"] = gt.gettext(chart["title"])
             for series in chart["series"]:
                 series["name"] = gt.gettext(series["name"])
+            if chart.get("stage_labels"):
+                chart["labels"] = [gt.gettext(label) for label in chart["labels"]]
+            if chart.get("stages"):
+                chart["stage_names"] = [gt.gettext(stage) for stage in chart["stages"]]
         return json.dumps(charts, separators=(",", ":")).replace("<", "\\u003c")
 
     def activities_page(request: Request) -> Response:
@@ -359,9 +363,11 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             return session
         sport = request.query_params.get("sport") or None
         q = (request.query_params.get("q") or "")[:80]
+        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
         with closing(connect(config.db_path)) as conn:
             data = pages.activities_list(conn, today(), weeks_of(request), sport=sport, q=q, tz=tz)
-        return render(request, "activities.html", session, {"page": "activities", "d": data, "choices": pages.TREND_WEEKS})
+        charts_json = chart_json([data["weekly"]], lang) if data["weekly"] else None
+        return render(request, "activities.html", session, {"page": "activities", "d": data, "choices": pages.TREND_WEEKS, "charts_json": charts_json})
 
     def activity_page(request: Request) -> Response:
         session = require_user(request)
@@ -372,25 +378,27 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             data = pages.activity_page(conn, int(request.path_params["activity_id"]), tz)
         if data is None:
             return render(request, "missing.html", session, {"page": "activities"}, status_code=404)
-        return render(request, "activity.html", session, {"page": "activities", "d": data, "charts_json": chart_json(data["charts"], lang)})
+        charts = data["charts"] + [c for c in (data["donut"], data["lap_chart"], data["track"]) if c]
+        return render(request, "activity.html", session, {"page": "activities", "d": data, "charts_json": chart_json(charts, lang)})
 
     def sleep_page(request: Request) -> Response:
         session = require_user(request)
         if isinstance(session, Response):
             return session
         with closing(connect(config.db_path)) as conn:
-            data = pages.sleep_list(conn, today(), weeks_of(request), source=request.query_params.get("source") or "all")
-        return render(request, "sleep.html", session, {"page": "sleep", "d": data, "choices": pages.TREND_WEEKS})
+            data = pages.sleep_list(conn, today(), weeks_of(request), source=request.query_params.get("source") or "all", tz=tz)
+        return render(request, "sleep.html", session, {"page": "sleep", "d": data, "choices": pages.TREND_WEEKS, "ticks": pages.NIGHT_AXIS_TICKS})
 
     def night_page(request: Request) -> Response:
         session = require_user(request)
         if isinstance(session, Response):
             return session
+        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
         with closing(connect(config.db_path)) as conn:
             data = pages.night_page(conn, int(request.path_params["sleep_id"]), tz)
         if data is None:
             return render(request, "missing.html", session, {"page": "sleep"}, status_code=404)
-        return render(request, "night.html", session, {"page": "sleep", "d": data})
+        return render(request, "night.html", session, {"page": "sleep", "d": data, "charts_json": chart_json(data["charts"], lang)})
 
     async def posted(request: Request) -> tuple[dict[str, Any], Any] | Response:
         """Session and form of a logged-in POST with a valid CSRF token, else the response to send."""

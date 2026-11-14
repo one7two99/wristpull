@@ -23,6 +23,8 @@
   --stress-low: #e8c547;
   --stress-medium: #e39a4f;
   --stress-high: #d9534f;
+  --zone-1: #8796a3; --zone-2: #3c8fd6; --zone-3: #2fae9c; --zone-4: #e39a4f; --zone-5: #d9534f;
+  --stage-deep: #1f4e9c; --stage-light: #6ea8fe; --stage-rem: #a77ee6; --stage-awake: #f0a35e;
   --radius: 14px;
   --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
   color-scheme: light;
@@ -356,3 +358,24 @@ td.fields { white-space: normal; max-width: 36rem; font-size: 0.8rem; color: var
 .more-sheet form { margin: 0; }
 @media (max-width: 759px) { .nav .more-only { display: none; } }
 @media (min-width: 760px) { .nav .more { display: none; } .more-sheet { display: none !important; } }
+
+/* ---- sleep list bars, night and activity charts (analysis wave A2) */
+.nightrow { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 8px 12px; align-items: center; }
+.nightrow .row-title { display: flex; flex-direction: column; gap: 2px; }
+.nightaxis { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 12px; padding: 0 14px; }
+.nightaxis .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
+.nightbars { display: flex; flex-direction: column; gap: 6px; }
+.nightbar { position: relative; height: 26px; border-radius: 6px; background: var(--bg); text-decoration: none; display: block; }
+.nightbar .fill { position: absolute; top: 3px; bottom: 3px; border-radius: 5px; background: var(--series-1); opacity: 0.9; min-width: 4px; }
+.nightbar.strap .fill { background: var(--series-2); }
+.nightbar .fill.low { opacity: 0.45; } .nightbar .fill.mid { opacity: 0.7; }
+.nightbar .tag { position: absolute; left: 8px; top: 0; line-height: 26px; font-size: 0.78rem; color: var(--text); white-space: nowrap; pointer-events: none; }
+.nightbar:hover .fill { outline: 2px solid var(--accent); }
+.chart.track { height: 260px; }
+.chart.donut { height: 240px; }
+.chart.hypnogram { height: 200px; }
+.chart.night { height: 170px; }
+.chart.short { height: 170px; }
+.activity-charts { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .activity-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .activity-charts .wide { grid-column: 1 / -1; } }
+.sleep-head { display: flex; flex-wrap: wrap; gap: 6px 18px; }

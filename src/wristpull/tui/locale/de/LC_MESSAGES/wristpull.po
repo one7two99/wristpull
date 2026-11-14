@@ -2097,3 +2097,52 @@ msgstr "Die ganze Datei steckt im Download."
 
 msgid "What"
 msgstr "Was"
+
+# ---- sleep and activity charts (analysis wave A2)
+msgid "Bars run from bedtime to wake-up on an 18:00–12:00 axis (teal watch, orange strap; paler bars had a lower score). Open a night for stages and curves."
+msgstr "Die Balken laufen von der Bettzeit bis zum Aufwachen auf einer Achse von 18:00 bis 12:00 (türkis Uhr, orange Band; blassere Balken hatten einen niedrigeren Score). Öffne eine Nacht für Phasen und Kurven."
+
+msgid "Cadence"
+msgstr "Trittfrequenz"
+
+msgid "HRV (RMSSD)"
+msgstr "HRV (RMSSD)"
+
+msgid "Hours per week"
+msgstr "Stunden pro Woche"
+
+msgid "Minutes per lap"
+msgstr "Minuten je Runde"
+
+msgid "Other"
+msgstr "Sonstige"
+
+msgid "Pace per lap"
+msgstr "Tempo je Runde"
+
+msgid "Power"
+msgstr "Leistung"
+
+msgid "Power avg"
+msgstr "Leistung Ø"
+
+msgid "Speed"
+msgstr "Geschwindigkeit"
+
+msgid "Stage shares"
+msgstr "Phasenanteile"
+
+msgid "This night"
+msgstr "Diese Nacht"
+
+msgid "Track"
+msgstr "Strecke"
+
+msgid "by sport"
+msgstr "nach Sportart"
+
+msgid "start green, finish orange; no map, nothing leaves the machine"
+msgstr "Start grün, Ziel orange; keine Karte, nichts verlässt den Rechner"
+
+msgid "this night vs. the mean of {n} nights in the 28 days before"
+msgstr "diese Nacht gegenüber dem Mittel von {n} Nächten der 28 Tage davor"

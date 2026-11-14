@@ -20,6 +20,12 @@
 <input id="q" name="q" type="search" maxlength="80" value="{{ d.q }}" placeholder="{{ _('Filter by name') }}">
 <button type="submit" class="secondary">{{ _("Filter") }}</button>
 </form>
+{% if d.weekly %}
+<section class="card chart-card">
+<h2>{{ _("Hours per week") }} <span class="unit muted">({{ _("by sport") }})</span></h2>
+<div class="chart short" id="chart-weekly" data-chart="weekly" role="img" aria-label="{{ _('Hours per week') }}"></div>
+</section>
+{% endif %}
 <ul class="list">
 {% for a in d["items"] %}
 <li><a class="row" href="/activities/{{ a.id }}">
@@ -30,4 +36,8 @@
 <li class="card muted">{{ _("No activities in this period.") }}</li>
 {% endfor %}
 </ul>
+{% if d.weekly %}<script type="application/json" id="chart-data" data-charts>{{ charts_json|safe }}</script>{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if d.weekly %}<script src="/static/vendor/echarts.min.js" defer></script>{% endif %}
 {% endblock %}

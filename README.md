@@ -662,9 +662,12 @@ Battery, steps, intensity minutes, training load, SpO2, respiration, weight, VO2
 chart of watch and strap with the 28-day band (mean ± 1 SD of the preceding days) and the 7-day
 mean, zoom, a second metric to compare below, the day's curve for the sample-based metrics (5-minute
 slots, nights shaded, stress by band; click a day or step through them), the weekday pattern and a
-daily table. **Activities** (period and sport filter, Garmin duplicates from USB and phone merged; detail
-with heart-rate and altitude curves, zone times and laps) and **Sleep** (watch and strap side by
-side per night; detail with a stage band, HRV, SpO2, respiration and the other device's night).
+daily table. **Activities** (period, sport and name filter, hours per week by sport, Garmin duplicates from USB
+and phone merged; detail with linked heart-rate, pace or speed, elevation, cadence and power curves,
+a zone donut, the lap chart, the track drawn from the GPS points without a map, laps, FIT download)
+and **Sleep** (watch and strap as bed-to-wake bars per night; detail with the hypnogram, the night's
+heart-rate, HRV, respiration and SpO2 curves on one time axis, stage shares against the 28-day mean,
+and the other device's night).
 Missing days stay gaps. Light and dark follow the system; a toggle in the navigation (desktop) and
 under Settings → Appearance pins one. **Coach** starts a daily check, a weekly review or a question in the
 background (one at a time; the page shows the progress and reloads when the answer is there),

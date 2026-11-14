@@ -105,8 +105,11 @@ training load.
    the full chart with the 28-day band and the 7-day mean, zoom, a second metric to compare
    (own chart, same days), the day's curve with the nights shaded, the weekday pattern and the
    daily table.
-3. **Activities** – list with sport filter; detail with HR curve, zone minutes, laps.
-4. **Sleep** – nights list; detail with a stage band, HRV, SpO2, watch vs strap.
+3. **Activities** – list with sport and name filter and hours per week by sport; detail with linked
+   curves (HR, pace or speed, elevation, cadence, power), zone donut, lap chart, track without a map,
+   laps, FIT download.
+4. **Sleep** – nights as bed-to-wake bars; detail with the hypnogram, the night curves, stage shares
+   against the 28-day mean, HRV, SpO2, watch vs strap.
 5. **Coach** – runs with sections, rating (−1/0/+1 with note), "run daily / weekly / ask" as a
    background job with live status, journal note for today.
 6. **Workouts** – files of the coming weeks with status (draft, pushed, verified, removed);
