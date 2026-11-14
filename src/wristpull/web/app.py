@@ -902,6 +902,8 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
                 add_note(conn, today().isoformat(), note[:2000])
         return RedirectResponse("/coach?saved=note#journal", status_code=303)
 
+    WORKOUT_JOB_KINDS = ("workout_push", "workout_push_upcoming", "workout_verify", "watch_list", "watch_remove")
+
     def workouts_page(request: Request, session: dict[str, Any] | None = None, *, confirm: str | None = None) -> Response:
         session = session or require_user(request)
         if isinstance(session, Response):
@@ -909,7 +911,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         with closing(connect(config.db_path)) as conn:
             data = pages.workouts_data(config, conn, today())
             job = queue.current(conn)
-            view = agent_view(conn, job, request) if job else None
+            view = agent_view(conn, job, request) if job and job.kind in WORKOUT_JOB_KINDS else None  # a strap pull is the Sync page's business
             online = queue.device_state(conn, now=now())["online"]
         q = request.query_params
         for push in data["history"]:
@@ -975,7 +977,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         with closing(connect(config.db_path)) as conn:
             data = pages.watch_data(conn, now=now())
             job = queue.current(conn)
-            view = agent_view(conn, job, request) if job else None
+            view = agent_view(conn, job, request) if job and job.kind in WORKOUT_JOB_KINDS else None
             state = queue.device_state(conn, now=now())
         if data["job"]:
             data["job"]["when"] = local_time(data["job"]["when"], tz)
