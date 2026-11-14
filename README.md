@@ -716,6 +716,13 @@ docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./wristpull-r
 
 Keep the `caddy_data` volume: it holds that CA, and a new one would have to be installed again.
 
+**Your own CA instead:** if your devices already trust a CA of yours, issue a certificate whose
+subject alternative names cover every entry of `WRISTPULL_SITE` (`DNS:localhost`, the laptop's host
+name if you use one, `IP:127.0.0.1` and the LAN address), put the PEM files into `deploy/certs/`
+(git-ignored) and set `WRISTPULL_TLS=/certs/wristpull.pem /certs/wristpull-key.pem` in `.env`; then
+`docker compose up -d caddy`. Caddy reloads nothing by itself: after renewing the files run that
+command again.
+
 - **Password:** only its scrypt hash is stored (the settings page writes it to the secrets store;
   `WRISTPULL_WEB_PASSWORD_HASH` in `.env` is the alternative), never the password and never in the
   config file. Five failed logins from one address (twenty overall) lock the login for 15 minutes.

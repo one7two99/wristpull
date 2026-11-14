@@ -37,3 +37,5 @@ wristpull-backup-*.tar.gz*
 
 # Caddy's root certificate, copied out of the stack for the phone (local to this machine)
 wristpull-root.crt
+deploy/certs/*
+!deploy/certs/.gitkeep

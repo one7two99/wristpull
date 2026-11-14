@@ -1,12 +1,15 @@
-# HTTPS for the wristpull dashboard with Caddy's own local certificate authority.
+# HTTPS for the wristpull dashboard with Caddy's own local certificate authority, or with your own certificate.
 # WRISTPULL_SITE lists the addresses the phone uses, e.g. "https://192.168.1.10:8443, https://localhost:8443".
+# WRISTPULL_TLS is "internal" (Caddy's CA, the default) or "/certs/<cert>.pem /certs/<key>.pem" for a
+# certificate from your own CA placed in deploy/certs/ (mounted read-only at /certs; the names in
+# WRISTPULL_SITE must be among its subject alternative names).
 {
 	admin off
 	auto_https disable_redirects
 }
 
 {$WRISTPULL_SITE} {
-	tls internal
+	tls {$WRISTPULL_TLS:internal}
 	encode zstd gzip
 	reverse_proxy web:8000
 	header {

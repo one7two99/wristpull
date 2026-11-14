@@ -46,10 +46,12 @@ services:
       - web
     environment:
       WRISTPULL_SITE: ${WRISTPULL_SITE:-https://localhost:8443}
+      WRISTPULL_TLS: ${WRISTPULL_TLS:-internal}   # or "/certs/wristpull.pem /certs/wristpull-key.pem" from deploy/certs/
     ports:
       - "8443:8443"
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/certs:/certs:ro
       - caddy_data:/data
       - caddy_config:/config
 
