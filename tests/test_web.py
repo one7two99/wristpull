@@ -494,6 +494,7 @@ def test_web_strings_have_german_translations():
     ids.update(p["label"] for p in pages.export_form(TODAY, 28)["presets"])
     ids.update(t for _k, t, _u, _d in pages.NIGHT_CURVES)
     ids.update({"Pace", "Speed", "Cadence", "Power", "Track", "Pace per lap", "Minutes per lap", "Hours per week", "Other", "Stage shares", "This night"})
+    ids.update({"Coach backend check", "dry run: prompt written to {path}"})
     missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio",
                                                                             "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max",
                                                                             "Detail", "Garmin", "Export", "Export & Report", "BB", "Int.", "…", "Filter",
@@ -758,6 +759,85 @@ def test_activity_night_and_sleep_pages_render_charts(seeded: Config, password_h
     assert night.status_code == 200 and 'id="chart-hypnogram"' in night.text and '"stage_names":[' in night.text and 'id="chart-heart_rate"' in night.text
     nights = client.get("/sleep?weeks=4")
     assert 'class="nightbar watch"' in nights.text and "18:00" in nights.text and "Ø" in nights.text
+
+
+# ---- coach profile, wizard, dry run, backend check, language switch (parity wave P3) --------------
+
+
+def test_language_cookie_wins():
+    assert pick_language("de", "en", "en") == "en" and pick_language(None, "de", None) == "de" and pick_language("de", "en", "xx") == "de"
+
+
+def test_language_switch_route(seeded: Config, password_hash: str):
+    client = client_for(seeded, password_hash)
+    login(client)
+    token = csrf_of(client.get("/").text)
+    assert "Ruhepuls" not in client.get("/", headers={"accept-language": "en"}).text
+    switched = client.post("/lang", data={"csrf": token, "lang": "de", "next": "/trends?weeks=4"})
+    assert switched.status_code == 303 and switched.headers["location"] == "/trends?weeks=4" and "wristpull_lang=de" in switched.headers["set-cookie"]
+    assert "Ruhepuls" in client.get("/", headers={"accept-language": "en"}).text  # the cookie beats the browser's language
+    assert 'aria-current="true">DE' in client.get("/").text
+    back = client.post("/lang", data={"csrf": token, "lang": "en", "next": "https://evil.example/"})
+    assert back.headers["location"] == "/" and "wristpull_lang=en" in back.headers["set-cookie"]
+    assert "Resting HR" in client.get("/", headers={"accept-language": "de"}).text
+    assert client.post("/lang", data={"csrf": token, "lang": "xx"}).status_code == 303
+
+
+def test_coach_profile_and_wizard_pages(seeded: Config, password_hash: str):
+    from wristpull.coach.profile import answers_path, load_answers, profile_path
+
+    client = client_for(seeded, password_hash)
+    login(client)
+    page = client.get("/coach/profile", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "<textarea" in page.text and "Zielprofil" in page.text and profile_path(seeded).exists()  # the template was created
+    token = csrf_of(page.text)
+    saved = client.post("/coach/profile", data={"csrf": token, "text": "# Goal profile\r\n- Goals: run a 10k\r\n"})
+    assert saved.status_code == 303 and profile_path(seeded).read_text("utf-8") == "# Goal profile\n- Goals: run a 10k\n"
+    assert "No open placeholders" in client.get("/coach/profile").text
+    assert client.post("/coach/profile", data={"csrf": token, "text": "x" * 100_001}).status_code == 400
+    wizard = client.get("/coach/wizard", headers={"accept-language": "de"})
+    assert wizard.status_code == 200 and "Wofür trainierst du?" in wizard.text and 'name="goals" value="endurance"' in wizard.text and 'name="event"' in wizard.text
+    answers = {"csrf": token, "goals": ["endurance", "event"], "event": "10 km in 50 min", "weekly_hours": "3to5", "experience": "intermediate",
+               "preferences": ["run_outdoor", "gym"], "style": "balanced", "tone": "terse", "details": "", "bogus": "x"}
+    done = client.post("/coach/wizard", data=answers, headers={"accept-language": "de"})
+    assert done.status_code == 303 and done.headers["location"] == "/coach/profile?saved=wizard"
+    stored = load_answers(seeded)
+    assert stored["goals"] == ["endurance", "event"] and stored["event"] == "10 km in 50 min" and stored["style"] == "balanced" and "bogus" not in stored and "details" not in stored
+    profile = profile_path(seeded).read_text("utf-8")
+    assert "wristpull:wizard:start" in profile and "10 km in 50 min" in profile and "run a 10k" in profile  # the own notes survive
+    assert answers_path(seeded).exists() and list(profile_path(seeded).parent.glob("profile.*.md"))  # a backup of the edited file
+    again = client.get("/coach/wizard")
+    assert 'value="endurance" checked' in again.text and 'value="3to5" checked' in again.text and 'value="10 km in 50 min"' in again.text
+    coach = client.get("/coach")
+    assert 'href="/coach/profile"' in coach.text and 'href="/coach/wizard"' in coach.text
+
+
+def test_coach_dry_run_tokens_and_backend_check(seeded: Config, password_hash: str):
+    from wristpull.coach.backends import FakeBackend
+    from wristpull.coach.profile import profile_path
+
+    profile_path(seeded).parent.mkdir(parents=True, exist_ok=True)
+    profile_path(seeded).write_text("# Goal profile\n- Goals: run\n", "utf-8")
+    fake = FakeBackend(["## Status\nFine.\n## Today's suggestion\nEasy.\n"])
+    client = client_for(seeded, password_hash, coach_backend=lambda cfg, kind: fake)
+    login(client)
+    token = csrf_of(client.get("/coach").text)
+    dry = client.post("/coach/run", data={"csrf": token, "kind": "daily", "dry_run": "1"}, headers={"hx-request": "true"})
+    assert dry.status_code == 200 and "dry run: prompt written to" in dry.text and "--dry-run" in dry.text and len(fake.requests) == 0
+    page = client.get("/coach", headers={"accept-language": "de"})
+    assert "Probelauf" in page.text and "coach%2Fdryrun" in page.text and list((seeded.data_dir / "coach" / "dryrun").glob("*_daily.md"))
+    real = client.post("/coach/run", data={"csrf": token, "kind": "daily"}, headers={"hx-request": "true"})
+    assert real.status_code == 200 and len(fake.requests) == 1
+    page = client.get("/coach")
+    assert "tokens" in page.text and " ~" in page.text  # the fake backend estimates its tokens
+    settings = client.get("/settings")
+    assert "Check coach backend" in settings.text and 'id="job"' in settings.text
+    checked = client.post("/settings/check-coach", data={"csrf": token}, headers={"hx-request": "true"})
+    assert checked.status_code == 200 and "fake backend ready" in checked.text and "finished" in checked.text
+    poll = client.get("/settings/job?poll=1")
+    assert poll.headers.get("hx-refresh") == "true"
+    assert "fake backend ready" in client.get("/settings").text and "fake backend ready" not in client.get("/coach").text  # kept apart per page
+    assert client.post("/settings/check-coach", data={"csrf": token}).status_code == 303
 
 
 # ---- devices & sync: jobs for the device agent (parity W1) ------------------------------------

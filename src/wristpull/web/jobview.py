@@ -16,7 +16,7 @@ from ..jobtext import Gettext, JobRecord, JobSpec, Ngettext, describe_result, re
 from .jobs import Job
 
 COACH_TITLES = {"daily": "Coach: daily check", "weekly": "Coach: weekly review", "ask": "Coach: question"}
-WEB_TITLES = {"export": "Export for Claude", "report-week": "Weekly report", "report-month": "Monthly report"}
+WEB_TITLES = {"export": "Export for Claude", "report-week": "Weekly report", "report-month": "Monthly report", "coach-check": "Coach backend check"}
 
 
 @dataclass
@@ -79,6 +79,10 @@ def from_web(job: Job, *, gettext: Gettext | None = None, ngettext: Ngettext | N
     lines: list[str] = []
     if job.status == "done" and isinstance(job.result, dict):
         lines = [f"  ! {w}" for w in job.result.get("warnings", [])]
+        if job.result.get("dry_run_path"):
+            lines.insert(0, "✓ " + (gettext or (lambda t: t))("dry run: prompt written to {path}").format(path=job.result["dry_run_path"]))
+    elif job.status == "done" and isinstance(job.result, str):
+        lines = ["✓ " + job.result]
     elif job.status == "done" and job.result is not None:
         record = JobRecord(JobSpec(job.key, title, job.cli, None), result=job.result)
         lines = describe_result(record, gettext=gettext, ngettext=ngettext)

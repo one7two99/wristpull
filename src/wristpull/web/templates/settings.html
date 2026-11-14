@@ -77,6 +77,16 @@
 </section>
 </form>
 
+<section class="card settings-section" id="coach">
+<h2>{{ _("Coach backend check") }}</h2>
+<p class="muted small">{{ _("Asks the saved backend whether it answers (Ollama: is the model pulled; Claude and OpenRouter: is the key valid).") }}</p>
+<form method="post" action="/settings/check-coach" hx-post="/settings/check-coach" hx-target="#job" hx-swap="outerHTML" class="actions">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button type="submit" class="secondary">{{ _("Check coach backend") }}</button>
+</form>
+{% include "_job.html" %}
+</section>
+
 <section class="card settings-section">
 <h2>{{ _("Appearance") }}</h2>
 <div class="theme-row">
@@ -85,6 +95,13 @@
 <span data-theme-label>{{ _("Theme: system") }}</span></button>
 <span class="hint">{{ _("Remembered in this browser; tap to cycle system, light, dark.") }}</span>
 </div>
+<form method="post" action="/lang" class="theme-row">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="next" value="/settings">
+<span class="hint">{{ _("Language") }}</span>
+{% for code in languages %}<button type="submit" name="lang" value="{{ code }}" class="secondary" {% if code == lang %}aria-current="true"{% endif %}>{{ code|upper }}</button>{% endfor %}
+<span class="hint">{{ _("For this browser; the config's [ui] language stays the default.") }}</span>
+</form>
 </section>
 
 <section class="card settings-section">

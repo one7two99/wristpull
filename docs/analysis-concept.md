@@ -145,7 +145,10 @@ the test list are in the plan of 2026-11-14 and move here with wave A3.
   the 28-day mean (`detail.stage_baseline`), the sleep list as bed-to-wake bars on an 18:00–12:00 axis;
   the activity page with linked HR, pace (or speed), elevation, cadence and power curves, a zone donut,
   the lap chart and the track drawn from the GPS points; hours per week stacked by sport above the list.
-- **P3** parity: coach check job, profile editor, wizard, dry run, tokens/costs, language switch.
+- **P3** (done 2026-11-14) parity: coach backend check as an in-process job on Settings, `/coach/profile`
+  (textarea, placeholder count), `/coach/wizard` (the TUI's questions as a form, prefilled, `apply_wizard`),
+  dry run button, dry runs and failures in the run list with tokens, cost and duration, the EN/DE switch
+  (cookie `wristpull_lang`, evaluated before the config and the browser language).
 - **A3** insights package, tags (schema v8), `/insights`, readiness on Today, rolling ACWR.
 - **A4** coach kind `insights`, month/week report as HTML, dry-run link.
 - **P4** parity: workouts through the agent (push, verify, delete, watch view).

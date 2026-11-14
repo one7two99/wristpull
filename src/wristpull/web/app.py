@@ -31,12 +31,12 @@ import os
 
 from .. import secrets as store
 from ..agent import queue
-from ..config import Config, default_config_path, validate_config, write_config
+from ..config import UI_LANGUAGES, Config, default_config_path, validate_config, write_config
 from ..db import connect
 from . import jobview, markdown, pages
 from .files import BadPath
 from .auth import RateLimiter, SessionCodec, hash_password, new_session, verify_password
-from .i18n import pick_language, translations
+from .i18n import LANG_COOKIE, pick_language, translations
 from .jobs import JobRegistry
 
 HERE = Path(__file__).parent
@@ -179,17 +179,20 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
     def now() -> datetime:
         return deps.now() if deps.now else datetime.now(UTC)
 
+    def lang_of(request: Request) -> str:
+        return pick_language(config.ui_language, request.headers.get("accept-language"), request.cookies.get(LANG_COOKIE))
+
     def gettext_of(request: Request):
-        gt = translations(pick_language(config.ui_language, request.headers.get("accept-language")))
+        gt = translations(lang_of(request))
         return gt.gettext, gt.ngettext
 
     def session_of(request: Request) -> dict[str, Any] | None:
         return codec.loads(request.cookies.get(COOKIE))
 
     def render(request: Request, name: str, session: dict[str, Any], context: dict[str, Any], *, status_code: int = 200, set_session: bool = False) -> Response:
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         gt = translations(lang)
-        base = {"_": gt.gettext, "ngettext": gt.ngettext, "lang": lang, "csrf": session["csrf"], "logged_in": bool(session.get("user")), "path": request.url.path}
+        base = {"_": gt.gettext, "ngettext": gt.ngettext, "lang": lang, "languages": UI_LANGUAGES, "csrf": session["csrf"], "logged_in": bool(session.get("user")), "path": request.url.path}
         response = templates.TemplateResponse(request, name, {**base, **context}, status_code=status_code)
         if set_session:
             set_cookie(response, session)
@@ -265,7 +268,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session = require_user(request)
         if isinstance(session, Response):
             return session
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         with closing(connect(config.db_path)) as conn:
             data = pages.today_data(conn, today(), tz)
         for tile in data["tiles"]:
@@ -289,7 +292,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             weeks = int(request.query_params.get("weeks", "4"))
         except ValueError:
             weeks = 4
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         with closing(connect(config.db_path)) as conn:
             data = pages.trends_data(conn, today(), weeks)
         for tile in data["tiles"]:
@@ -303,7 +306,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session = require_user(request)
         if isinstance(session, Response):
             return session
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         key = request.path_params["key"]
         with closing(connect(config.db_path)) as conn:
             data = pages.metric_page(conn, key, today(), weeks_of(request), day=request.query_params.get("day"), compare=request.query_params.get("compare"), tz=tz)
@@ -324,7 +327,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session = require_user(request)
         if isinstance(session, Response):
             return session
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         key = request.path_params["key"]
         spec = pages.series.spec(key)
         try:
@@ -363,7 +366,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             return session
         sport = request.query_params.get("sport") or None
         q = (request.query_params.get("q") or "")[:80]
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         with closing(connect(config.db_path)) as conn:
             data = pages.activities_list(conn, today(), weeks_of(request), sport=sport, q=q, tz=tz)
         charts_json = chart_json([data["weekly"]], lang) if data["weekly"] else None
@@ -373,7 +376,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session = require_user(request)
         if isinstance(session, Response):
             return session
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         with closing(connect(config.db_path)) as conn:
             data = pages.activity_page(conn, int(request.path_params["activity_id"]), tz)
         if data is None:
@@ -393,7 +396,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session = require_user(request)
         if isinstance(session, Response):
             return session
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         with closing(connect(config.db_path)) as conn:
             data = pages.night_page(conn, int(request.path_params["sleep_id"]), tz)
         if data is None:
@@ -414,9 +417,43 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
 
     # ---- settings: the config file, the secrets store, the password ------------------------
 
+    CHECK_KEYS = ("coach-check",)
+
     def settings_page(request: Request, session: dict[str, Any], *, problems: list[str] | None = None, saved: str | None = None, status_code: int = 200) -> Response:
         data = pages.settings_data(config, dict(env))
-        return render(request, "settings.html", session, {"page": "settings", "d": data, "problems": problems or [], "saved": saved or request.query_params.get("saved")}, status_code=status_code)
+        current = jobs.last_of(CHECK_KEYS)
+        context = {"page": "settings", "d": data, "problems": problems or [], "saved": saved or request.query_params.get("saved"),
+                   "job": web_view(current, request) if current else None, "busy": False, "poll_url": "/settings/job", "show_log": False, "offline": False}
+        return render(request, "settings.html", session, context, status_code=status_code)
+
+    async def settings_check(request: Request) -> Response:
+        """Ask the configured coach backend whether it is reachable (a background job: Ollama may need a moment)."""
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, _form = got
+
+        def run(conn: Any, log: Callable[[str], None]) -> str:
+            from ..coach.backends import CoachError, make_backend
+
+            store.apply(config)
+            try:
+                backend = deps.coach_backend(config, "daily") if deps.coach_backend else make_backend(config)
+                return str(backend.check())
+            except CoachError as exc:
+                raise RuntimeError(str(exc)) from exc
+
+        started = jobs.start("coach-check", "Coach backend check", run, cli=f"wristpull coach daily --dry-run  # backend {config.coach.backend}/{config.coach.model}")
+        if is_htmx(request):
+            return job_partial(request, session, keys=CHECK_KEYS, poll_url="/settings/job", busy=started is None)
+        return RedirectResponse("/settings#coach", status_code=303)
+
+    def settings_job(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        job = jobs.last_of(CHECK_KEYS)
+        return job_partial(request, session, keys=CHECK_KEYS, poll_url="/settings/job", refresh=bool(request.query_params.get("poll") and job and not job.running))
 
     def settings_get(request: Request) -> Response:
         session = require_user(request)
@@ -578,7 +615,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         if isinstance(session, Response):
             return session
         with closing(connect(config.db_path)) as conn:
-            data = pages.coach_data(conn, tz)
+            data = pages.coach_data(conn, tz, config=config, lang=lang_of(request))
         current = jobs.last_of(COACH_KEYS)
         return render(request, "coach.html", session, {"page": "coach", "d": data, "job": web_view(current, request) if current else None, "busy": False,
                                                        "poll_url": "/coach/job", "show_log": False, "offline": False, "today": today().isoformat(),
@@ -591,6 +628,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session, form = got
         kind = str(form.get("kind") or "")
         question = str(form.get("question") or "").strip() or None
+        dry_run = form.get("dry_run") is not None
         if kind not in pages.COACH_KINDS or (kind == "ask" and not question):
             return PlainTextResponse("unknown run kind or empty question", status_code=400)
         day = today()
@@ -600,10 +638,10 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
 
             store.apply(config)  # API keys saved on the settings page override the environment
             backend = deps.coach_backend(config, kind) if deps.coach_backend else None
-            result = run_coach(conn, config, kind, today=day, question=question, backend=backend, log=log)
-            return {"run_id": result.run_id, "warnings": result.warnings}
+            result = run_coach(conn, config, kind, today=day, question=question, backend=backend, dry_run=dry_run, log=log)
+            return {"run_id": result.run_id, "warnings": result.warnings, "dry_run_path": str(result.dry_run_path) if result.dry_run_path else None}
 
-        started = jobs.start(f"coach-{kind}", kind, run, cli=f"wristpull coach {kind}" + (f' "{question}"' if question else ""))
+        started = jobs.start(f"coach-{kind}", kind, run, cli=f"wristpull coach {kind}" + (f' "{question}"' if question else "") + (" --dry-run" if dry_run else ""))
         if is_htmx(request):
             return job_partial(request, session, busy=started is None)
         return RedirectResponse("/coach", status_code=303)
@@ -622,7 +660,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session = require_user(request)
         if isinstance(session, Response):
             return session
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         q = request.query_params
         start, end = pages.day_period(today(), config.ui_range_days, start=q.get("from"), end=q.get("to"), preset=q.get("preset"))
         with closing(connect(config.db_path)) as conn:
@@ -634,7 +672,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session = require_user(request)
         if isinstance(session, Response):
             return session
-        lang = pick_language(config.ui_language, request.headers.get("accept-language"))
+        lang = lang_of(request)
         try:
             day = date.fromisoformat(request.query_params.get("day", ""))
         except ValueError:
@@ -724,6 +762,42 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             return session
         job = jobs.last_of(EXPORT_KEYS)
         return job_partial(request, session, keys=EXPORT_KEYS, poll_url="/export/job", refresh=bool(request.query_params.get("poll") and job and not job.running))
+
+    def coach_profile_get(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        data = pages.coach_profile_data(config, lang_of(request))
+        return render(request, "coach_profile.html", session, {"page": "coach", "d": data, "saved": request.query_params.get("saved")})
+
+    async def coach_profile_post(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        _session, form = got
+        text = str(form.get("text") or "")
+        if len(text) > 100_000:
+            return PlainTextResponse("profile too long", status_code=400)
+        pages.save_coach_profile(config, text)
+        return RedirectResponse("/coach/profile?saved=1", status_code=303)
+
+    def coach_wizard_get(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        return render(request, "coach_wizard.html", session, {"page": "coach", "d": pages.wizard_data(config, lang_of(request))})
+
+    async def coach_wizard_post(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        _session, form = got
+        from ..coach.profile import apply_wizard
+        from ..coach.runner import resolve_language
+
+        answers = pages.wizard_answers(form)
+        apply_wizard(config, answers, resolve_language(config, lang_of(request)))
+        return RedirectResponse("/coach/profile?saved=wizard", status_code=303)
 
     async def coach_rate(request: Request) -> Response:
         got = await posted(request)
@@ -838,6 +912,21 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             return PlainTextResponse(str(exc), status_code=400)
         return RedirectResponse(f"/workouts/edit?file={quote(name)}&saved=1", status_code=303)
 
+    async def set_language(request: Request) -> Response:
+        """The navigation's language switch: a cookie for this browser (the TUI's F12), back to the page."""
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        _session, form = got
+        code = str(form.get("lang") or "")
+        target = str(form.get("next") or "/")
+        if not target.startswith("/") or target.startswith("//"):
+            target = "/"
+        response = RedirectResponse(target, status_code=303)
+        if code in UI_LANGUAGES:
+            response.set_cookie(LANG_COOKIE, code, max_age=365 * 24 * 3600, httponly=True, secure=True, samesite="strict", path="/")
+        return response
+
     def healthz(request: Request) -> Response:
         return JSONResponse({"ok": True})
 
@@ -873,6 +962,13 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             Route("/settings/secrets", settings_secrets, methods=["POST"]),
             Route("/settings/password", password_get),
             Route("/settings/password", password_post, methods=["POST"]),
+            Route("/settings/check-coach", settings_check, methods=["POST"]),
+            Route("/settings/job", settings_job),
+            Route("/lang", set_language, methods=["POST"]),
+            Route("/coach/profile", coach_profile_get),
+            Route("/coach/profile", coach_profile_post, methods=["POST"]),
+            Route("/coach/wizard", coach_wizard_get),
+            Route("/coach/wizard", coach_wizard_post, methods=["POST"]),
             Route("/sync", sync_page),
             Route("/sync/run", sync_run, methods=["POST"]),
             Route("/sync/job", sync_job),

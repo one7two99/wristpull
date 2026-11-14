@@ -614,24 +614,104 @@ COACH_KINDS = ("daily", "weekly", "ask")
 TEMPLATE_KINDS = ("time", "distance", "intervals")
 
 
-def coach_data(conn: sqlite3.Connection, tz: ZoneInfo, *, runs: int = 10, notes: int = 10) -> dict[str, Any]:
-    """Recent successful runs with their answer as blocks, and the latest journal notes."""
+def coach_data(conn: sqlite3.Connection, tz: ZoneInfo, *, runs: int = 10, notes: int = 10, config: Config | None = None, lang: str = "en") -> dict[str, Any]:
+    """Recent runs (answers, dry runs and failures, newest first) with tokens and cost, the goal profile's state,
+    and the latest journal notes."""
+    rows = recent_runs(conn, limit=runs) + recent_runs(conn, limit=5, status="dry_run") + recent_runs(conn, limit=5, status="error")
     items = []
-    for run in recent_runs(conn, limit=runs):
+    for run in sorted(rows, key=lambda r: r["id"], reverse=True)[:runs]:
         stamp = run.get("created_at_utc")
+        tokens = None
+        if run.get("input_tokens") is not None or run.get("output_tokens") is not None:
+            tokens = f"{run.get('input_tokens') or '?'} / {run.get('output_tokens') or '?'}" + (" ~" if run.get("tokens_estimated") else "")
         items.append({
             "id": run["id"],
             "kind": run["kind"],
+            "status": run.get("status") or "ok",
             "when": parse_iso_utc(stamp).astimezone(tz).strftime("%d.%m. %H:%M") if stamp else "–",
             "backend": run.get("backend"),
             "model": run.get("model"),
             "question": run.get("question"),
             "rating": run.get("rating"),
             "cost_usd": run.get("cost_usd"),
+            "tokens": tokens,
+            "duration_s": run.get("duration_s"),
+            "error": run.get("error"),
             "answer_md": run.get("answer_md") or "",
             "blocks": coach_blocks(run.get("answer_md") or ""),
         })
-    return {"runs": items, "notes": recent_notes(conn, notes)}
+    profile = None
+    if config is not None:
+        from ..coach.profile import load_profile, profile_path
+
+        _text, _sha, placeholders = load_profile(config, lang)
+        profile = {"path": str(profile_path(config)), "placeholders": placeholders}
+    return {"runs": items, "notes": recent_notes(conn, notes), "profile": profile, "dryrun_dir": "coach/dryrun"}
+
+
+def coach_profile_data(config: Config, lang: str) -> dict[str, Any]:
+    """The goal profile's Markdown (the template on first use) and its open placeholders."""
+    from ..coach.profile import load_profile, profile_path
+
+    text, sha, placeholders = load_profile(config, lang)
+    return {"text": text, "sha": sha, "placeholders": placeholders, "path": str(profile_path(config))}
+
+
+def save_coach_profile(config: Config, text: str) -> list[str]:
+    """Write the profile (normalised line endings, one trailing newline); returns the placeholders still open."""
+    from ..coach.profile import profile_path
+    from ..coach.prompts import unfilled_placeholders
+
+    path = profile_path(config)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = text.replace("\r\n", "\n").strip() + "\n"
+    path.write_text(body, "utf-8")
+    return unfilled_placeholders(body)
+
+
+def wizard_data(config: Config, lang: str) -> dict[str, Any]:
+    """The wizard's questions in the viewer's language, prefilled with the answers of the last run."""
+    from ..coach.profile import load_answers
+    from ..coach.wizard import QUESTIONS
+
+    lang = lang if lang in ("en", "de") else "en"
+    previous = load_answers(config)
+    questions = []
+    for q in QUESTIONS:
+        prev = previous.get(q.key)
+        chosen = set(prev) if isinstance(prev, list) else ({prev} if prev else set())
+        questions.append({
+            "key": q.key,
+            "text": q.text[lang],
+            "multi": q.multi,
+            "hint": q.hint.get(lang, ""),
+            "options": [{"value": value, "label": label[lang], "checked": value in chosen} for value, label in q.options],
+            "value": "" if q.options else (str(prev) if prev else ""),
+        })
+    return {"questions": questions, "lang": lang}
+
+
+def wizard_answers(form: Any) -> dict[str, Any]:
+    """The answers out of the posted form (multi questions as lists, empty answers left out)."""
+    from ..coach.wizard import QUESTIONS
+
+    answers: dict[str, Any] = {}
+    for q in QUESTIONS:
+        if q.options:
+            allowed = {value for value, _label in q.options}
+            if q.multi:
+                chosen = [v for v in form.getlist(q.key) if v in allowed]
+                if chosen:
+                    answers[q.key] = chosen
+            else:
+                value = str(form.get(q.key) or "")
+                if value in allowed:
+                    answers[q.key] = value
+        else:
+            text = str(form.get(q.key) or "").strip()[:500]
+            if text:
+                answers[q.key] = text
+    return answers
 
 
 def workouts_data(config: Config, conn: sqlite3.Connection, today: date) -> dict[str, Any]:

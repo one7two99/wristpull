@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Goal profile") }}{% endblock %}
+{% block main %}
+<a class="back" href="/coach">← Coach</a>
+<header class="page-head">
+<h1>{{ _("Goal profile") }}</h1>
+<p class="muted">{{ _("The editable prompt the coach reads first; the block between the wizard markers is rewritten by the wizard, everything else is yours.") }}</p>
+</header>
+{% if saved == "wizard" %}<p class="note ok">{{ _("The wizard rewrote its block; your own notes were kept (the previous file is backed up next to it).") }}</p>
+{% elif saved %}<p class="note ok">{{ _("Profile saved.") }}</p>{% endif %}
+{% if d.placeholders %}<p class="note warn-text">{{ ngettext("{n} open placeholder: {names}", "{n} open placeholders: {names}", d.placeholders|length).format(n=d.placeholders|length, names=d.placeholders|join(", ")) }} · <a href="/coach/wizard">{{ _("Goal wizard") }}</a></p>
+{% else %}<p class="note ok">{{ _("No open placeholders.") }}</p>{% endif %}
+<form method="post" action="/coach/profile" class="editor">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label class="sr-only" for="text">{{ _("Goal profile") }}</label>
+<textarea id="text" name="text" rows="24" spellcheck="false">{{ d.text }}</textarea>
+<div class="inline wrap">
+<button type="submit" class="primary">{{ _("Save profile") }}</button>
+<a class="secondary btn-link" href="/coach/wizard">{{ _("Goal wizard") }}</a>
+<span class="hint">{{ d.path }}</span>
+</div>
+</form>
+{% endblock %}

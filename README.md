@@ -669,10 +669,14 @@ and **Sleep** (watch and strap as bed-to-wake bars per night; detail with the hy
 heart-rate, HRV, respiration and SpO2 curves on one time axis, stage shares against the 28-day mean,
 and the other device's night).
 Missing days stay gaps. Light and dark follow the system; a toggle in the navigation (desktop) and
-under Settings → Appearance pins one. **Coach** starts a daily check, a weekly review or a question in the
-background (one at a time; the page shows the progress and reloads when the answer is there),
-lists the recent runs with rating buttons (+1/0/−1, also under the daily check on Today) and keeps
-the journal. **Workouts** lists the workout files, creates new ones from the time, distance or
+under Settings → Appearance pins one, and the EN/DE switch next to it keeps the language for this
+browser (the config's `[ui] language` stays the default). Settings also checks the coach backend
+(is Ollama up and the model pulled, is the API key valid) as a background job. **Coach** starts a daily check, a weekly review, a question or a dry run (the prompt goes to
+`coach/dryrun/`, nothing is sent) in the background (one at a time; the page shows the progress and
+reloads when the answer is there), lists the recent runs with tokens, cost, duration and rating
+buttons (+1/0/−1, also under the daily check on Today), edits the goal profile (`/coach/profile`,
+open placeholders are counted), runs the goal wizard as a form (`/coach/wizard`, your own notes
+survive) and keeps the journal. **Workouts** lists the workout files, creates new ones from the time, distance or
 interval template, drafts the week from the coach's plan, and edits a file as Markdown with a live
 check (the steps as the watch will show them, name clashes in the same week). It shows the same
 numbers as CLI and TUI because it calls the same library functions
@@ -691,8 +695,7 @@ everything downloadable; `adb/` and `staging/` stay hidden. **Export** writes th
 links and shows the Markdown preview; the activity page offers the FIT file for download, the
 activity list filters by name, the sleep list by device. On the phone the pages that do not fit
 into the bottom bar sit behind "More". The goal is every TUI function in the browser; still open
-are the coach's check, wizard and profile pages, the language switch, workouts on the watch and a
-help page ([concept](docs/dashboard-concept.md), "Parity with the TUI"); charts, analysis
+are workouts on the watch and a help page ([concept](docs/dashboard-concept.md), "Parity with the TUI"); charts, analysis
 (readiness, correlations, tags) and the AI insights report follow
 [docs/analysis-concept.md](docs/analysis-concept.md).
 

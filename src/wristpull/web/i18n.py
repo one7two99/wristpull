@@ -19,8 +19,16 @@ def translations(code: str) -> gettext.NullTranslations:
     return gettext.translation(DOMAIN, localedir=str(LOCALE_DIR), languages=[code], fallback=True)
 
 
-def pick_language(configured: str | None, accept_language: str | None) -> str:
-    """``[ui] language`` from the config first, then the browser's Accept-Language, then English."""
+LANG_COOKIE = "wristpull_lang"  # set by the language switch in the navigation; wins over config and browser
+
+
+def pick_language(configured: str | None, accept_language: str | None, cookie: str | None = None) -> str:
+    """The viewer's cookie first (the switch in the navigation), then ``[ui] language`` from the config,
+    then the browser's Accept-Language, then English."""
+    if cookie:
+        code = normalize_language(cookie)
+        if code:
+            return code
     if configured:
         code = normalize_language(configured)
         if code:

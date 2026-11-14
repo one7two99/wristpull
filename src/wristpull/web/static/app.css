@@ -379,3 +379,17 @@ td.fields { white-space: normal; max-width: 36rem; font-size: 0.8rem; color: var
 .activity-charts { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 900px) { .activity-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .activity-charts .wide { grid-column: 1 / -1; } }
 .sleep-head { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+
+/* ---- language switch, wizard (parity wave P3) */
+.nav .langswitch { display: none; margin: 0; padding: 0 10px; gap: 4px; }
+@media (min-width: 760px) { .nav .langswitch { display: flex; } }
+.langswitch button { flex: none !important; min-height: 32px !important; min-width: 40px; padding: 0 8px !important; border: 1px solid var(--border) !important; border-radius: 8px !important; font-size: 0.8rem !important; color: var(--muted); }
+.langswitch button[aria-current="true"] { border-color: var(--accent) !important; color: var(--text); background: var(--band); font-weight: 600; }
+.more-sheet .langswitch { grid-column: 1 / -1; display: flex; gap: 6px; padding: 4px 12px; }
+.more-sheet .langswitch button { width: auto; min-height: 36px; }
+.theme-row button[aria-current="true"] { border-color: var(--accent); background: var(--band); }
+.wizard { display: flex; flex-direction: column; gap: 12px; }
+.wizard fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px 10px; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.wizard legend { color: var(--text); font-weight: 600; padding: 0 4px; }
+.wizard input[type="text"] { width: 100%; }
+.wizard .primary { align-self: flex-start; }

@@ -11,7 +11,13 @@
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <button type="submit" name="kind" value="daily" class="primary">{{ _("Daily check") }}</button>
 <button type="submit" name="kind" value="weekly" class="secondary">{{ _("Weekly review") }}</button>
+<button type="submit" name="kind" value="daily" class="secondary" formaction="/coach/run" hx-post="/coach/run" hx-vals='{"dry_run": "1"}' title="{{ _('Writes the prompt to coach/dryrun without sending it') }}">{{ _("Dry run") }}</button>
 </form>
+<p class="muted small">
+<a href="/coach/profile">{{ _("Goal profile") }}</a>{% if d.profile %} · {% if d.profile.placeholders %}<span class="check-error">{{ ngettext("{n} open placeholder", "{n} open placeholders", d.profile.placeholders|length).format(n=d.profile.placeholders|length) }}</span>{% else %}✓{% endif %}{% endif %}
+· <a href="/coach/wizard">{{ _("Goal wizard") }}</a>
+· <a href="/files?dir=coach%2Fdryrun">{{ _("Dry runs") }}</a>
+</p>
 <form method="post" action="/coach/run" hx-post="/coach/run" hx-target="#job" hx-swap="outerHTML" class="ask">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="kind" value="ask">
@@ -27,11 +33,13 @@
 {% for r in d.runs %}
 <article class="card run" id="run-{{ r.id }}">
 <details {% if loop.first %}open{% endif %}>
-<summary><span class="run-kind">{{ _(r.kind) }}</span> <span class="muted small">{{ r.when }} · {{ r.backend }}{% if r.model %} · {{ r.model }}{% endif %}{% if r.cost_usd %} · ${{ "%.3f"|format(r.cost_usd) }}{% endif %}</span></summary>
+<summary><span class="run-kind">{{ _(r.kind) }}</span>{% if r.status == "dry_run" %} <span class="chip state-draft">{{ _("dry run") }}</span>{% elif r.status == "error" %} <span class="chip state-error">{{ _("failed") }}</span>{% endif %} <span class="muted small">{{ r.when }} · {{ r.backend }}{% if r.model %} · {{ r.model }}{% endif %}{% if r.tokens %} · {{ _("tokens") }} {{ r.tokens }}{% endif %}{% if r.cost_usd %} · ${{ "%.3f"|format(r.cost_usd) }}{% endif %}{% if r.duration_s %} · {{ r.duration_s|num }} s{% endif %}</span></summary>
 {% if r.question %}<p class="question">„{{ r.question }}“</p>{% endif %}
-<div class="prose">{{ r.answer_md|markdown }}</div>
+{% if r.status == "dry_run" %}<p class="muted">{{ _("Dry run: the prompt was written to the coach/dryrun folder; nothing was sent.") }} <a href="/files?dir=coach%2Fdryrun">{{ _("Open in Files") }}</a></p>
+{% elif r.status == "error" %}<p class="check-error">{{ r.error }}</p>
+{% else %}<div class="prose">{{ r.answer_md|markdown }}</div>{% endif %}
 </details>
-{{ rating(r.id, r.rating) }}
+{% if r.status == "ok" %}{{ rating(r.id, r.rating) }}{% endif %}
 </article>
 {% else %}
 <p class="card muted">{{ _("No coach runs yet.") }}</p>

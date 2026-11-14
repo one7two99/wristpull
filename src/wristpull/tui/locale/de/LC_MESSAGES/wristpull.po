@@ -2149,3 +2149,37 @@ msgstr "diese Nacht gegenüber dem Mittel von {n} Nächten der 28 Tage davor"
 
 msgid "<Z1: below zone 1"
 msgstr "<Z1: unterhalb von Zone 1"
+
+# ---- coach profile, wizard, dry run, backend check, language (parity wave P3)
+msgid "Asks the saved backend whether it answers (Ollama: is the model pulled; Claude and OpenRouter: is the key valid)."
+msgstr "Fragt das gespeicherte Backend, ob es antwortet (Ollama: ist das Modell geladen; Claude und OpenRouter: ist der Schlüssel gültig)."
+
+msgid "Check coach backend"
+msgstr "Coach-Backend prüfen"
+
+msgid "Dry runs"
+msgstr "Probeläufe"
+
+msgid "Goal profile"
+msgstr "Zielprofil"
+
+msgid "Goal wizard"
+msgstr "Ziel-Assistent"
+
+msgid "No open placeholders."
+msgstr "Keine offenen Platzhalter."
+
+msgid "Profile saved."
+msgstr "Profil gespeichert."
+
+msgid "The editable prompt the coach reads first; the block between the wizard markers is rewritten by the wizard, everything else is yours."
+msgstr "Der bearbeitbare Prompt, den der Coach zuerst liest; den Block zwischen den Assistenten-Markierungen schreibt der Assistent neu, alles andere gehört dir."
+
+msgid "The wizard rewrote its block; your own notes were kept (the previous file is backed up next to it)."
+msgstr "Der Assistent hat seinen Block neu geschrieben; deine eigenen Notizen sind erhalten (die vorherige Datei liegt als Sicherung daneben)."
+
+msgid "Writes the prompt to coach/dryrun without sending it"
+msgstr "Schreibt den Prompt nach coach/dryrun, ohne ihn zu senden"
+
+msgid "tokens"
+msgstr "Tokens"

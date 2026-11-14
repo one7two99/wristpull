@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Goal wizard") }}{% endblock %}
+{% block main %}
+<a class="back" href="/coach/profile">← {{ _("Goal profile") }}</a>
+<header class="page-head">
+<h1>{{ _("Goal wizard") }}</h1>
+<p class="muted">{{ _("Goal wizard: your choices become the first part of the goal profile; your own notes stay untouched.") }}</p>
+</header>
+<form method="post" action="/coach/wizard" class="card wizard">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+{% for q in d.questions %}
+<fieldset>
+<legend>{{ q.text }}</legend>
+{% if not q.options %}
+<input type="text" name="{{ q.key }}" value="{{ q.value }}" maxlength="500" placeholder="{{ q.hint }}">
+{% else %}
+{% for o in q.options %}
+<label class="check-label"><input type="{{ 'checkbox' if q.multi else 'radio' }}" name="{{ q.key }}" value="{{ o.value }}" {% if o.checked %}checked{% endif %}> {{ o.label }}</label>
+{% endfor %}
+{% endif %}
+</fieldset>
+{% endfor %}
+<div class="inline wrap">
+<button type="submit" class="primary">{{ _("Save profile") }}</button>
+<a class="secondary btn-link" href="/coach/profile">{{ _("Cancel") }}</a>
+</div>
+</form>
+{% endblock %}
