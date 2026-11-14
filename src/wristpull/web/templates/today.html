@@ -1,10 +1,6 @@
 {% extends "base.html" %}
 {% from "_rating.html" import rating with context %}
-{% block title %}wristpull · {{ _("Today") }}<script type="application/json" id="chart-data" data-charts>{{ charts_json|safe }}</script>
-{% endblock %}
-{% block scripts %}
-<script src="/static/vendor/echarts.min.js" defer></script>
-{% endblock %}
+{% block title %}wristpull · {{ _("Today") }}{% endblock %}
 {% block main %}
 <header class="page-head">
 <h1>{{ _("Today") }}</h1>
@@ -105,4 +101,8 @@
 <p class="muted">{{ _("No daily check yet. Run one with: wristpull coach daily") }}</p>
 {% endif %}
 </section>
+<script type="application/json" id="chart-data" data-charts>{{ charts_json|safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js" defer></script>
 {% endblock %}
