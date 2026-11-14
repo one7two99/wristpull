@@ -194,6 +194,7 @@ def test_login_flow_and_pages(seeded: Config, password_hash: str):
     assert home.status_code == 200 and "Ruhepuls" in home.text and "Schritte" in home.text
     assert "Well recovered &lt;b&gt;today&lt;/b&gt;" in home.text and "<h3>Status</h3>" in home.text  # coach text is escaped
     assert 'href="/metrics/resting_hr"' in home.text and 'id="chart-spark-steps"' in home.text
+    assert "<title>wristpull · Heute</title>" in home.text and home.text.index('id="chart-data"') > home.text.index("<main")  # the data block sits in the body
     assert "Uhr (USB)" in home.text and home.headers["cache-control"] == "no-store"
     trends = client.get("/trends?weeks=12")
     assert trends.status_code == 200 and 'id="chart-spark-resting_hr"' in trends.text and 'href="/metrics/hrv?weeks=12"' in trends.text and '"labels":[' in trends.text
@@ -495,10 +496,17 @@ def test_web_strings_have_german_translations():
     ids.update(t for _k, t, _u, _d in pages.NIGHT_CURVES)
     ids.update({"Pace", "Speed", "Cadence", "Power", "Track", "Pace per lap", "Minutes per lap", "Hours per week", "Other", "Stage shares", "This night"})
     ids.update({"Coach backend check", "dry run: prompt written to {path}"})
+    from wristpull.insights import correlate, readiness
+    from wristpull.insights.tags import TAGS
+
+    ids.update(label for _k, label in TAGS)
+    ids.update(readiness.TITLES.values())
+    ids.update(correlate.TITLES.values())
+    ids.update({"ready", "moderate", "recover", "none", "weak", "strong", "Readiness", "Bedtime", "Wake-up", "Bin mean", "Nights come from both the watch and the strap; their scales may differ."})
     missing = sorted(i for i in ids if de.gettext(i) == i and i not in {"Trends", "Stress", "Strap", "Sport", "Body Battery", "bpm", "ms", "h", "max", "ACWR", "Score {score}", "m", "rem", "Neutral", "Journal", "cardio",
                                                                             "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max",
                                                                             "Detail", "Garmin", "Export", "Export & Report", "BB", "Int.", "…", "Filter",
-                                                                            "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm"})
+                                                                            "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm", "Readiness", "Sauna", "Tag"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"
 
@@ -838,6 +846,61 @@ def test_coach_dry_run_tokens_and_backend_check(seeded: Config, password_hash: s
     assert poll.headers.get("hx-refresh") == "true"
     assert "fake backend ready" in client.get("/settings").text and "fake backend ready" not in client.get("/coach").text  # kept apart per page
     assert client.post("/settings/check-coach", data={"csrf": token}).status_code == 303
+
+
+# ---- insights page, readiness tile, day tags (analysis wave A3) -----------------------------------
+
+
+def test_insights_page_and_tags(seeded: Config, password_hash: str):
+    from wristpull.db import connect
+    from wristpull.insights.store import tags_for
+
+    client = client_for(seeded, password_hash)
+    login(client)
+    page = client.get("/insights?weeks=12", headers={"accept-language": "de"})
+    assert page.status_code == 200 and "Einblicke" in page.text and "Zusammenhänge" in page.text and 'id="chart-readiness"' in page.text and 'id="chart-acwr"' in page.text
+    assert "Noch nicht genug Verlauf" in page.text and "Noch nicht genug Tagespaare" in page.text and 'name="tag" value="sauna"' in page.text and "Vorbehalte" in page.text
+    assert client.get("/insights?weeks=x").status_code == 200 and 'aria-current="page">1 year' in client.get("/insights?weeks=52").text
+    token = csrf_of(page.text)
+    saved = client.post("/tags", data={"csrf": token, "date": "2026-10-06", "tag": ["sauna", "alcohol", "bogus"], "next": "/insights?weeks=12&saved=tags#tags"})
+    assert saved.status_code == 303 and saved.headers["location"].startswith("/insights")
+    with connect(seeded.db_path) as conn:
+        assert tags_for(conn, "2026-10-06") == ["alcohol", "sauna"]
+    page = client.get("/insights?weeks=12&saved=tags")
+    assert "Tags saved." in page.text and 'value="sauna" checked' in page.text and "<td>Sauna</td>" in page.text and "fewer than five tagged days" in page.text
+    cleared = client.post("/tags", data={"csrf": token, "date": "2026-10-06", "next": "https://evil.example/"})
+    assert cleared.headers["location"] == "/insights"
+    with connect(seeded.db_path) as conn:
+        assert tags_for(conn, "2026-10-06") == []
+    assert client.post("/tags", data={"csrf": token, "date": "nope"}).status_code == 400 and client.post("/tags", data={"csrf": token, "date": "2010-01-01"}).status_code == 400
+    home = client.get("/")
+    assert "Readiness" in home.text and 'name="date" value="2026-10-07"' in home.text and 'href="/insights"' in home.text
+
+
+def test_insights_data_charts(seeded: Config, conn):
+    data = pages.insights_data(conn, seeded, TODAY, 4)
+    ids = [c["id"] for c in data["charts"]]
+    assert ids[:3] == ["readiness", "acwr", "nights"] and data["weeks"] == 4 and data["latest"] is None and len(data["tag_days"]) == 7 and data["tag_days"][0]["date"] == "2026-10-07"
+    assert data["charts"][0]["range"] == [0, 100] and data["charts"][0]["guides"] == [45, 70] and data["charts"][2]["format"] == "clock18"
+    assert pages.insights_data(conn, seeded, TODAY, 7)["weeks"] == 12  # unknown choice: the default
+    assert pages.readiness_tile(conn, seeded, TODAY) is None  # six days: no baseline
+
+
+def test_readiness_tile_with_history(config: Config, conn, garmin_tree: Path):
+    from wristpull.importers.garmin import import_garmin
+
+    for i in range(40):  # six weeks of monitoring: a baseline exists, the tile shows a score and reasons
+        (garmin_tree / "Monitor" / f"M6B{i:05d}.FIT").write_bytes(build_monitor_fit(datetime(2026, 8, 20, 22, 0, tzinfo=UTC) + timedelta(days=i)))
+    import_garmin(conn, config, path=garmin_tree)
+    # the synthetic days are identical, which gives a zero spread and no z-scores: give them day-to-day variation
+    for i, (day,) in enumerate(conn.execute("SELECT local_date FROM daily_summary ORDER BY local_date").fetchall()):
+        conn.execute("UPDATE daily_summary SET resting_hr = ?, hrv_last_night_avg_ms = ?, sleep_duration_s = ?, sleep_score = ?, body_battery_max = ?, stress_avg = ? WHERE local_date = ?",
+                     (48 + i % 5, 38 + (i % 7) * 2, (6.5 + (i % 4) * 0.5) * 3600, 70 + (i % 6) * 3, 70 + (i % 5) * 5, 25 + (i % 3) * 4, day))
+    conn.commit()
+    tile = pages.readiness_tile(conn, config, TODAY)
+    assert tile and tile["score"] is not None and tile["label"] in ("ready", "moderate", "recover") and 1 <= len(tile["reasons"]) <= 3 and tile["reasons"][0]["text"][0] in "+-±"
+    data = pages.insights_data(conn, config, TODAY, 12)
+    assert data["latest"]["score"] == tile["score"] and any(c["label"] != "insufficient" for c in data["pkg"]["correlations"]) and any(c["id"].startswith("corr-") for c in data["charts"])
 
 
 # ---- devices & sync: jobs for the device agent (parity W1) ------------------------------------

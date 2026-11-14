@@ -31,6 +31,29 @@
 </form>
 </section>
 
+<section class="card" aria-label="{{ _('Readiness') }}">
+<h2>{{ _("Readiness") }} <a class="small" href="/insights">{{ _("Insights") }} →</a></h2>
+{% if d.readiness %}
+<div class="today-ready">
+<div class="ring {{ d.readiness.label }}" role="img" aria-label="{{ _('Readiness') }} {{ d.readiness.score|num }}"><strong class="num">{{ d.readiness.score|num }}</strong><span>{{ _(d.readiness.label) }}</span></div>
+<div>
+<p class="muted small">{{ d.readiness.date }} · {{ _("confidence {c}").format(c=d.readiness.confidence|num(2)) }}</p>
+<ul class="reasons-list">{% for r in d.readiness.reasons %}<li><span class="num {% if r.contribution > 0 %}good{% elif r.contribution < 0 %}bad{% endif %}">{{ r.text }}</span> {{ _(r.title) }}</li>{% endfor %}</ul>
+</div>
+</div>
+{% else %}
+<p class="muted">{{ _("Not enough history yet: readiness needs at least two components with a 28-day baseline (seven days of data).") }}</p>
+{% endif %}
+<form method="post" action="/tags" class="tagday">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="date" value="{{ today }}">
+<input type="hidden" name="next" value="/">
+<span class="tagdate muted small">{{ _("Today's tags") }}</span>
+<span class="tagchips">{% for key, label in d.all_tags %}<label class="tagchip{% if key in d.today_tags %} on{% endif %}"><input type="checkbox" name="tag" value="{{ key }}" {% if key in d.today_tags %}checked{% endif %}> {{ _(label) }}</label>{% endfor %}</span>
+<button type="submit" class="secondary">{{ _("Save") }}</button>
+</form>
+</section>
+
 <section class="tiles" aria-label="{{ _('Key values') }}">
 {% for t in d.tiles %}
 <a class="tile" href="/metrics/{{ t.page }}">

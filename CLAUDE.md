@@ -81,6 +81,12 @@
   with the dataviz checks; theme toggle via `theme.js` + `data-theme`. Coach answers render through
   `web/markdown.py` (stdlib, escaped). Analysis waves (insights package, tags, readiness, AI report) and the parity
   waves P2–P5 are listed in the concept.
+- Insights (`src/wristpull/insights/`, concept `docs/analysis-concept.md` wave A3): deterministic analysis over the daily
+  frame: `baselines.py` (polars rolling baselines/z-scores, trailing, day excluded, min 7; `rolling_stats` is the one
+  implementation the metric pages use too), `readiness.py` (weighted z-score index with contributions), `sleep.py`
+  (regularity, debt), `correlate.py` (Spearman over z-scores, lags, bins, sweet spot, tag effects), `tags.py` (fixed
+  list) and `store.py` (the only SQL: `day_tags`, schema v8); `package.build_insights` returns one JSON-able dict for
+  the `/insights` page and, later, the coach's insights report. Tests in `tests/test_insights.py` use synthetic frames.
 - Device agent (`src/wristpull/agent/`, `wristpull agent`, Compose service `agent`; concept: "Parity with the TUI" in
   `docs/dashboard-concept.md`): the only way the browser reaches the watch, the phone and the band. `agent/queue.py` is
   SQL only (tables `agent_jobs`, `agent_job_log`, `agent_state`); `agent/runner.py` claims one queued job at a time,

@@ -149,7 +149,18 @@ the test list are in the plan of 2026-11-14 and move here with wave A3.
   (textarea, placeholder count), `/coach/wizard` (the TUI's questions as a form, prefilled, `apply_wizard`),
   dry run button, dry runs and failures in the run list with tokens, cost and duration, the EN/DE switch
   (cookie `wristpull_lang`, evaluated before the config and the browser language).
-- **A3** insights package, tags (schema v8), `/insights`, readiness on Today, rolling ACWR.
+- **A3** (done 2026-11-14) `src/wristpull/insights/`: `baselines.py` (polars rolling mean/std/median/z,
+  trailing, the day excluded, min 7 values; `rolling_stats` also serves the metric pages), `readiness.py`
+  (weights hrv .25, resting HR .20, sleep .15, sleep score .15, Body Battery .10, yesterday's stress .10,
+  ACWR .05; z clamped at ±2.5, 20 points per z, sleep under 6 h capped at 30, ACWR free up to 1.3 and zero
+  at 1.8; contributions add up to score − 50; null under two components), `sleep.py` (one main night per
+  date, bedtime as minutes since 18:00, spread and debt over 14 days against `[coach] sleep_target_h`),
+  `correlate.py` (Spearman over z-scores, lags 0–2, min 20 pairs, fixed sleep bins, one-hour bedtime bins,
+  rest-day plus tertile bins for load, sweet spot = best bin with ≥ 5 days that beats its neighbours by
+  ≥ 0.25 z, tag effects at lag 1), `tags.py` + `store.py` (table `day_tags`, schema v8), `package.py`
+  (`build_insights`). Pages: `/insights` (readiness ring and components, ACWR, bedtime/wake-up, one
+  scatter per pair with bin means, tags for the last seven days, caveats), readiness tile and today's tags on
+  Today; CLI `wristpull coach tag DATE +sauna -alcohol`. On the real database the package takes ~0.2 s.
 - **A4** coach kind `insights`, month/week report as HTML, dry-run link.
 - **P4** parity: workouts through the agent (push, verify, delete, watch view).
 - **A5/P5** Help page, "more" menu, parity test, screenshots, README table, memory.

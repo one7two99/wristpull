@@ -7,7 +7,6 @@ The web layer calls these functions and renders; SQL is allowed here like in ``d
 
 from __future__ import annotations
 
-import math
 import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -120,21 +119,12 @@ def merged(garmin: list[float | None], strap: list[float | None] | None) -> list
 def rolling_baseline(values: list[float | None], window: int = BASELINE_DAYS, min_days: int = BASELINE_MIN) -> tuple[list[float | None], list[float | None]]:
     """Trailing mean and standard deviation of the ``window`` days before each day (the day itself excluded).
 
-    Positions with fewer than ``min_days`` values in the window stay None, so the band only appears
-    once there is a baseline to speak of; gaps in the input are skipped, not counted as zero."""
-    means: list[float | None] = []
-    stds: list[float | None] = []
-    for i in range(len(values)):
-        chosen = [v for v in values[max(0, i - window) : i] if v is not None]
-        if len(chosen) < min_days:
-            means.append(None)
-            stds.append(None)
-            continue
-        mean = sum(chosen) / len(chosen)
-        var = sum((v - mean) ** 2 for v in chosen) / (len(chosen) - 1) if len(chosen) > 1 else 0.0
-        means.append(mean)
-        stds.append(math.sqrt(var))
-    return means, stds
+    Positions with fewer than ``min_days`` values in the window stay None, so the band only appears once
+    there is a baseline to speak of; gaps in the input are skipped, not counted as zero. One implementation
+    for the metric pages and the insights (``insights.baselines.rolling_stats``, polars)."""
+    from .insights.baselines import rolling_stats
+
+    return rolling_stats(values, window=window, min_days=min_days)
 
 
 def smooth(values: list[float | None], window: int = SMOOTH_DAYS, digits: int = 1) -> list[float | None]:

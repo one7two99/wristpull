@@ -81,6 +81,8 @@ token_budget = {coach_token_budget}
 effort = "{coach_effort}"
 # Answer language: de | en | "" for the UI language
 language = "{coach_language}"
+# Hours of sleep the insights measure the sleep debt against.
+sleep_target_h = {coach_sleep_target_h}
 {coach_prices}
 [workout]
 # Shape of generated workouts (templates and drafts from the weekly plan): minutes and HR caps of the warm-up and cool-down.
@@ -122,6 +124,7 @@ class CoachConfig:
     token_budget: int = 6000
     effort: str = "medium"
     language: str | None = None
+    sleep_target_h: float = 7.5  # the sleep debt on the Insights page counts against this
     prices: dict[str, tuple[float, float]] = field(default_factory=dict)
 
     def price_for(self, model: str) -> tuple[float, float] | None:
@@ -216,6 +219,7 @@ class Config:
             coach_token_budget=self.coach.token_budget,
             coach_effort=self.coach.effort,
             coach_language=self.coach.language or "",
+            coach_sleep_target_h=f"{self.coach.sleep_target_h:g}",
             coach_prices=(
                 "\n[coach.prices]\n" + "".join(f'"{m}" = {{ input = {i:g}, output = {o:g} }}\n' for m, (i, o) in sorted(self.coach.prices.items()))
                 if self.coach.prices
@@ -307,6 +311,8 @@ def load_config(path: Path | None = None, *, env: Mapping[str, str] | None = Non
             setattr(cfg.coach, key, int(coach[key]))
     if "timeout_s" in coach:
         cfg.coach.timeout_s = float(coach["timeout_s"])
+    if "sleep_target_h" in coach:
+        cfg.coach.sleep_target_h = float(coach["sleep_target_h"])
     prices = coach.get("prices", {})
     if isinstance(prices, dict):
         for model, entry in prices.items():
@@ -375,6 +381,8 @@ def validate_config(cfg: Config) -> list[str]:
         problems.append("coach max_tokens must be at least 100")
     if coach.token_budget < 1000:
         problems.append("coach token_budget must be at least 1000")
+    if not 4 <= coach.sleep_target_h <= 12:
+        problems.append("coach sleep_target_h must be between 4 and 12 hours")
     if coach.num_ctx < 2048:
         problems.append("coach num_ctx must be at least 2048")
     if coach.timeout_s <= 0:

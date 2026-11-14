@@ -26,7 +26,10 @@
 <a href="/days" class="more-only" {% if page == "days" %}aria-current="page"{% endif %}>
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4zM4 10h16M9 5v15M15 5v15"/></svg>
 <span>{{ _("Days") }}</span></a>
-<a href="/activities" {% if page == "activities" %}aria-current="page"{% endif %}>
+<a href="/insights" {% if page == "insights" %}aria-current="page"{% endif %}>
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M12 3a9 9 0 0 1 9 9"/></svg>
+<span>{{ _("Insights") }}</span></a>
+<a href="/activities" class="more-only" {% if page == "activities" %}aria-current="page"{% endif %}>
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
 <span>{{ _("Activities") }}</span></a>
 <a href="/sleep" {% if page == "sleep" %}aria-current="page"{% endif %}>
@@ -70,6 +73,7 @@
 </nav>
 <div class="more-sheet" id="more-sheet" hidden>
 <a href="/days" {% if page == "days" %}aria-current="page"{% endif %}>{{ _("Days") }}</a>
+<a href="/activities" {% if page == "activities" %}aria-current="page"{% endif %}>{{ _("Activities") }}</a>
 <a href="/sync" {% if page == "sync" %}aria-current="page"{% endif %}>{{ _("Sync") }}</a>
 <a href="/workouts" {% if page == "workouts" %}aria-current="page"{% endif %}>{{ _("Workouts") }}</a>
 <a href="/files" {% if page == "files" %}aria-current="page"{% endif %}>{{ _("Files") }}</a>

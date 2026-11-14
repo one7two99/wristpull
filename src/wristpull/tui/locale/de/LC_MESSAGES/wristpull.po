@@ -607,9 +607,6 @@ msgstr "Speichern"
 msgid "Saved to {path}"
 msgstr "Gespeichert nach {path}"
 
-msgid "Score"
-msgstr "Score"
-
 msgid "Stop requested; the job ends after the current file"
 msgstr "Stopp angefordert; der Job endet nach der aktuellen Datei"
 
@@ -2183,3 +2180,184 @@ msgstr "Schreibt den Prompt nach coach/dryrun, ohne ihn zu senden"
 
 msgid "tokens"
 msgstr "Tokens"
+
+# ---- insights: readiness, relationships, tags (analysis wave A3)
+msgid "Alcohol"
+msgstr "Alkohol"
+
+msgid "Bedtime"
+msgstr "Bettzeit"
+
+msgid "Bedtime and wake-up"
+msgstr "Bettzeit und Aufwachen"
+
+msgid "Bin mean"
+msgstr "Mittel je Klasse"
+
+msgid "Bins"
+msgstr "Klassen"
+
+msgid "Caffeine late"
+msgstr "Koffein spät"
+
+msgid "Caveats"
+msgstr "Vorbehalte"
+
+msgid "Component"
+msgstr "Komponente"
+
+msgid "Contribution"
+msgstr "Beitrag"
+
+msgid "Day tags"
+msgstr "Tages-Tags"
+
+msgid "Each component is your value against your own 28-day baseline (z-score), mapped to 0–100 and weighted; the contributions add up to the distance from 50. Confidence {c}: the share of components with data."
+msgstr "Jede Komponente ist dein Wert gegen deine eigene 28-Tage-Basis (z-Wert), auf 0–100 abgebildet und gewichtet; die Beiträge summieren sich zum Abstand von 50. Vertrauen {c}: der Anteil der Komponenten mit Daten."
+
+msgid "Effect on the following day (z, raw)"
+msgstr "Wirkung auf den Folgetag (z, roh)"
+
+msgid "Every number here is computed from your own baselines; nothing is sent anywhere."
+msgstr "Jede Zahl hier ist aus deinen eigenen Basislinien berechnet; nichts wird irgendwohin gesendet."
+
+msgid "Insights"
+msgstr "Einblicke"
+
+msgid "Late meal"
+msgstr "Spät gegessen"
+
+msgid "Lines at 45 and 70 separate recover, moderate and ready."
+msgstr "Die Linien bei 45 und 70 trennen erholen, mittel und bereit."
+
+msgid "Nap"
+msgstr "Mittagsschlaf"
+
+msgid "Nights"
+msgstr "Nächte"
+
+msgid "Nights come from both the watch and the strap; their scales may differ."
+msgstr "Die Nächte stammen von Uhr und Band; ihre Skalen können sich unterscheiden."
+
+msgid "No alcohol"
+msgstr "Kein Alkohol"
+
+msgid "No clear sweet spot."
+msgstr "Kein klarer Sweet Spot."
+
+msgid "No nights in the last {n} days."
+msgstr "Keine Nächte in den letzten {n} Tagen."
+
+msgid "Not enough history yet: readiness needs at least two components with a 28-day baseline (seven days of data)."
+msgstr "Noch nicht genug Verlauf: Readiness braucht mindestens zwei Komponenten mit 28-Tage-Basis (sieben Tage Daten)."
+
+msgid "Not enough paired days yet ({n} of {min})."
+msgstr "Noch nicht genug Tagespaare ({n} von {min})."
+
+msgid "Race"
+msgstr "Wettkampf"
+
+msgid "Readiness"
+msgstr "Readiness"
+
+msgid "Relationships"
+msgstr "Zusammenhänge"
+
+msgid "Rest day"
+msgstr "Ruhetag"
+
+msgid "Sauna"
+msgstr "Sauna"
+
+msgid "Score"
+msgstr "Punkte"
+
+msgid "Sick"
+msgstr "Krank"
+
+msgid "Sleep debt"
+msgstr "Schlafschuld"
+
+msgid "Sleep regularity"
+msgstr "Schlafregelmäßigkeit"
+
+msgid "Sleep target (h)"
+msgstr "Schlafziel (h)"
+
+msgid "Spearman correlation of the within-person z-scores; a lag of 1 means the measure of the following day. Small effects are called weak on purpose, and a correlation is not a cause."
+msgstr "Spearman-Korrelation der innerpersonalen z-Werte; Lag 1 heißt der Wert des Folgetags. Kleine Effekte heißen absichtlich schwach, und eine Korrelation ist keine Ursache."
+
+msgid "Stress (yesterday)"
+msgstr "Stress (gestern)"
+
+msgid "Stressful day"
+msgstr "Stressiger Tag"
+
+msgid "Sweet spot"
+msgstr "Sweet Spot"
+
+msgid "Tag"
+msgstr "Tag"
+
+msgid "Tags saved."
+msgstr "Tags gespeichert."
+
+msgid "Travel"
+msgstr "Reise"
+
+msgid "Value"
+msgstr "Wert"
+
+msgid "What you did or felt on a day; the insights compare the following night and day with the other days (from five tagged days on)."
+msgstr "Was du an einem Tag getan oder gefühlt hast; die Einblicke vergleichen die folgende Nacht und den Folgetag mit den anderen Tagen (ab fünf markierten Tagen)."
+
+msgid "balance {b} h"
+msgstr "Bilanz {b} h"
+
+msgid "by lag"
+msgstr "nach Lag"
+
+msgid "confidence {c}"
+msgstr "Vertrauen {c}"
+
+msgid "fewer than five tagged days"
+msgstr "weniger als fünf markierte Tage"
+
+msgid "lag {n}"
+msgstr "Lag {n}"
+
+msgid "last {n} days"
+msgstr "letzte {n} Tage"
+
+msgid "median"
+msgstr "Median"
+
+msgid "moderate"
+msgstr "mittel"
+
+msgid "none"
+msgstr "keine"
+
+msgid "recover"
+msgstr "erholen"
+
+msgid "significant"
+msgstr "signifikant"
+
+msgid "strong"
+msgstr "stark"
+
+msgid "target {t} h"
+msgstr "Ziel {t} h"
+
+msgid "the Insights page counts the sleep debt against it"
+msgstr "die Seite Einblicke rechnet die Schlafschuld dagegen"
+
+msgid "weak"
+msgstr "schwach"
+
+msgid "{n} days, {m} z ahead of the neighbours"
+msgstr "{n} Tage, {m} z vor den Nachbarn"
+
+msgid "{n} missing"
+msgstr "{n} fehlen"

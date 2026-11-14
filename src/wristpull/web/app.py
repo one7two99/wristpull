@@ -271,6 +271,12 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         lang = lang_of(request)
         with closing(connect(config.db_path)) as conn:
             data = pages.today_data(conn, today(), tz)
+            data["readiness"] = pages.readiness_tile(conn, config, today())
+            from ..insights.store import tags_for
+            from ..insights.tags import TAGS
+
+            data["today_tags"] = tags_for(conn, today().isoformat())
+            data["all_tags"] = TAGS
         for tile in data["tiles"]:
             tile["text"] = format_value(tile["value"], tile["kind"], lang)
             tile["delta_text"] = format_delta(tile["delta_28d"], tile["kind"], lang)
@@ -654,6 +660,42 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         # The page polls while a job runs; the first answer after it finished reloads the page once.
         return job_partial(request, session, refresh=bool(request.query_params.get("poll") and job and not job.running))
 
+    # ---- insights and day tags (analysis wave A3) -----------------------------------------
+
+    def insights_page(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        lang = lang_of(request)
+        try:
+            weeks = int(request.query_params.get("weeks", "12"))
+        except ValueError:
+            weeks = 12
+        with closing(connect(config.db_path)) as conn:
+            data = pages.insights_data(conn, config, today(), weeks, lang=lang)
+        return render(request, "insights.html", session, {"page": "insights", "d": data, "charts_json": chart_json(data["charts"], lang), "choices": pages.INSIGHT_WEEKS, "saved": request.query_params.get("saved")})
+
+    async def tags_post(request: Request) -> Response:
+        """The checkbox form of one day: its tags become exactly the ticked ones."""
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        _session, form = got
+        from ..insights.store import replace_tags
+
+        try:
+            day = date.fromisoformat(str(form.get("date") or ""))
+        except ValueError:
+            return PlainTextResponse("bad date", status_code=400)
+        if abs((today() - day).days) > 366:
+            return PlainTextResponse("date out of range", status_code=400)
+        with closing(connect(config.db_path)) as conn:
+            replace_tags(conn, day.isoformat(), [str(t) for t in form.getlist("tag")])
+        target = str(form.get("next") or "/insights")
+        if not target.startswith("/") or target.startswith("//"):
+            target = "/insights"
+        return RedirectResponse(target, status_code=303)
+
     # ---- days, files, export (parity wave P2) ----------------------------------------------
 
     def days_page(request: Request) -> Response:
@@ -950,6 +992,8 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             Route("/activities/{activity_id:int}", activity_page),
             Route("/sleep", sleep_page),
             Route("/sleep/{sleep_id:int}", night_page),
+            Route("/insights", insights_page),
+            Route("/tags", tags_post, methods=["POST"]),
             Route("/days", days_page),
             Route("/days/detail", day_detail),
             Route("/files", files_page),

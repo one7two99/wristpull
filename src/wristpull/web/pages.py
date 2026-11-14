@@ -839,6 +839,7 @@ def settings_data(config: Config, env: dict[str, str]) -> dict[str, Any]:
             "coach_token_budget": c.token_budget,
             "coach_effort": c.effort,
             "coach_language": c.language or "",
+            "coach_sleep_target_h": f"{c.sleep_target_h:g}",
         },
         "backends": COACH_BACKENDS,
         "efforts": COACH_EFFORTS,
@@ -872,6 +873,7 @@ def config_from_form(config: Config, form: Any) -> tuple[Config, list[str]]:
     flag = lambda name: form.get(name) is not None  # noqa: E731
     try:
         timeout = float(text("coach_timeout_s") or config.coach.timeout_s)
+        sleep_target = float(text("coach_sleep_target_h") or config.coach.sleep_target_h)
     except ValueError:
         problems.append("coach timeout must be a number")
         timeout = config.coach.timeout_s
@@ -887,6 +889,7 @@ def config_from_form(config: Config, form: Any) -> tuple[Config, list[str]]:
         timeout_s=timeout,
         token_budget=_int_field(form, "coach_token_budget", config.coach.token_budget, problems),
         effort=text("coach_effort") or config.coach.effort,
+        sleep_target_h=sleep_target,
         language=text("coach_language") or None,
     )
     folders = [f.strip() for f in text("folders").split(",") if f.strip()]
@@ -1064,3 +1067,58 @@ def export_cli(kind: str, start: date, end: date, *, csv: bool, charts: bool) ->
     if kind == "export":
         return f"wristpull export --for-claude --from {start.isoformat()} --to {end.isoformat()}" + ("" if csv else " --no-csv")
     return f"wristpull report {kind} --date {end.isoformat()}" + (" --charts" if charts else "")
+
+
+# ---- insights: readiness, load, sleep regularity, correlations, tags (analysis wave A3) --------------
+
+INSIGHT_WEEKS = (4, 12, 26, 52)
+TAG_WINDOW_DAYS = 7
+
+
+def insights_data(conn: sqlite3.Connection, config: Config, today: date, weeks: int, *, lang: str = "en") -> dict[str, Any]:
+    """The insights package plus the chart definitions the page draws from it."""
+    from ..insights import build_insights
+    from ..insights.tags import TAGS
+
+    weeks = weeks if weeks in INSIGHT_WEEKS else INSIGHT_WEEKS[1]
+    pkg = build_insights(conn, config, today, period_days=7 * weeks)
+    dates = pkg["readiness"]["series"]["dates"]
+    charts = [
+        {"id": "readiness", "title": "Readiness", "unit": "", "kind": "line", "labels": dates, "range": [0, 100], "guides": [45, 70], "zoom": False,
+         "series": [{"name": "Readiness", "data": pkg["readiness"]["series"]["score"]}]},
+        {"id": "acwr", "title": "Acute:chronic load", "unit": "", "kind": "acwr", "labels": pkg["load"]["dates"], "band": [0.8, 1.3],
+         "series": [{"name": "ACWR", "data": pkg["load"]["acwr"]}]},
+        {"id": "nights", "title": "Bedtime and wake-up", "unit": "", "kind": "line", "format": "clock18", "labels": [n["date"] for n in pkg["sleep"]["nights"]], "zoom": False,
+         "series": [{"name": "Bedtime", "data": [n["bed"] for n in pkg["sleep"]["nights"]]}, {"name": "Wake-up", "data": [(n["wake"] - 18 * 60) % 1440 for n in pkg["sleep"]["nights"]]}]},
+    ]
+    for i, c in enumerate(pkg["correlations"]):
+        if c["label"] == "insufficient":
+            continue
+        charts.append({"id": f"corr-{i}", "title": c["y_title"], "unit": c["y_unit"], "kind": "scatter", "labels": [], "x_title": c["x_title"], "x_unit": c["x_unit"],
+                       "x_format": "clock18" if c["x"] == "bed_offset" else None,
+                       "series": [{"name": "Days", "points": c["points"]}, {"name": "Bin mean", "points": [[(b["lo"] if b["lo"] is not None else b["hi"]) if (b["lo"] is None or b["hi"] is None) else (b["lo"] + b["hi"]) / 2, b["mean_y"]] for b in c["bins"]]}],
+                       "sweet": c["sweet_spot"]["bin"] if c["sweet_spot"] else None})
+        c["chart_id"] = f"corr-{i}"
+    latest = pkg["readiness"]["latest"]
+    if latest:
+        for comp in latest["components"]:
+            comp["contribution_text"] = f"{comp['contribution']:+.1f}" if comp["contribution"] is not None else "–"
+    tag_days = []
+    for i in range(TAG_WINDOW_DAYS):
+        day = (today - timedelta(days=i)).isoformat()
+        tag_days.append({"date": day, "tags": pkg["tag_days"].get(day, [])})
+    return {"weeks": weeks, "pkg": pkg, "charts": charts, "tags": TAGS, "tag_days": tag_days, "latest": latest}
+
+
+def readiness_tile(conn: sqlite3.Connection, config: Config, today: date) -> dict[str, Any] | None:
+    """The readiness of the latest day with a score and its three biggest contributions (for Today)."""
+    from ..insights import build_insights
+
+    pkg = build_insights(conn, config, today, period_days=14, pairs=())
+    latest = pkg["readiness"]["latest"]
+    if not latest:
+        return None
+    present = [c for c in latest["components"] if c["present"] and c["contribution"] is not None]
+    reasons = sorted(present, key=lambda c: -abs(c["contribution"]))[:3]
+    return {"date": latest["date"], "score": latest["score"], "label": latest["label"], "confidence": latest["confidence"],
+            "reasons": [{"title": c["title"], "contribution": c["contribution"], "text": f"{c['contribution']:+.1f}"} for c in reasons]}

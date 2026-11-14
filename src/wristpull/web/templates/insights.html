@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% from "_macros.html" import period with context %}
+{% block title %}wristpull · {{ _("Insights") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Insights") }}</h1>
+<p class="muted">{{ _("{start} to {end}, {n} days with data").format(start=d.pkg.period.start, end=d.pkg.period.end, n=d.pkg.period.days_with_data) }} · {{ _("Every number here is computed from your own baselines; nothing is sent anywhere.") }}</p>
+</header>
+{{ period("/insights", d.weeks, choices) }}
+
+<section class="card" aria-label="{{ _('Readiness') }}">
+<h2>{{ _("Readiness") }}{% if d.latest %} <span class="unit muted">({{ d.latest.date }})</span>{% endif %}</h2>
+{% if d.latest %}
+<div class="readiness">
+<div class="ring {{ d.latest.label }}" role="img" aria-label="{{ _('Readiness') }} {{ d.latest.score|num }}"><strong class="num">{{ d.latest.score|num }}</strong><span>{{ _(d.latest.label) }}</span></div>
+<div class="reasons">
+<p class="muted small">{{ _("Each component is your value against your own 28-day baseline (z-score), mapped to 0–100 and weighted; the contributions add up to the distance from 50. Confidence {c}: the share of components with data.").format(c=d.latest.confidence|num(2)) }}</p>
+<table class="components">
+<thead><tr><th>{{ _("Component") }}</th><th>{{ _("Value") }}</th><th>z</th><th>{{ _("Score") }}</th><th>{{ _("Weight") }}</th><th>{{ _("Contribution") }}</th></tr></thead>
+<tbody>
+{% for c in d.latest.components %}
+<tr class="{% if not c.present %}muted{% endif %}">
+<td>{{ _(c.title) }}</td>
+<td class="num">{% if c.value is not none %}{% if c.key == "sleep_duration" %}{{ c.value|hm }} h{% elif c.key == "acwr" %}{{ c.value|num(2) }}{% else %}{{ c.value|num }}{% endif %}{% else %}–{% endif %}</td>
+<td class="num">{% if c.z is not none %}{{ c.z|num(1) }}{% else %}–{% endif %}</td>
+<td class="num">{% if c.score is not none %}{{ c.score|num }}{% else %}–{% endif %}</td>
+<td class="num">{{ (c.weight * 100)|num }} %</td>
+<td class="num {% if c.contribution is not none and c.contribution > 0 %}good{% elif c.contribution is not none and c.contribution < 0 %}bad{% endif %}">{{ c.contribution_text }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</div>
+{% else %}
+<p class="muted">{{ _("Not enough history yet: readiness needs at least two components with a 28-day baseline (seven days of data).") }}</p>
+{% endif %}
+<div class="chart short" id="chart-readiness" data-chart="readiness" role="img" aria-label="{{ _('Readiness') }}"></div>
+<p class="muted small legend-note">{{ _("Lines at 45 and 70 separate recover, moderate and ready.") }}</p>
+</section>
+
+<section class="card chart-card">
+<h2>{{ _("Acute:chronic load") }}</h2>
+<div class="chart short" id="chart-acwr" data-chart="acwr" role="img" aria-label="{{ _('Acute:chronic load') }}"></div>
+<p class="muted small legend-note">{{ _("The acute:chronic ratio compares the last 7 days with the weekly mean of the last 28 (band 0.8–1.3).") }}</p>
+</section>
+
+<section class="card chart-card" aria-label="{{ _('Sleep regularity') }}">
+<h2>{{ _("Sleep regularity") }} <span class="unit muted">({{ _("last {n} days").format(n=d.pkg.sleep.window_days) }})</span></h2>
+{% set s = d.pkg.sleep %}
+{% if s.n_nights %}
+<div class="kpi-strip">
+<div><span>{{ _("Bedtime") }}</span><strong class="num">{{ s.bedtime_mean }}</strong><small class="muted">± {{ s.bedtime_std_min }} min</small></div>
+<div><span>{{ _("Wake-up") }}</span><strong class="num">{{ s.wake_mean }}</strong><small class="muted">± {{ s.wake_std_min }} min</small></div>
+<div><span>{{ _("Sleep") }}</span><strong class="num">{{ s.mean_h|num(1) }} h</strong><small class="muted">{{ _("target {t} h").format(t=s.target_h|num(1)) }}</small></div>
+<div><span>{{ _("Sleep debt") }}</span><strong class="num">{{ s.debt_h|num(1) }} h</strong><small class="muted">{{ _("balance {b} h").format(b=s.balance_h|num(1)) }}</small></div>
+<div><span>{{ _("Nights") }}</span><strong class="num">{{ s.n_nights }}</strong><small class="muted">{{ _("{n} missing").format(n=s.nights_missing) }}</small></div>
+</div>
+{% else %}<p class="muted">{{ _("No nights in the last {n} days.").format(n=s.window_days) }}</p>{% endif %}
+<div class="chart short" id="chart-nights" data-chart="nights" role="img" aria-label="{{ _('Bedtime and wake-up') }}"></div>
+</section>
+
+<section class="card" aria-label="{{ _('Relationships') }}">
+<h2>{{ _("Relationships") }}</h2>
+<p class="muted small">{{ _("Spearman correlation of the within-person z-scores; a lag of 1 means the measure of the following day. Small effects are called weak on purpose, and a correlation is not a cause.") }}</p>
+<div class="corrgrid">
+{% for c in d.pkg.correlations %}
+<article class="corr">
+<h3>{{ _(c.x_title) }} → {{ _(c.y_title) }} <span class="unit muted">({{ _("lag {n}").format(n=c.lag) }})</span></h3>
+{% if c.label == "insufficient" %}
+<p class="muted">{{ _("Not enough paired days yet ({n} of {min}).").format(n=c.n, min=20) }}</p>
+{% else %}
+<p class="corr-stat"><span class="num">r = {{ c.r|num(2) }}</span> · {{ _(c.label) }}{% if c.significant %} · {{ _("significant") }}{% endif %} · n = {{ c.n }} · {{ _("by lag") }} 0/1/2: {% for k in ("0", "1", "2") %}{% if c.by_lag[k] is not none %}{{ c.by_lag[k]|num(2) }}{% else %}–{% endif %}{% if not loop.last %} / {% endif %}{% endfor %}</p>
+<div class="chart short" id="chart-{{ c.chart_id }}" data-chart="{{ c.chart_id }}" role="img" aria-label="{{ _(c.x_title) }} → {{ _(c.y_title) }}"></div>
+<p class="small">{% if c.sweet_spot %}<strong>{{ _("Sweet spot") }}:</strong> {{ c.sweet_spot.bin }}{% if c.x_unit and c.x_unit != "clock" %} {{ _(c.x_unit) }}{% endif %} → {{ _(c.y_title) }} {{ c.sweet_spot.mean_y|num(1) }} ({{ _("{n} days, {m} z ahead of the neighbours").format(n=c.sweet_spot.n, m=c.sweet_spot.margin_z|num(2)) }}){% else %}<span class="muted">{{ _("No clear sweet spot.") }}</span>{% endif %}</p>
+<details><summary class="small">{{ _("Bins") }}</summary>
+<div class="table-box"><table><thead><tr><th>{{ _(c.x_title) }}</th><th>n</th><th>Ø {{ _(c.y_title) }}</th><th>{{ _("median") }}</th><th>Ø z</th></tr></thead>
+<tbody>{% for b in c.bins %}<tr{% if c.sweet_spot and b.label == c.sweet_spot.bin %} aria-current="true"{% endif %}><td>{{ b.label }}</td><td class="num">{{ b.n }}</td><td class="num">{{ b.mean_y|num(1) }}</td><td class="num">{{ b.median_y|num(1) }}</td><td class="num">{{ b.mean_y_z|num(2) }}</td></tr>{% endfor %}</tbody></table></div>
+</details>
+{% endif %}
+</article>
+{% endfor %}
+</div>
+</section>
+
+<section class="card" id="tags" aria-label="{{ _('Day tags') }}">
+<h2>{{ _("Day tags") }}</h2>
+<p class="muted small">{{ _("What you did or felt on a day; the insights compare the following night and day with the other days (from five tagged days on).") }}</p>
+{% if saved == "tags" %}<p class="note ok">{{ _("Tags saved.") }}</p>{% endif %}
+<div class="tagdays">
+{% for td in d.tag_days %}
+<form method="post" action="/tags" class="tagday">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="date" value="{{ td.date }}">
+<input type="hidden" name="next" value="/insights?weeks={{ d.weeks }}&amp;saved=tags#tags">
+<span class="num tagdate">{{ td.date }}</span>
+<span class="tagchips">{% for key, label in d.tags %}<label class="tagchip{% if key in td.tags %} on{% endif %}"><input type="checkbox" name="tag" value="{{ key }}" {% if key in td.tags %}checked{% endif %}> {{ _(label) }}</label>{% endfor %}</span>
+<button type="submit" class="secondary">{{ _("Save") }}</button>
+</form>
+{% endfor %}
+</div>
+{% if d.pkg.tags %}
+<div class="table-box"><table>
+<thead><tr><th>{{ _("Tag") }}</th><th>{{ _("Days") }}</th><th>{{ _("Effect on the following day (z, raw)") }}</th></tr></thead>
+<tbody>
+{% for t in d.pkg.tags %}
+<tr><td>{{ _(d.tags|selectattr(0, "equalto", t.tag)|map(attribute=1)|first or t.tag) }}</td><td class="num">{{ t.n }}</td>
+<td class="fields">{% for e in t.effects %}<span class="{% if e.delta_z * e.better > 0 %}good{% elif e.delta_z * e.better < 0 %}bad{% endif %}">{{ _(e.title) }} {{ e.delta_z|num(2) }} z ({{ e.delta|num(1) }}{% if e.unit %} {{ _(e.unit) }}{% endif %})</span>{% if not loop.last %} · {% endif %}{% else %}<span class="muted">{{ _("fewer than five tagged days") }}</span>{% endfor %}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% endif %}
+</section>
+
+<section class="card">
+<h2>{{ _("Caveats") }}</h2>
+<ul class="small">{% for c in d.pkg.caveats %}<li>{{ _(c) if c in ("Nights come from both the watch and the strap; their scales may differ.",) else c }}</li>{% endfor %}</ul>
+</section>
+<script type="application/json" id="chart-data" data-charts>{{ charts_json|safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/echarts.min.js" defer></script>
+{% endblock %}

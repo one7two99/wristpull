@@ -71,6 +71,7 @@
 <div class="field"><label for="coach_timeout_s">{{ _("Timeout (s)") }}</label><input id="coach_timeout_s" name="coach_timeout_s" type="text" value="{{ d.fields.coach_timeout_s }}" class="narrow num"></div>
 <div class="field"><label for="coach_token_budget">{{ _("Token budget for the data package") }}</label><input id="coach_token_budget" name="coach_token_budget" type="number" min="1" value="{{ d.fields.coach_token_budget }}" class="narrow num"></div>
 <div class="field"><label for="coach_effort">{{ _("Effort") }}</label><select id="coach_effort" name="coach_effort">{% for e in d.efforts %}<option value="{{ e }}" {% if d.fields.coach_effort == e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></div>
+<div class="field"><label for="coach_sleep_target_h">{{ _("Sleep target (h)") }}</label><input id="coach_sleep_target_h" name="coach_sleep_target_h" type="text" value="{{ d.fields.coach_sleep_target_h }}" class="narrow num"><span class="hint">{{ _("the Insights page counts the sleep debt against it") }}</span></div>
 <div class="field"><label for="coach_language">{{ _("Answer language") }}</label><select id="coach_language" name="coach_language"><option value="">{{ _("like the interface") }}</option>{% for l in d.languages %}<option value="{{ l }}" {% if d.fields.coach_language == l %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
 <button type="submit" class="primary">{{ _("Save configuration") }}</button>
 <span class="hint">{{ _("Written to {path}").format(path=d.config_path) }}</span>

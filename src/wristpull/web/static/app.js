@@ -75,7 +75,8 @@
   const fmtDate = (v) => (typeof v === "string" && v.length === 10 ? v.slice(8, 10) + "." + v.slice(5, 7) + "." : v);
   const fmtTime = (m) => two(Math.floor(m / 60)) + ":" + two(Math.round(m % 60));
   const fmtPace = (v) => { const m = Math.floor(v), sec = Math.round((v - m) * 60); return m + ":" + two(sec === 60 ? 0 : sec) + (sec === 60 ? "" : ""); };
-  const fmtValue = (def) => (v) => (v == null ? "–" : (def.format === "pace" ? fmtPace(v) : v));
+  const fmtClock18 = (v) => fmtTime((1080 + v) % 1440);
+  const fmtValue = (def) => (v) => (v == null ? "–" : (def.format === "pace" ? fmtPace(v) : (def.format === "clock18" ? fmtClock18(v) : v)));
   const withUnit = (def) => (v) => (v == null ? "–" : fmtValue(def)(v) + (def.unit ? " " + def.unit : ""));
 
   function chrome(def, extra) {
@@ -86,7 +87,7 @@
       textStyle: { fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" },
       tooltip: { trigger: "axis", valueFormatter: withUnit(def), axisPointer: { type: "line", lineStyle: { color: grid } } },
       xAxis: { type: "category", data: def.labels, axisLabel: { color: text, hideOverlap: true, formatter: fmtDate }, axisLine: { lineStyle: { color: grid } }, axisTick: { show: false } },
-      yAxis: { type: "value", scale: def.kind !== "bar", inverse: !!def.inverse, axisLabel: { color: text, formatter: def.format === "pace" ? fmtPace : undefined }, splitLine: { lineStyle: { color: grid } }, axisLine: { show: false } },
+      yAxis: { type: "value", scale: def.kind !== "bar", inverse: !!def.inverse, axisLabel: { color: text, formatter: def.format === "pace" ? fmtPace : (def.format === "clock18" ? fmtClock18 : undefined) }, splitLine: { lineStyle: { color: grid } }, axisLine: { show: false } },
     }, extra);
   }
 
@@ -136,8 +137,32 @@
     });
     if (def.kind === "acwr") { option.yAxis.min = 0; option.yAxis.max = 3; option.yAxis.scale = false; }  // a lone workout after a break is "4": off the chart, in the tooltip
     if (def.kind === "stacked") option.yAxis.scale = false;
+    if (def.range) { option.yAxis.min = def.range[0]; option.yAxis.max = def.range[1]; option.yAxis.scale = false; }
+    if (def.guides && series.length) {  // quiet horizontal guides (readiness: 45 and 70)
+      series[0].markLine = { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: css("--series-mean"), type: "dashed", width: 1 }, data: def.guides.map((y) => ({ yAxis: y })) };
+    }
     if (def.group === "activity") option.xAxis.axisLabel.formatter = (v) => v + " min";
     return option;
+  }
+
+  // Relationship of two measures: one dot per day (muted), the bin means on top (accent) — same scale for both.
+  function scatter(def) {
+    const days = def.series[0] || { points: [] };
+    const bins = def.series[1] || { points: [] };
+    const fx = def.x_format === "clock18" ? fmtClock18 : (v) => v;
+    return {
+      animation: false,
+      textStyle: { fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" },
+      grid: { left: 48, right: 12, top: 28, bottom: 32 },
+      legend: { top: 0, right: 0, textStyle: { color: css("--muted") }, itemWidth: 12, itemHeight: 8 },
+      tooltip: { trigger: "item", formatter: (p) => (p.seriesIndex === 1 ? "Ø " : "") + fx(p.value[0]) + (def.x_unit && def.x_unit !== "clock" ? " " + def.x_unit : "") + " → " + p.value[1] + (def.unit ? " " + def.unit : "") },
+      xAxis: { type: "value", name: def.x_title, nameLocation: "middle", nameGap: 22, nameTextStyle: { color: css("--muted") }, scale: true, axisLabel: { color: css("--muted"), formatter: fx }, axisLine: { lineStyle: { color: css("--border") } }, splitLine: { show: false } },
+      yAxis: { type: "value", scale: true, axisLabel: { color: css("--muted") }, splitLine: { lineStyle: { color: css("--border") } }, axisLine: { show: false } },
+      series: [
+        { name: days.name, type: "scatter", data: days.points, symbolSize: 7, itemStyle: { color: css("--series-mean"), opacity: 0.55 } },
+        { name: bins.name, type: "line", data: bins.points, symbol: "circle", symbolSize: 11, lineStyle: { width: 2, color: css("--series-1") }, itemStyle: { color: css("--series-1"), borderColor: css("--surface"), borderWidth: 2 }, z: 3 },
+      ],
+    };
   }
 
   // Part-to-whole in at most six slices (the heart-rate zones): a donut with the zone colours and minutes in the tooltip.
@@ -263,6 +288,7 @@
     if (def.kind === "track") return track(def, el);
     if (def.kind === "timeline") return timeline(def);
     if (def.kind === "hypnogram") return hypnogram(def);
+    if (def.kind === "scatter") return scatter(def);
     return daily(def);
   }
 

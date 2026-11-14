@@ -125,6 +125,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_note = coach_sub.add_parser("note", help="write a one-line journal entry the coach reads (how you felt, what you did)")
     p_note.add_argument("text")
     p_note.add_argument("--date", help="local date (default today)")
+    p_tag = coach_sub.add_parser("tag", help="set day tags for the insights: +sauna adds, -alcohol removes (no change lists the day's tags)")
+    p_tag.add_argument("date", help="local date, or 'today'")
+    p_tag.add_argument("changes", nargs="*", help="+tag or -tag; known tags: " + ", ".join(__import__("wristpull.insights.tags", fromlist=["KEYS"]).KEYS))
     p_notes = coach_sub.add_parser("notes", help="print recent journal entries")
     p_notes.add_argument("--last", type=int, default=14)
     p_ics = coach_sub.add_parser("plan-ics", help="write the last weekly plan as an iCalendar file")
@@ -579,6 +582,27 @@ def cmd_coach(args: argparse.Namespace, config: Config) -> int:
             rating = {1: " 👍", 0: " 😐", -1: " 👎"}.get(run.get("rating"), "") if run.get("rating") is not None else ""
             print(f"--- #{run['id']} {run['kind']} {run['created_at_utc']} {run['backend']}/{run['model']} ({run['input_tokens'] or '?'} in / {run['output_tokens'] or '?'} out{cost}){rating}")
             print(run.get("answer_md") or "")
+        return 0
+    if args.coach_cmd == "tag":
+        from datetime import date
+
+        from .aggregate import parse_date
+        from .insights.store import set_tags
+        from .insights.tags import valid
+
+        try:
+            day = date.today() if args.date == "today" else parse_date(args.date)
+        except ValueError as exc:
+            print(f"coach: {exc}", file=sys.stderr)
+            return 2
+        add = [c[1:] for c in args.changes if c.startswith("+")]
+        remove = [c[1:] for c in args.changes if c.startswith("-")]
+        unknown = [t for t in add + remove if not valid(t)] + [c for c in args.changes if c[:1] not in "+-"]
+        if unknown:
+            print(f"coach: unknown tags {', '.join(unknown)}", file=sys.stderr)
+            return 2
+        tags = set_tags(conn, day.isoformat(), add=add, remove=remove)
+        print(f"{day.isoformat()}: {', '.join(tags) or 'no tags'}")
         return 0
     if args.coach_cmd == "note":
         from datetime import date

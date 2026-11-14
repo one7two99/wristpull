@@ -686,7 +686,15 @@ log, a stop button and the equivalent command to copy), and shows whether the wa
 attached. Those jobs do not run in the web container, which has no device access: the **device
 agent** (Compose service `agent`, `wristpull agent`) runs next to it with the rights of the `cli`
 service, takes the jobs from a queue in the database and writes log and result back; Today shows
-whether it is online. **Days** is the TUI's day table (steps, resting HR, sleep, Body Battery,
+whether it is online. **Insights** (`/insights`) is the analysis page: a readiness index 0–100 computed from your own
+28-day baselines (HRV, resting HR, sleep, sleep score, Body Battery, yesterday's stress, acute:chronic
+load) with every component's contribution shown, the acute:chronic ratio, sleep regularity (bedtime and
+wake-up spread, sleep debt against `[coach] sleep_target_h`), relationships between sleep, load, stress,
+Body Battery and HRV as Spearman correlations of the within-person z-scores with lags 0–2 and a binned
+response curve that names the sweet spot when one bin clearly beats its neighbours, and day tags (alcohol,
+sauna, sick, travel, …) whose effect on the following day is compared with the other days. Today shows the
+readiness and the day's tags; `wristpull coach tag 2026-11-14 +sauna` sets tags from the terminal.
+**Days** is the TUI's day table (steps, resting HR, sleep, Body Battery,
 stress, intensity minutes, strap steps, sources) for any period with the watch-and-strap detail of
 one day. **Files** browses the data directory (raw archive, exports, reports, workouts): FIT files
 are inspected (message types, counts, fields) with their archive row, text files previewed,

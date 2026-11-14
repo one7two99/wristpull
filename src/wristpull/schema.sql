@@ -394,6 +394,14 @@ CREATE TABLE IF NOT EXISTS journal (
     created_at_utc  TEXT NOT NULL
 );
 
+-- Day tags (what the user did or felt: alcohol, sauna, sick, ...; keys in insights/tags.py) for the insights.
+CREATE TABLE IF NOT EXISTS day_tags (
+    local_date      TEXT NOT NULL,
+    tag             TEXT NOT NULL,
+    created_at_utc  TEXT NOT NULL,
+    PRIMARY KEY (local_date, tag)
+);
+
 -- Workouts pushed to the watch as FIT files (the Markdown sources live under <data_dir>/workouts/).
 CREATE TABLE IF NOT EXISTS workout_pushes (
     id               INTEGER PRIMARY KEY,
