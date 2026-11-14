@@ -33,10 +33,10 @@
 {% endif %}
 {% if d.donut %}
 <article class="card chart-card">
-<h2>{{ _("Time in heart-rate zones") }}</h2>
+<h2>{{ _("Time in heart-rate zones") }} <span class="unit muted">({{ _("<Z1: below zone 1") }})</span></h2>
 <div class="chart donut" id="chart-zones" data-chart="zones" role="img" aria-label="{{ _('Time in heart-rate zones') }}"></div>
 {% for z in d.zones %}
-<div class="zone"><span>{{ z.label }}</span><span class="bar"><span class="fill z{{ loop.index }}" style="width: {{ z.pct }}%"></span></span><span class="num">{{ z.seconds|dur }}</span></div>
+<div class="zone"><span>{{ z.label }}</span><span class="bar"><span class="fill z{{ z.zone }}" style="width: {{ z.pct }}%"></span></span><span class="num">{{ z.seconds|dur }}</span></div>
 {% endfor %}
 </article>
 {% endif %}

@@ -143,7 +143,7 @@
   // Part-to-whole in at most six slices (the heart-rate zones): a donut with the zone colours and minutes in the tooltip.
   function donut(def) {
     const s = def.series[0] || { data: [] };
-    const zoneColors = [1, 2, 3, 4, 5].map((i) => css("--zone-" + i));
+    const zoneColors = [css("--border")].concat([1, 2, 3, 4, 5].map((i) => css("--zone-" + i)));  // entry 0: below zone 1
     const total = s.data.reduce((a, v) => a + (v || 0), 0) || 1;
     return {
       animation: false,
@@ -152,7 +152,7 @@
       legend: { bottom: 0, left: "center", textStyle: { color: css("--muted") }, itemWidth: 12, itemHeight: 10 },
       series: [{ type: "pie", radius: ["52%", "78%"], center: ["50%", "44%"], avoidLabelOverlap: true, padAngle: 2, itemStyle: { borderRadius: 4, borderColor: css("--surface"), borderWidth: 2 },
         label: { show: false }, emphasis: { label: { show: true, formatter: (p) => p.name + "\n" + Math.round(100 * p.value / total) + " %", color: css("--text") } },
-        data: def.labels.map((name, i) => ({ name, value: s.data[i] || 0, itemStyle: { color: def.zones ? zoneColors[i % zoneColors.length] : [css("--series-1"), css("--series-2"), css("--series-3")][i % 3] } })) }],
+        data: def.labels.map((name, i) => ({ name, value: s.data[i] || 0, itemStyle: { color: def.zones ? zoneColors[Math.min(i, zoneColors.length - 1)] : [css("--series-1"), css("--series-2"), css("--series-3")][i % 3] } })) }],
     };
   }
 

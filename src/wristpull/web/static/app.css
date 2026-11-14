@@ -169,7 +169,7 @@ a.night:hover { background: var(--band); }
 .zone .bar { height: 12px; border-radius: 6px; background: var(--border); overflow: hidden; display: block; }
 .zone .fill { display: block; height: 100%; border-radius: 6px; }
 .zone .num { text-align: right; }
-.fill.z1 { background: #8796a3; } .fill.z2 { background: #3c8fd6; } .fill.z3 { background: #2fae9c; } .fill.z4 { background: #e39a4f; } .fill.z5 { background: #d9534f; }
+.fill.z0 { background: var(--border); } .fill.z1 { background: var(--zone-1); } .fill.z2 { background: var(--zone-2); } .fill.z3 { background: var(--zone-3); } .fill.z4 { background: var(--zone-4); } .fill.z5, .fill.z6, .fill.z7 { background: var(--zone-5); }
 .table-box { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
 th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }

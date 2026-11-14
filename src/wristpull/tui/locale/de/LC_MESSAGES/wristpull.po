@@ -2146,3 +2146,6 @@ msgstr "Start grün, Ziel orange; keine Karte, nichts verlässt den Rechner"
 
 msgid "this night vs. the mean of {n} nights in the 28 days before"
 msgstr "diese Nacht gegenüber dem Mittel von {n} Nächten der 28 Tage davor"
+
+msgid "<Z1: below zone 1"
+msgstr "<Z1: unterhalb von Zone 1"

@@ -443,8 +443,9 @@ def activity_page(conn: sqlite3.Connection, activity_id: int, tz: ZoneInfo) -> d
             chart["inverse"] = True  # faster is up
         charts.append(chart)
     zones_total = sum(detail["hr_zones_s"]) or 0
-    zones = [{"label": f"Z{i}", "seconds": s, "pct": round(100 * s / zones_total) if zones_total else 0}
-             for i, s in enumerate(detail["hr_zones_s"], 1)] if zones_total else []
+    # FIT time_in_hr_zone: entry 0 is the time below zone 1, then zones 1..n
+    zones = [{"label": "<Z1" if i == 0 else f"Z{i}", "seconds": s, "pct": round(100 * s / zones_total) if zones_total else 0, "zone": i}
+             for i, s in enumerate(detail["hr_zones_s"])] if zones_total else []
     donut = {"id": "zones", "title": "Time in heart-rate zones", "unit": "", "kind": "donut", "labels": [z["label"] for z in zones],
              "series": [{"name": "Time in heart-rate zones", "data": [round(z["seconds"] / 60, 1) for z in zones]}], "zones": True} if zones else None
     laps = detail["laps"]
@@ -452,7 +453,7 @@ def activity_page(conn: sqlite3.Connection, activity_id: int, tz: ZoneInfo) -> d
     if len(laps) > 1:
         if pace_sport and all(lap.get("distance_m") for lap in laps):
             values = [_pace_min_per_km((lap["distance_m"] or 0) / (lap.get("timer_s") or lap.get("elapsed_s") or 1)) for lap in laps]
-            lap_chart = {"id": "laps", "title": "Pace per lap", "unit": "min/km", "kind": "bar", "format": "pace", "inverse": True}
+            lap_chart = {"id": "laps", "title": "Pace per lap", "unit": "min/km", "kind": "bar", "format": "pace"}  # shorter bar = faster lap
         else:
             values = [_r((lap.get("timer_s") or lap.get("elapsed_s") or 0) / 60, 1) for lap in laps]
             lap_chart = {"id": "laps", "title": "Minutes per lap", "unit": "min", "kind": "bar"}
