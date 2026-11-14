@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Restarting") }}{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="8; url=/login">{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Restarting the dashboard") }}</h1>
+</header>
+<section class="card settings-section">
+<p class="note info"><span class="spinner" aria-hidden="true"></span> {{ _("The server stops now and Docker starts it again with the restored settings. This page returns to the login in a few seconds.") }}</p>
+<p><a class="secondary btn-link" href="/login">{{ _("Log in") }}</a></p>
+</section>
+{% endblock %}

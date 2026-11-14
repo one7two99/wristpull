@@ -82,6 +82,7 @@
 <a href="/files" {% if page == "files" %}aria-current="page"{% endif %}>{{ _("Files") }}</a>
 <a href="/export" {% if page == "export" %}aria-current="page"{% endif %}>{{ _("Export") }}</a>
 <a href="/settings" {% if page == "settings" %}aria-current="page"{% endif %}>{{ _("Settings") }}</a>
+<a href="/backup" {% if page == "backup" %}aria-current="page"{% endif %}>{{ _("Backup") }}</a>
 <a href="/help" {% if page == "help" %}aria-current="page"{% endif %}>{{ _("Help") }}</a>
 <form method="post" action="/lang" class="langswitch">
 <input type="hidden" name="csrf" value="{{ csrf }}">

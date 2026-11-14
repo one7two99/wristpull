@@ -243,8 +243,38 @@ opens the watch while an agent job uses it, the other side gets the known "devic
 
 Not carried over: the command palette, the TUI theme list (the web has light and dark), the OSC 52
 clipboard (a copy button in `app.js` instead), `import garmin --path <host folder>` (the container
-cannot see host folders; an inbox under the data directory may follow later). Backup and restore
-stay on the command line: an archive with the secrets is nothing to download in a browser.
+cannot see host folders; an inbox under the data directory may follow later).
+
+### Backup and restore in the browser (wave B, 2026-11-14)
+
+The one thing the TUI never had: the whole state of an instance moves through the browser. The goal is
+"delete the clone and the data directory, clone again, run the setup script, `docker compose up -d`,
+log in with the start password and restore everything from the archive".
+
+- **Archive** = `wristpull backup create` (format 2): data directory without `staging/` and `backups/`,
+  database as a SQLite online-backup copy, config file, `.env` and the files of `deploy/certs/`. Compose
+  mounts `.env` (`/checkout/.env`, `WRISTPULL_ENV_FILE`) and `deploy/certs` (`/certs`, `WRISTPULL_CERTS_DIR`)
+  read-write into `web` and `cli` for this; Caddy's own CA (volume `caddy_data`) stays out, host installs
+  (udev, AppArmor) are the setup script's job. Archives live in `<data_dir>/backups/` (CLI, host script and
+  page share the default; the Files page hides the folder and `secrets.json`).
+- **Page `/backup`** (`pages.backup_data`, `backup_preview`; linked from Settings and the More sheet): create
+  as an in-process job (`backup-create`), list with manifest, host path, download (`FileResponse`,
+  `application/gzip`), two-step delete; upload as a **raw request body** streamed into
+  `<backups>/<name>.part` (CSRF in the header, `X-File-Name`, `Content-Length` required, free-space check,
+  manifest check before listing; the form parser and `/tmp` are never involved, `static/app.js` drives the
+  XHR with a progress bar); restore in two steps: preview (manifest, what the instance already holds via
+  `backup.data_present`, free space), then the dashboard password (the start password while none is set),
+  refused while another job or an agent job runs.
+- **Restore while running** (`backup-restore` job, `restore_backup(force=True)`): the archive's files overwrite,
+  the live `wristpull.sqlite` is not replaced but overwritten through the backup API after its checksum was
+  verified (same inode: the dashboard's and the agent's connections stay valid; WAL checkpoint afterwards),
+  `.env` and the config are rewritten in place (single-file bind mounts), certificates written, then the
+  config is reloaded in place (`apply_config`, data dir pinned) and `secrets.apply` runs. Nothing is deleted.
+- **Afterwards:** "Restart the dashboard" (only with `WRISTPULL_IN_CONTAINER=1`: the process sends itself
+  SIGTERM after the response, Docker restarts it) applies session secret and time zone; `.env` and
+  certificate changes need `docker compose up -d` on the host, which the page says. A start-password session
+  ends the moment a real hash exists (`/login?restored=1`, htmx polls get `HX-Redirect`), so the restorer must
+  know the archive's password.
 
 ### Security
 

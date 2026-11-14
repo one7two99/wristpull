@@ -159,3 +159,21 @@ def test_setup_full_run_with_fakes(tmp_path: Path):
 def test_setup_help():
     result = subprocess.run(["bash", str(REPO / "contrib" / "bin" / "wristpull-setup"), "--help"], capture_output=True, text=True)
     assert result.returncode == 0 and "the one place to start" in result.stdout
+
+
+def test_restore_script_passes_force_and_certs_through(tmp_path: Path):
+    """``--force`` may stand anywhere; the container gets the archive, data, config and checkout mounts."""
+    checkout, fake_bin, log = make_checkout(tmp_path)
+    archive = tmp_path / "wp.tar.gz"
+    archive.write_bytes(b"x")
+    env = {**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}", "HOME": str(tmp_path / "home"), "WRISTPULL_COMPOSE": str(checkout / "compose.yaml")}
+    (tmp_path / "home").mkdir()
+    result = subprocess.run(["sh", str(checkout / "contrib" / "bin" / "wristpull-restore"), str(archive), "--force", str(tmp_path / "data")], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    calls = log.read_text("utf-8").splitlines()
+    run = next(line for line in calls if line.startswith("docker run"))
+    assert run.endswith("--force") and "--certs /checkout/deploy/certs" in run and f"-v {tmp_path / 'data'}:/data" in run and "--env /checkout/.env" in run
+    assert f"--host-data-dir {tmp_path / 'data'}" in run and (checkout / "deploy" / "certs").is_dir()
+    assert any(line.startswith("docker build") for line in calls)  # the fake says the image is missing
+    usage = subprocess.run(["sh", str(checkout / "contrib" / "bin" / "wristpull-restore")], env=env, capture_output=True, text=True)
+    assert usage.returncode == 2 and "usage" in usage.stderr

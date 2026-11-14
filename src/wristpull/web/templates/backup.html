@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}wristpull · {{ _("Backup") }}{% endblock %}
+{% block main %}
+<header class="page-head">
+<h1>{{ _("Backup & restore") }}</h1>
+<p class="muted">{{ _("One archive holds everything: the data directory (raw files, database, keys, coach profile, workouts), the config file, .env and the certificate files. Restore it here on a fresh instance, or on this one.") }}</p>
+</header>
+{% if message == "deleted" %}<p class="note ok">{{ _("Archive deleted.") }}</p>{% endif %}
+{% if message == "uploaded" %}<p class="note ok">{{ _("Archive uploaded. Check what it holds, then restore it.") }}</p>{% endif %}
+{% if restricted %}<p class="note warn-text">{{ _("You are logged in with the start password: restore a backup here, or set your own password first. After a restore, log in with the password of the backed-up instance.") }}</p>{% endif %}
+
+{% if preview %}
+<section class="card warn settings-section" id="restore" aria-live="assertive">
+<h2>{{ _("Restore {name}?").format(name=preview.name) }}</h2>
+{% if preview.error %}
+<p class="note error-box">{{ _("This archive cannot be read: {error}").format(error=preview.error) }}</p>
+<p><a class="secondary btn-link" href="/backup">{{ _("Cancel") }}</a></p>
+{% else %}
+<pre class="joblog" aria-label="{{ _('Archive contents') }}">{% for line in preview.lines %}{{ line }}
+{% endfor %}</pre>
+{% if preview.present %}
+<p class="note warn-text">{{ _("This instance already holds data: {what}. The archive's files overwrite them; nothing else is deleted.").format(what=preview.present|join(", ")) }}</p>
+{% else %}
+<p class="note info">{{ _("This instance is empty: the archive fills it.") }}</p>
+{% endif %}
+{% if not preview.enough_space %}<p class="note error-box">{{ _("Not enough free space: the archive unpacks to {needed}, {free} are free.").format(needed=preview.needed_bytes|bytes, free=preview.free_bytes|bytes) }}</p>{% endif %}
+{% if error == "password" %}<p class="error" role="alert">{{ _("The password is wrong.") }}</p>{% endif %}
+{% if error == "busy" %}<p class="error" role="alert">{{ _("Another job is still running.") }}</p>{% endif %}
+{% if error == "agent" %}<p class="error" role="alert">{{ _("The device agent is running a job; wait until it finishes.") }}</p>{% endif %}
+<form method="post" action="/backup/restore" hx-post="/backup/restore" hx-target="#job" hx-swap="outerHTML" class="settings-form">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="file" value="{{ preview.name }}">
+<input type="hidden" name="confirm" value="1">
+<div class="field"><label for="password">{{ _("Password") }}</label><input id="password" name="password" type="password" autocomplete="current-password" required autofocus><span class="hint">{{ _("Your dashboard password confirms the restore (the start password while none is set).") }}</span></div>
+<p class="muted small">{{ _("The database is overwritten in place, config and .env are rewritten, raw files replaced; the dashboard keeps running. Afterwards restart it, and run the compose command on the host when .env or the certificates came back.") }}</p>
+<div class="inline wrap"><button type="submit" class="primary" {% if not preview.enough_space %}disabled{% endif %}>{{ _("Restore now") }}</button> <a class="secondary btn-link" href="/backup">{{ _("Cancel") }}</a></div>
+</form>
+{% endif %}
+</section>
+{% endif %}
+
+{% if confirm %}
+<section class="card warn" aria-live="assertive">
+<p>{{ _("Delete the archive {name}? This cannot be undone.").format(name=confirm) }}</p>
+<form method="post" action="/backup/delete" class="inline wrap">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="file" value="{{ confirm }}">
+<input type="hidden" name="confirm" value="1">
+<button type="submit" class="primary">{{ _("Delete") }}</button>
+<a class="secondary btn-link" href="/backup">{{ _("Cancel") }}</a>
+</form>
+</section>
+{% endif %}
+
+{% if job or restored or busy %}
+<section class="card settings-section" id="status">
+{% include "_job.html" %}
+{% if restored %}
+<div class="note ok">
+<p><strong>{{ _("Restored.") }}</strong> {{ _("Restart the dashboard so the session secret and the time zone from the archive take effect, then log in with the restored password.") }}</p>
+{% if d.in_container %}
+<form method="post" action="/backup/restart" class="inline wrap">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button type="submit" class="primary">{{ _("Restart the dashboard") }}</button>
+</form>
+{% else %}
+<p class="muted small">{{ _("Stop and start `wristpull serve` yourself; this instance does not run in Docker.") }}</p>
+{% endif %}
+<p class="muted small">{{ _("On the host, afterwards: check WRISTPULL_SITE, WRISTPULL_TLS and WRISTPULL_USB_GID in .env, then run the compose command so the agent, Caddy and the dashboard pick up the restored .env and certificates. The udev rule and the AppArmor profile are host installs (setup script).") }}</p>
+<p class="muted small cli"><code>$ {{ d.host_cli }}</code> <button type="button" class="copy" data-copy="{{ d.host_cli }}">{{ _("Copy") }}</button></p>
+</div>
+{% endif %}
+</section>
+{% else %}
+<div id="job" hidden></div>
+{% endif %}
+
+{% if not restricted %}
+<section class="card settings-section" id="create">
+<h2>{{ _("Create a backup") }}</h2>
+<p class="muted small">{{ _("Written to {path}. The dashboard may keep running: the database is copied with SQLite's backup API.").format(path=d.host_folder) }}
+{% if not d.env_file %} {{ _("No .env found: secrets and the band's auth key are not in the archive.") }}{% endif %}
+{% if not d.certs_dir %} {{ _("No certificate folder found: deploy/certs is not in the archive.") }}{% endif %}</p>
+<form method="post" action="/backup/create" hx-post="/backup/create" hx-target="#job" hx-swap="outerHTML" class="actions">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button type="submit" class="primary">{{ _("Create a backup now") }}</button>
+</form>
+<p class="muted small">{{ _("The archive contains secrets (password hash, session secret, API keys, the band's auth key): keep it on a disk you trust, never in mail or chat.") }}</p>
+</section>
+{% endif %}
+
+<section class="card settings-section" id="upload">
+<h2>{{ _("Upload an archive") }}</h2>
+<p class="muted small">{{ _("A wristpull-backup-….tar.gz from another instance. It lands in the backups folder and is checked before it is listed; restore it from the list below.") }}</p>
+<div class="actions upload" data-upload="/backup/upload">
+<label class="secondary btn-link upload-pick" for="archive">{{ _("Choose a file") }}</label>
+<input id="archive" type="file" accept=".gz,application/gzip,application/x-gzip" class="upload-input">
+<span class="hint" data-upload-name data-empty="{{ _('no file chosen') }}">{{ _("no file chosen") }}</span>
+<button type="button" class="primary" data-upload-start disabled>{{ _("Upload") }}</button>
+<progress data-upload-progress max="100" value="0" hidden></progress>
+<p class="note error-box" data-upload-error hidden></p>
+</div>
+<p class="muted small">{{ _("Large archives take a while over Wi-Fi. Copying the file into {path} by hand (scp) works just as well.").format(path=d.host_folder) }}</p>
+</section>
+
+<section class="card settings-section" id="archives">
+<h2>{{ _("Archives") }}</h2>
+{% if d.archives %}
+<ul class="archive-list">
+{% for a in d.archives %}
+<li class="archive">
+<div class="archive-head"><code>{{ a.name }}</code><span class="muted small">{{ a.when }} · {{ a.size|bytes }}</span></div>
+{% if a.error %}<p class="error">{{ a.error }}</p>{% else %}
+<p class="muted small">{{ _("Holds") }}: {{ _("data") }}{% if a.has_config %}, {{ _("config") }}{% endif %}{% if a.has_env %}, .env{% endif %}{% if a.has_certs %}, {{ _("certificates") }}{% endif %} · wristpull {{ a.version }} · {{ _("schema") }} {{ a.schema or "?" }} · {{ a.files }} {{ _("files") }}{% if a.data_dir %} · {{ a.data_dir }}{% endif %}</p>
+{% endif %}
+<div class="row-actions">
+{% if not a.error %}
+<form method="post" action="/backup/restore" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="file" value="{{ a.name }}"><button type="submit" class="primary">{{ _("Restore…") }}</button></form>
+{% endif %}
+{% if not restricted %}
+<a class="secondary btn-link" href="/backup/download?name={{ a.name|urlencode }}">{{ _("Download") }}</a>
+<form method="post" action="/backup/delete" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="file" value="{{ a.name }}"><button type="submit" class="secondary">{{ _("Delete…") }}</button></form>
+{% endif %}
+<button type="button" class="copy" data-copy="{{ a.host_path }}" title="{{ a.host_path }}">{{ _("Copy path") }}</button>
+</div>
+</li>
+{% endfor %}
+</ul>
+{% else %}
+<p class="muted">{{ _("No archives yet in {path}.").format(path=d.host_folder) }}</p>
+{% endif %}
+<p class="muted small">{{ _("Free space in the data directory: {free}.").format(free=d.free_bytes|bytes) }}{% if d.present %} {{ _("This instance holds: {what}.").format(what=d.present|join(", ")) }}{% endif %}</p>
+<p class="muted small cli"><code>$ {{ d.cli_create }}</code> <button type="button" class="copy" data-copy="{{ d.cli_create }}">{{ _("Copy") }}</button> · <code>$ {{ d.cli_restore }}</code></p>
+</section>
+{% endblock %}

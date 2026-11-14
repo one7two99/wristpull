@@ -67,7 +67,7 @@ examples below use the short form.
 | `coach` | training coach: daily check, weekly review, questions, ratings via an LLM |
 | `workout` | structured workouts as Markdown, pushed to the watch as FIT files |
 | `reparse` | re-parse archived raw files after a parser change |
-| `backup create\|show\|restore` | the whole state (data, config, `.env`) as one tar.gz, and back onto a new machine |
+| `backup create\|show\|restore` | the whole state (data, config, `.env`, certificates) as one tar.gz, and back onto a new machine; the same from the dashboard's Backup page |
 | `tui` | the terminal UI over all of the above |
 | `serve` | the web dashboard for phone and browser (also as a Docker container) |
 
@@ -487,37 +487,46 @@ wristpull reparse --errors                     # retry what failed last time
 
 #### `wristpull backup create|show|restore`
 
-Everything wristpull knows is the data directory, the config file and the `.env` next to
-`compose.yaml`. `backup create` packs the three into one `wristpull-backup-<date>.tar.gz`
-(`MANIFEST.json`, `env`, `config.toml`, `data/…`, `SHA256SUMS`): `staging/` is left out, the
-database goes in as a consistent copy made with SQLite's backup API, so the dashboard may keep
-running. The archive contains the secrets and is written with mode 0600; keep it on a disk you
-trust. `backup show` prints the manifest. `backup restore` unpacks into an empty data directory,
-writes the config and `.env`, and rewrites what belongs to the machine: `UID`/`GID`, `WRISTPULL_DATA`
-and `WRISTPULL_CONFIG` in `.env`, `[storage] data_dir` in the config. Secrets, timezone, strap
-address, raw-file modes and everything else are kept; checksums are verified; nothing is deleted
-(`--force` lets the archive overwrite existing files).
+Everything wristpull knows is the data directory, the config file, the `.env` next to
+`compose.yaml` and the own-CA certificate files in `deploy/certs/`. `backup create` packs the four
+into one `wristpull-backup-<date>.tar.gz` (`MANIFEST.json`, `env`, `config.toml`, `certs/…`,
+`data/…`, `SHA256SUMS`; archive format 2, format 1 archives without `certs/` are still read):
+`staging/` and `backups/` are left out, the database goes in as a consistent copy made with SQLite's
+backup API, so the dashboard may keep running. The archive contains the secrets and is written with
+mode 0600; keep it on a disk you trust. The default target is `<data_dir>/backups/`, the folder the
+dashboard's Backup page uses as well. `backup show` prints the manifest. `backup restore` unpacks
+into the data directory, writes the config, `.env` and the certificate files, and rewrites what
+belongs to the machine: `UID`/`GID`, `WRISTPULL_DATA` and `WRISTPULL_CONFIG` in `.env`,
+`[storage] data_dir` in the config. Secrets, timezone, strap address, raw-file modes and everything
+else are kept; checksums are verified; nothing is deleted (`--force` lets the archive overwrite
+existing files). `.env` and the config are rewritten in place (they are single-file bind mounts in
+the containers), and an existing database is overwritten through the backup API instead of being
+replaced, so the dashboard's and the agent's open connections keep working on the same file.
 
 | Option | Effect |
 |---|---|
-| `create --out PATH` | directory (default `.`) or a file name ending in `.tar.gz` |
-| `create --env FILE` | the `.env` to include (default `./.env` when `./compose.yaml` exists; otherwise the archive has no secrets) |
+| `create --out PATH` | directory (default `<data_dir>/backups/`) or a file name ending in `.tar.gz` |
+| `create --env FILE` | the `.env` to include (default `WRISTPULL_ENV_FILE`, else `./.env` when `./compose.yaml` exists; otherwise the archive has no secrets) |
+| `create --certs DIR` | the certificate folder to include (default `WRISTPULL_CERTS_DIR`, else `./deploy/certs` in a checkout) |
 | `restore --data-dir DIR` | where the data goes (default: the configured data directory) |
-| `restore --env FILE` | where `.env` goes (default as above) |
+| `restore --env FILE`, `--certs DIR` | where `.env` and the certificate files go (defaults as above) |
 | `restore --host-data-dir`, `--host-config` | the paths as the host sees them, for runs inside the container |
 | `restore --uid`, `--gid` | for `.env` (default: the current user) |
 | `restore --force` | overwrite existing files |
 
 ```sh
-wristpull backup create --out ~/Health/wristpull-backups        # native install, from the checkout
+wristpull backup create                                        # native install, from the checkout → <data_dir>/backups/
 contrib/bin/wristpull-backup                                   # Docker: same, via the cli service
-contrib/bin/wristpull-restore ~/Health/wristpull-backups/wristpull-backup-2026-11-08-0905.tar.gz
+contrib/bin/wristpull-restore ~/Health/wristpull/backups/wristpull-backup-2026-11-08-0905.tar.gz
                                                                # new machine: clone, then this (builds the image, writes .env)
 ```
 
-Moving to another machine is therefore: `wristpull-backup` here, copy the archive, `git clone` and
-`wristpull-restore` there, then `docker compose build && docker compose up -d` and steps 4 to 6 of
-[docs/setup.md](docs/setup.md) (udev rule, AppArmor profile, Caddy's new certificate on the phone).
+Moving to another machine is therefore: `wristpull-backup` here (or the Backup page in the browser),
+copy the archive, `git clone` and `wristpull-restore` there, then `docker compose build && docker
+compose up -d` and steps 4 to 6 of [docs/setup.md](docs/setup.md) (udev rule, AppArmor profile; the
+phone needs Caddy's new certificate only when no own certificates were in the archive). The way
+without the restore script: `docker compose up -d` on a fresh `.env`, log in with the start password,
+"Restore a backup instead" and upload the archive on the Backup page (see "Web dashboard").
 
 #### `wristpull tui`
 
@@ -735,6 +744,22 @@ password the dashboard accepts the start password `wristpull` exactly until you 
 it insists on at that first login; without `WRISTPULL_WEB_SECRET` it generates a secret once and keeps
 it in the store, so sessions survive restarts. The store is part of every backup (like `.env`).
 
+**Backup and restore in the browser.** The Backup page (`/backup`, linked from Settings and the "More"
+sheet) writes the same archive as `wristpull backup create` into `<data_dir>/backups/`: data
+directory, config file, `.env` and the certificate files from `deploy/certs/` (compose mounts both
+into the `web` container for this). The page lists the archives with their manifest, offers download
+and a two-step delete, and takes an upload from another instance as a raw request body with a
+progress bar (nothing passes through a form parser or `/tmp`); the archive is checked before it is
+listed. "Restore" first shows what the archive holds and what this instance already has, then needs
+the dashboard password. The restore runs as a job while the dashboard keeps serving: the archive's
+files overwrite, the live database is overwritten through SQLite's backup API (open connections of
+the dashboard and the agent stay valid), config and `.env` are rewritten in place, the configuration
+is reloaded; nothing is deleted. Afterwards "Restart the dashboard" (inside Docker; the process exits
+and is started again) applies the restored session secret and time zone, and `docker compose up -d`
+on the host hands the restored `.env` and certificates to the agent and Caddy. On a fresh instance
+the start-password login offers "Restore a backup instead": upload, restore, and log in with the
+password of the backed-up instance (the start-password session ends the moment a real hash exists).
+
 `.env` also names the data directory, the config file and `WRISTPULL_SITE`, the addresses Caddy
 serves (for example `https://192.168.1.10:8443, https://localhost:8443`). Caddy terminates HTTPS
 with its own local certificate authority; the app container has no published port. To make the
@@ -813,6 +838,7 @@ checked by `tests/test_web_parity.py`):
 | 0 Workouts | `/workouts`, `/workouts/watch` | editor, push/verify/delete through the agent, watch view |
 | ? Help, F12 | `/help`, EN/DE switch | page overview with command-line equivalents |
 | – | `/trends`, `/metrics/<key>`, `/insights` | charts and analysis beyond the TUI ([analysis concept](docs/analysis-concept.md)) |
+| – | `/backup` | the whole state as one archive: create, download, upload, restore into this instance (`wristpull backup`, beyond the TUI) |
 
 ## Running everything in Docker
 
@@ -884,11 +910,12 @@ contrib/bin/wristpull tui                  # wrapper for the line above (works f
   ([docs/platforms.md](docs/platforms.md)).
 - **Updating:** `git pull && docker compose build` rebuilds the one image for all three services;
   `docker compose up -d web agent` restarts the dashboard and the agent.
-- **Moving to another machine or restoring a backup:** `contrib/bin/wristpull-backup` writes the
-  whole state (data directory, config file, `.env`) as one tar.gz; on the new machine
-  `contrib/bin/wristpull-restore <archive>` right after the clone builds the image, unpacks everything
-  and writes `.env` for that user. [docs/setup.md](docs/setup.md) step 10 has the details and what
-  Caddy regenerates.
+- **Moving to another machine or restoring a backup:** the dashboard's Backup page (or
+  `contrib/bin/wristpull-backup`) writes the whole state (data directory, config file, `.env`,
+  certificate files) as one tar.gz; on the new machine either `contrib/bin/wristpull-restore <archive>`
+  right after the clone (builds the image, unpacks everything, writes `.env` for that user), or
+  `docker compose up -d` on a fresh `.env`, log in with the start password and upload the archive on
+  the Backup page. [docs/setup.md](docs/setup.md) step 10 has the details and what Caddy regenerates.
 
 ## Automation
 
@@ -930,6 +957,8 @@ open `/docs/`.
 ```
 ~/Health/wristpull/
 ├── wristpull.sqlite
+├── secrets.json                    password hash, session secret, keys saved on the settings page (0600)
+├── backups/                        archives of the Backup page and `wristpull backup create` (never inside an archive)
 ├── raw/<source>/<year>/<kind>/<sha256-prefix>_<original name>
 ├── exports/<from>_<to>/            summary.md + CSVs (wristpull export)
 ├── reports/<week|month>-<label>/   report.md (+ SVG charts)

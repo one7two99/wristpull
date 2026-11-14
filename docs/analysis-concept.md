@@ -83,7 +83,8 @@ and the page shows what it is made of.
    navigation are waves P2–P5 of this sequence; `tests/test_web_parity.py` will check that every
    TUI screen and job kind has a web route, and the README gets the table "TUI key ↔ web page".
 8. **Out of scope**: map tiles (external), machine learning, Garmin fields the fenix 6 does not
-   deliver (Training Readiness, Endurance Score), comparisons between users, backup in the browser.
+   deliver (Training Readiness, Endurance Score), comparisons between users. (Backup in the browser was
+   out of scope here and came later as its own wave, see `docs/dashboard-concept.md`.)
 
 ## Pages and charts
 

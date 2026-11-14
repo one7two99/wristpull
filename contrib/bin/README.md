@@ -46,16 +46,18 @@ wristpull"` switches to the native installation).
 `wristpull-backup` and `wristpull-restore` – the whole state as one tar.gz and back:
 
 ```sh
-contrib/bin/wristpull-backup                        # → ~/Health/wristpull-backups/wristpull-backup-<date>.tar.gz
-contrib/bin/wristpull-backup /media/disk/wp.tar.gz  # a directory or a file name
-# new machine, right after `git clone` (Docker is all it needs; no .env yet):
-contrib/bin/wristpull-restore wp.tar.gz [~/Health/wristpull [~/.config/wristpull/config.toml [--force]]]
+contrib/bin/wristpull-backup                        # → ~/Health/wristpull/backups/wristpull-backup-<date>.tar.gz
+contrib/bin/wristpull-backup /media/disk/wp.tar.gz  # a directory or a file name instead
+contrib/bin/wristpull-restore wp.tar.gz [~/Health/wristpull] [~/.config/wristpull/config.toml] [--force]
 ```
 
-`wristpull-backup` runs `wristpull backup create` in the `cli` service with the checkout's `.env`
-mounted read-only; the dashboard may keep running. `wristpull-restore` builds the image when it is
-missing and runs `wristpull backup restore` in a plain container (compose would need the `.env` the
-restore writes, and the AppArmor profile is not installed yet on a fresh machine); it writes `.env`
-with your UID/GID and the two paths. Afterwards `docker compose build && docker compose up -d` and
-docs/setup.md steps 4 to 6. The archive holds secrets: mode 0600, keep it on a disk you trust.
+`wristpull-backup` runs `wristpull backup create` in the `cli` service; compose mounts the checkout's
+`.env` and `deploy/certs/` into it, so both are in the archive, and the dashboard may keep running. The
+default folder is the one the dashboard's Backup page uses (`<data_dir>/backups/`, never part of an
+archive). `wristpull-restore` builds the image when it is missing and runs `wristpull backup restore`
+in a plain container (compose would need the `.env` the restore writes, and the AppArmor profile is not
+installed yet on a fresh machine); it writes `.env`, the config, the data directory and the certificate
+files. The same restore works without the script: `docker compose up -d` on a fresh `.env`, log in with
+the start password and upload the archive on the Backup page.
+
 What an archive holds: `docker compose run --rm -v "$f:/b.tar.gz:ro" cli wristpull backup show /b.tar.gz`.

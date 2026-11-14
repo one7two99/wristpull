@@ -175,17 +175,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_wplan = workout_sub.add_parser("from-plan", help="draft one workout per session of the coach's last weekly plan")
     p_wplan.add_argument("--week", help="Monday of the week to plan (default: the week the plan was written for)")
 
-    p_backup = sub.add_parser("backup", help="the whole state (data directory, config, .env) as one tar.gz, and restoring it on another machine")
+    p_backup = sub.add_parser("backup", help="the whole state (data directory, config, .env, certificates) as one tar.gz, and restoring it on another machine")
     backup_sub = p_backup.add_subparsers(dest="backup_cmd", required=True)
     p_bcreate = backup_sub.add_parser("create", help="write wristpull-backup-<date>.tar.gz (the dashboard may keep running)")
-    p_bcreate.add_argument("--out", type=Path, default=Path("."), help="directory, or a file name ending in .tar.gz (default: current directory)")
-    p_bcreate.add_argument("--env", type=Path, help="the .env next to compose.yaml to include (default: ./.env when ./compose.yaml exists)")
+    p_bcreate.add_argument("--out", type=Path, help="directory, or a file name ending in .tar.gz (default: <data_dir>/backups/)")
+    p_bcreate.add_argument("--env", type=Path, help="the .env next to compose.yaml to include (default: WRISTPULL_ENV_FILE, else ./.env when ./compose.yaml exists)")
+    p_bcreate.add_argument("--certs", type=Path, help="the deploy/certs folder to include (default: WRISTPULL_CERTS_DIR, else ./deploy/certs in a checkout)")
     p_bshow = backup_sub.add_parser("show", help="print what an archive holds")
     p_bshow.add_argument("archive", type=Path)
-    p_brestore = backup_sub.add_parser("restore", help="unpack an archive into the data directory, the config file and .env (UID/GID and paths are rewritten for this machine)")
+    p_brestore = backup_sub.add_parser("restore", help="unpack an archive into the data directory, the config file, .env and deploy/certs (UID/GID and paths are rewritten for this machine)")
     p_brestore.add_argument("archive", type=Path)
     p_brestore.add_argument("--data-dir", type=Path, help="where the data goes (default: the configured data directory)")
-    p_brestore.add_argument("--env", type=Path, help="where .env goes (default: ./.env when ./compose.yaml exists)")
+    p_brestore.add_argument("--env", type=Path, help="where .env goes (default: WRISTPULL_ENV_FILE, else ./.env when ./compose.yaml exists)")
+    p_brestore.add_argument("--certs", type=Path, help="where the certificate files go (default: WRISTPULL_CERTS_DIR, else ./deploy/certs in a checkout)")
     p_brestore.add_argument("--host-data-dir", type=Path, help="the data directory as the host sees it, written into .env and the config (container runs)")
     p_brestore.add_argument("--host-config", type=Path, help="the config file as the host sees it, written into .env (container runs)")
     p_brestore.add_argument("--uid", type=int, help="UID for .env (default: the current user)")
@@ -455,25 +457,23 @@ def cmd_config(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
-def _compose_env(explicit: Path | None) -> Path | None:
-    """The .env to back up or restore: the given one, else ./.env when run from a checkout."""
-    if explicit:
-        return explicit
-    return Path(".env") if Path("compose.yaml").is_file() else None
-
-
 def cmd_backup(args: argparse.Namespace, config: Config) -> int:
     from . import backup
-    from .runtime import host_path
+    from .runtime import certs_dir as default_certs_dir
+    from .runtime import env_file, host_path
 
     config_path = args.config or default_config_path()
     log = (lambda msg: None) if args.quiet else print
     try:
         if args.backup_cmd == "create":
-            env_path = _compose_env(args.env)
+            env_path = args.env or env_file()
             if env_path is None or not env_path.is_file():
                 print("note: no .env included (pass --env <file> or run from the checkout); secrets and the strap key are not in the archive")
-            stats = backup.create_backup(config.data_dir, config_path, env_path, args.out, log=log)
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+
+            stats = backup.create_backup(config.data_dir, config_path, env_path, args.out or backup.backups_dir(config.data_dir), certs_dir=args.certs or default_certs_dir(),
+                                         log=log, now=datetime.now(ZoneInfo(config.timezone)))
             print(f"backup written: {host_path(stats.path)}")
             if stats.manifest.has_env:
                 print("it contains .env (secrets, API keys, the band's auth key): keep it on a disk you trust, never in mail or chat")
@@ -484,12 +484,13 @@ def cmd_backup(args: argparse.Namespace, config: Config) -> int:
             for line in backup.describe(manifest):
                 print(line)
             return 0
-        env_path = _compose_env(args.env)
+        env_path = args.env or env_file()
         stats = backup.restore_backup(
             args.archive,
             data_dir=args.data_dir or config.data_dir,
             config_path=config_path,
             env_path=env_path,
+            certs_dir=args.certs or default_certs_dir(),
             host_data_dir=args.host_data_dir,
             host_config=args.host_config,
             uid=args.uid,
@@ -504,10 +505,12 @@ def cmd_backup(args: argparse.Namespace, config: Config) -> int:
         print(f"note: {note}")
     if stats.manifest.has_env and not stats.env_path:
         print("note: the archive's .env was not written (pass --env <file> or run from the checkout)")
+    if stats.manifest.has_certs and not stats.certs_dir:
+        print("note: the archive's certificate files were not written (pass --certs <dir> or run from the checkout)")
     shown_config = args.host_config or stats.config_path
-    print(f"restored into {host_path(stats.data_dir)}" + (f", config {shown_config}" if stats.config_path else "") + (f", {stats.env_path}" if stats.env_path else ""))
-    print("next: check WRISTPULL_SITE and WRISTPULL_USB_GID in .env; docker compose build && docker compose up -d;")
-    print("      udev rule and AppArmor profile as in docs/setup.md steps 4 and 5; the phone must trust Caddy's new certificate")
+    print(f"restored into {host_path(stats.data_dir)}" + (f", config {shown_config}" if stats.config_path else "") + (f", {stats.env_path}" if stats.env_path else "") + (f", certificates in {stats.certs_dir}" if stats.certs_dir else ""))
+    print("next: check WRISTPULL_SITE, WRISTPULL_TLS and WRISTPULL_USB_GID in .env; docker compose build && docker compose up -d;")
+    print("      udev rule and AppArmor profile as in docs/setup.md steps 4 and 5; without own certificates the phone must trust Caddy's new one")
     return 0
 
 

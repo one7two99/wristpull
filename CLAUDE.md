@@ -121,13 +121,20 @@
   repo. Tests inject
   `FakeTransport` (`tests/fake_band.py`, plays the band behind the real codec) and synthetic buffers
   (`tests/zepp_buffers.py`); an autouse fixture blocks bleak. Never put real fetch buffers into the repository.
-- Backup/restore (`src/wristpull/backup.py`, `wristpull backup create|show|restore`): one tar.gz (`wristpull-backup/` with
-  `MANIFEST.json`, `env`, `config.toml`, `data/…`, `SHA256SUMS`) of the data directory (no `staging/`, database as a
-  SQLite online-backup copy), the config file and `.env`. Restore extracts with `filter="data"`, keeps the archived modes
-  (raw files stay 0444), verifies the checksums, rewrites only UID/GID and the two paths in `.env` and `[storage] data_dir`,
-  deletes nothing (`--force` overwrites). Host side: `contrib/bin/wristpull-backup` (cli service, `.env` mounted read-only)
-  and `contrib/bin/wristpull-restore` (plain `docker run` on a fresh clone, builds the image, writes `.env`). Tests build
-  synthetic state in `tests/test_backup.py`; never put a real archive into the repo (`.gitignore` guards the name).
+- Backup/restore (`src/wristpull/backup.py`, `wristpull backup create|show|restore`, web page `/backup`): one tar.gz
+  (`wristpull-backup/` with `MANIFEST.json`, `env`, `config.toml`, `certs/…`, `data/…`, `SHA256SUMS`; format 2, format 1
+  still read) of the data directory (no `staging/`, no `backups/`, database as a SQLite online-backup copy), the config
+  file, `.env` and `deploy/certs/` (compose mounts `.env` at `/checkout/.env` and the folder at `/certs` into `web` and
+  `cli`; `runtime.env_file`/`certs_dir`). Default target `<data_dir>/backups/`. Restore extracts with `filter="data"`,
+  keeps the archived modes (raw files stay 0444), verifies the checksums, rewrites only UID/GID and the two paths in
+  `.env` and `[storage] data_dir`, deletes nothing (`--force` overwrites); `.env` and config are written IN PLACE
+  (single-file bind mounts), an existing database is overwritten through the backup API after its checksum check
+  (open connections survive), never unlinked. The web page: upload as a raw body stream (no form parser), restore needs
+  the password and runs as a web job while serving, restart button only with `WRISTPULL_IN_CONTAINER=1`
+  (`WebDeps.restart` in tests), a start-password session ends once a hash exists. Host side: `contrib/bin/wristpull-backup`
+  (cli service) and `contrib/bin/wristpull-restore` (plain `docker run` on a fresh clone, builds the image, writes `.env`
+  and the certs, `--force` anywhere). Tests build synthetic state in `tests/test_backup.py`; never put a real archive into
+  the repo (`.gitignore` guards the name).
 - Host scripts (`contrib/bin/`, POSIX sh or bash, shellcheck-clean): `wristpull` (wrapper), `wristpull-morning`,
   `wristpull-backup`/`wristpull-restore`, `wristpull-setup` (the guided first-run script: one function per step, all
   changes through `run()`/`sudo_run()`, `--dry-run`). `tests/test_contrib_scripts.py` checks syntax and drives the

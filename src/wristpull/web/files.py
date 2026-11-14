@@ -1,8 +1,9 @@
 """The Files page: a safe view of the data directory (listing, download, preview), no SQL here.
 
 Every path from the browser is relative to the data directory and resolved before use; anything
-that leaves the directory, is hidden, or lies under ``adb/`` (the private adb key) or ``staging/``
-(half-copied files) is refused.
+that leaves the directory, is hidden, lies under ``adb/`` (the private adb key), ``staging/``
+(half-copied files) or ``backups/`` (archives with secrets: the Backup page serves them), or is the
+secrets store itself is refused.
 """
 
 from __future__ import annotations
@@ -11,7 +12,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-HIDDEN_DIRS = frozenset({"adb", "staging"})
+HIDDEN_DIRS = frozenset({"adb", "staging", "backups"})
+HIDDEN_FILES = frozenset({"secrets.json", "secrets.json.tmp"})  # at the top of the data directory
 TEXT_SUFFIXES = frozenset({".md", ".txt", ".csv", ".toml", ".json", ".log", ".ics"})
 PREVIEW_LINES = 40
 PREVIEW_BYTES = 64 * 1024
@@ -33,6 +35,8 @@ def safe_path(data_dir: Path, rel: str | None) -> Path:
     except ValueError as exc:
         raise BadPath(text) from exc
     if parts and (parts[0] in HIDDEN_DIRS or any(p.startswith(".") for p in parts)):
+        raise BadPath(text)
+    if len(parts) == 1 and parts[0] in HIDDEN_FILES:
         raise BadPath(text)
     return target
 
@@ -66,7 +70,7 @@ def listing(data_dir: Path, rel: str | None) -> dict[str, Any]:
     dirs: list[dict[str, Any]] = []
     files: list[dict[str, Any]] = []
     for child in sorted(folder.iterdir(), key=lambda p: p.name.lower()):
-        if child.name.startswith(".") or (folder == data_dir.resolve() and child.name in HIDDEN_DIRS):
+        if child.name.startswith(".") or (folder == data_dir.resolve() and child.name in HIDDEN_DIRS | HIDDEN_FILES):
             continue
         try:
             stat = child.stat()

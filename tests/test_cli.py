@@ -289,15 +289,22 @@ def test_backup_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
     checkout.mkdir()
     (checkout / "compose.yaml").write_text("services: {}\n", "utf-8")
     (checkout / ".env").write_text("UID=1\nGID=1\nWRISTPULL_DATA=/old\nWRISTPULL_CONFIG=/old.toml\nWRISTPULL_WEB_SECRET=s\n", "utf-8")
+    (checkout / "deploy" / "certs").mkdir(parents=True)
+    (checkout / "deploy" / "certs" / "wristpull.pem").write_text("cert\n", "utf-8")
     monkeypatch.chdir(checkout)
-    out = tmp_path / "backups"
-    assert main(["--config", str(cfg_file), "backup", "create", "--out", str(out)]) == 0
+    monkeypatch.delenv("WRISTPULL_ENV_FILE", raising=False)
+    monkeypatch.delenv("WRISTPULL_CERTS_DIR", raising=False)
+    assert main(["--config", str(cfg_file), "backup", "create"]) == 0  # default target: <data_dir>/backups/
     text = capsys.readouterr().out
     assert "backup written: " in text and "contains .env" in text
-    archive = next(out.glob("wristpull-backup-*.tar.gz"))
+    archive = next((data / "backups").glob("wristpull-backup-*.tar.gz"))
     assert main(["backup", "show", str(archive)]) == 0
     text = capsys.readouterr().out
-    assert "env:       included (secrets!)" in text and "data dir:  /old" in text
+    assert "env:       included (secrets!)" in text and "data dir:  /old" in text and "certs:     wristpull.pem" in text
+    out = tmp_path / "backups"
+    assert main(["--config", str(cfg_file), "backup", "create", "--out", str(out)]) == 0
+    capsys.readouterr()
+    archive = next(out.glob("wristpull-backup-*.tar.gz"))
     # restore into a second checkout and data directory
     new_checkout = tmp_path / "new"
     new_checkout.mkdir()
@@ -311,6 +318,10 @@ def test_backup_commands(cfg_file: Path, tmp_path: Path, capsys, monkeypatch):
     assert f'data_dir = "{tmp_path / "new-data"}"' in new_cfg.read_text("utf-8")
     env_text = (new_checkout / ".env").read_text("utf-8")
     assert "UID=7\nGID=8\n" in env_text and f"WRISTPULL_CONFIG={new_cfg}\n" in env_text and "WRISTPULL_WEB_SECRET=s" in env_text
+    assert not (new_checkout / "deploy").exists()  # no certs folder in the new checkout: the files are skipped with a note
+    (new_checkout / "deploy" / "certs").mkdir(parents=True)
+    assert main(["--config", str(new_cfg), "backup", "restore", str(archive), "--data-dir", str(tmp_path / "new-data"), "--force"]) == 0
+    assert (new_checkout / "deploy" / "certs" / "wristpull.pem").read_text("utf-8") == "cert\n"
     assert main(["--config", str(new_cfg), "status"]) == 0
     # a second restore refuses to touch the occupied targets
     assert main(["--config", str(new_cfg), "backup", "restore", str(archive), "--data-dir", str(tmp_path / "new-data")]) == 1

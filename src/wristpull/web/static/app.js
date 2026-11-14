@@ -325,3 +325,44 @@
   document.addEventListener("htmx:afterSwap", (event) => init(event.target.ownerDocument ? document : document));
   init(document);
 })();
+
+// Backup page: upload an archive as the raw request body (no multipart, nothing spooled through /tmp on the
+// server) with a progress bar; the CSRF token travels in the header like every htmx request.
+(function () {
+  "use strict";
+  const box = document.querySelector("[data-upload]");
+  if (!box) return;
+  const input = box.querySelector("input[type=file]");
+  const start = box.querySelector("[data-upload-start]");
+  const name = box.querySelector("[data-upload-name]");
+  const bar = box.querySelector("[data-upload-progress]");
+  const error = box.querySelector("[data-upload-error]");
+  const headers = (() => { try { return JSON.parse(document.body.getAttribute("hx-headers") || "{}"); } catch (e) { return {}; } })();
+  const fail = (text) => { error.textContent = text; error.removeAttribute("hidden"); bar.setAttribute("hidden", ""); start.disabled = !input.files.length; };
+  input.addEventListener("change", () => {
+    const file = input.files[0];
+    name.textContent = file ? `${file.name} (${(file.size / 1e6).toFixed(1)} MB)` : name.getAttribute("data-empty") || "";
+    start.disabled = !file;
+    error.setAttribute("hidden", "");
+  });
+  start.addEventListener("click", () => {
+    const file = input.files[0];
+    if (!file) return;
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", box.getAttribute("data-upload"));
+    for (const key of Object.keys(headers)) xhr.setRequestHeader(key, headers[key]);
+    xhr.setRequestHeader("Content-Type", "application/gzip");
+    xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
+    xhr.upload.addEventListener("progress", (ev) => { if (ev.lengthComputable) bar.value = Math.round((ev.loaded / ev.total) * 100); });
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) window.location.assign("/backup?message=uploaded");
+      else fail(xhr.responseText || `upload failed (${xhr.status})`);
+    });
+    xhr.addEventListener("error", () => fail("upload failed: connection lost"));
+    bar.value = 0;
+    bar.removeAttribute("hidden");
+    start.disabled = true;
+    error.setAttribute("hidden", "");
+    xhr.send(file);
+  });
+})();

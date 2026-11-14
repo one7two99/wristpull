@@ -16,7 +16,7 @@ from ..jobtext import Gettext, JobRecord, JobSpec, Ngettext, describe_result, re
 from .jobs import Job
 
 COACH_TITLES = {"daily": "Coach: daily check", "weekly": "Coach: weekly review", "ask": "Coach: question", "insights": "Coach: insights report"}
-WEB_TITLES = {"export": "Export for Claude", "report-week": "Weekly report", "report-month": "Monthly report", "coach-check": "Coach backend check"}
+WEB_TITLES = {"export": "Export for Claude", "report-week": "Weekly report", "report-month": "Monthly report", "coach-check": "Coach backend check", "backup-create": "Backup", "backup-restore": "Restore from backup"}
 
 
 @dataclass

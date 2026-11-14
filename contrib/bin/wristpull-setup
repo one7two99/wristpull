@@ -250,7 +250,7 @@ step_check() {
     [ "${relogin:-0}" = 1 ] && warn "group changes apply after you log out and in again"
     note "daily:   contrib/bin/wristpull-morning      (watch → strap → coach)"
     note "anytime: contrib/bin/wristpull <command>     (status, tui, pull strap, …)"
-    note "backup:  contrib/bin/wristpull-backup         (data, config, .env as one archive)"
+    note "backup:  contrib/bin/wristpull-backup, or the dashboard's Backup page (data, config, .env, certificates as one archive)"
     note "docs:    docs/setup.md, README.md"
 }
 

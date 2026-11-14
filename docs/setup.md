@@ -142,7 +142,7 @@ After a Docker upgrade that changes its default AppArmor profile, compare
 
 ## 10. Moving the data to another machine
 
-Everything wristpull knows lives in three places; nothing is stored inside the containers:
+Everything wristpull knows lives in four places; nothing is stored inside the containers:
 
 | What | Where | Holds |
 |---|---|---|
@@ -150,27 +150,32 @@ Everything wristpull knows lives in three places; nothing is stored inside the c
 | config | `~/.config/wristpull/config.toml` (`WRISTPULL_CONFIG`) | timezone, folders, `[strap] address`, coach and UI settings |
 | `.env` next to `compose.yaml` | the checkout | UID/GID, the two paths above, `WRISTPULL_SITE`; optionally dashboard secrets, API keys, the band's auth key (`WRISTPULL_STRAP_AUTHKEY`) |
 | secrets store | `~/Health/wristpull/secrets.json` (in the data directory, mode 0600) | what the Settings page saved: password hash, session secret, API keys, the band's auth key, the Ollama address; wins over `.env` |
+| certificates | `deploy/certs/` in the checkout (git-ignored) | your own CA's certificate and key when `WRISTPULL_TLS` points at them (empty with Caddy's own CA) |
 
-`wristpull backup` packs the three into one archive and unpacks it on the other side:
+`wristpull backup` packs all of it into one archive and unpacks it on the other side. The quickest way
+is the dashboard: **Backup page** → "Create a backup now", download the archive; on the new machine
+`docker compose up -d` with a fresh `.env`, log in with the start password, "Restore a backup
+instead", upload, restore, then `docker compose up -d` once more so the agent and Caddy get the
+restored `.env` and certificates. The same on the command line:
 
 ```sh
 # old machine (the dashboard may keep running)
-cd ~/dev/wristpull && contrib/bin/wristpull-backup          # → ~/Health/wristpull-backups/wristpull-backup-<date>.tar.gz
+cd ~/dev/wristpull && contrib/bin/wristpull-backup          # → ~/Health/wristpull/backups/wristpull-backup-<date>.tar.gz
 # copy the archive over: it holds the secrets, so scp/rsync or a disk, never mail or chat
-scp ~/Health/wristpull-backups/wristpull-backup-*.tar.gz newhost:
+scp ~/Health/wristpull/backups/wristpull-backup-*.tar.gz newhost:
 
 # new machine, after step 1 (Docker, groups) and the clone from step 2 – no .env, no config yet
 git clone https://github.com/one7two99/wristpull.git ~/dev/wristpull && cd ~/dev/wristpull
-contrib/bin/wristpull-restore ~/wristpull-backup-<date>.tar.gz          # builds the image, unpacks, writes .env
+contrib/bin/wristpull-restore ~/wristpull-backup-<date>.tar.gz          # builds the image, unpacks, writes .env and deploy/certs
 docker compose build && docker compose up -d                            # dashboard
 docker compose run --rm cli wristpull status                            # same counts as on the old machine
 ```
 
 `wristpull-restore` takes the data directory and the config file as optional second and third
 arguments (defaults `~/Health/wristpull`, `~/.config/wristpull/config.toml`) and refuses to touch
-targets that already hold something (`--force` as fourth argument lets the archive overwrite files;
-nothing is ever deleted). It rewrites `UID`/`GID`, `WRISTPULL_DATA` and `WRISTPULL_CONFIG` in `.env`
-and `[storage] data_dir` in the config for the new machine; everything else travels unchanged.
+targets that already hold something (`--force`, anywhere on the line, lets the archive overwrite
+files; nothing is ever deleted). It rewrites `UID`/`GID`, `WRISTPULL_DATA` and `WRISTPULL_CONFIG` in
+`.env` and `[storage] data_dir` in the config for the new machine; everything else travels unchanged.
 Then:
 
 - `.env`: set `WRISTPULL_SITE` to the new LAN address and check `WRISTPULL_USB_GID`
@@ -181,9 +186,10 @@ Then:
   talking to it.
 - The phone keeps trusting the copied adb keys (`adb/`); without them it asks once for a new
   authorisation.
-- Caddy's certificate authority is **not** in the archive (it lives in the Docker volume
+- Caddy's own certificate authority is **not** in the archive (it lives in the Docker volume
   `caddy_data`): the new machine mints a new one, so install the new `wristpull-root.crt` on the
-  phone (step 6) and remove the old one.
+  phone (step 6) and remove the old one. Own certificates from `deploy/certs/` are in the archive
+  and come back; `WRISTPULL_TLS` in the restored `.env` keeps pointing at them.
 - Optional on the old machine afterwards: `docker compose down -v` removes its containers and the
   Caddy volume; the data directory can stay as a backup.
 
@@ -193,13 +199,17 @@ files under `raw/` stay read-only).
 
 ### Backups
 
-`contrib/bin/wristpull-backup [DIR | FILE.tar.gz]` is the backup: one `wristpull-backup-<date>.tar.gz`
-with the data directory (without `staging/`, the database as a consistent copy made with SQLite's
-backup API, so nothing has to be stopped), the config file and `.env`, plus `MANIFEST.json` and
-`SHA256SUMS` (`wristpull backup show <archive>` prints the manifest). The archive holds the secrets
-and is written with mode 0600: keep it on an external disk or another machine, never in mail or chat.
-Restoring is `contrib/bin/wristpull-restore <archive>` into empty targets (or `--force` over the
-existing ones; nothing is deleted). The database schema migrates itself on the first connect, so an
+The dashboard's Backup page and `contrib/bin/wristpull-backup [DIR | FILE.tar.gz]` write the same
+backup: one `wristpull-backup-<date>.tar.gz` under `~/Health/wristpull/backups/` with the data
+directory (without `staging/` and `backups/`, the database as a consistent copy made with SQLite's
+backup API, so nothing has to be stopped), the config file, `.env` and the files of `deploy/certs/`,
+plus `MANIFEST.json` and `SHA256SUMS` (`wristpull backup show <archive>` prints the manifest; the
+page shows it per archive). The archive holds the secrets and is written with mode 0600: download it
+or copy it to an external disk or another machine, never in mail or chat. Restoring is the Backup
+page (upload or pick an archive, confirm with the password; the archive's files overwrite, the live
+database is overwritten in place, nothing is deleted, then "Restart the dashboard" and
+`docker compose up -d` on the host) or `contrib/bin/wristpull-restore <archive>` into empty targets
+(`--force` over the existing ones). The database schema migrates itself on the first connect, so an
 older archive opens fine, but whatever was imported after it has to be imported again
 (`import garmin-export`, `pull strap`, `import garmin`: device files are re-fetched only where the
 device still has them, which is why the raw files are the part worth keeping).

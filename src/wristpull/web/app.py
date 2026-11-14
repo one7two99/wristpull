@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from zoneinfo import ZoneInfo
 
 from jinja2 import pass_context
@@ -43,12 +43,27 @@ HERE = Path(__file__).parent
 COOKIE = "wristpull_session"
 INITIAL_PASSWORD = "wristpull"  # accepted only while no password hash exists anywhere; the login then forces a change
 PASSWORD_PATHS = ("/settings/password", "/logout")  # reachable while the password must still be changed
+BACKUP_PREFIX = "/backup"  # also reachable then: a fresh instance may be restored from an archive instead of set up
+UPLOAD_CHUNK = 1 << 20
 CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+
+
+def allowed_while_must_change(path: str) -> bool:
+    """The pages a start-password session may use: change the password, log out, or restore a backup."""
+    return path in PASSWORD_PATHS or path == BACKUP_PREFIX or path.startswith(BACKUP_PREFIX + "/")
+
+
+def restart_process() -> None:
+    """Ask the server to stop (Docker starts it again: ``restart: unless-stopped``); the response goes out first."""
+    import signal
+    import threading
+
+    threading.Timer(0.5, os.kill, (os.getpid(), signal.SIGTERM)).start()
 
 
 @dataclass
 class WebDeps:
-    """Side effects the tests replace: the clock, the login limiter, the coach backend, the job runner."""
+    """Side effects the tests replace: the clock, the login limiter, the coach backend, the job runner, the restart."""
 
     today: Callable[[], date] | None = None  # None: today in the configured time zone
     now: Callable[[], datetime] | None = None  # None: the clock (UTC); tests fix it to judge the agent's heartbeat
@@ -56,6 +71,7 @@ class WebDeps:
     limiter: RateLimiter = field(default_factory=RateLimiter)
     coach_backend: Callable[[Config, str], Any] | None = None  # None: make_backend from the config
     jobs: JobRegistry | None = None  # None: a threaded registry on the configured database
+    restart: Callable[[], None] | None = None  # None: restart_process (only offered inside the container)
 
 
 def _number(value: float | None, digits: int, lang: str) -> str:
@@ -212,11 +228,23 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
     def must_change(session: dict[str, Any]) -> bool:
         return bool(session.get("must_change")) and current_hash() is None
 
+    def restored_logout(request: Request) -> Response:
+        """A start-password session after a restore installed a real hash: it ends, the archive's password counts.
+        htmx polls get the redirect as a header (a 303 would be followed inside the XHR and swapped into the page)."""
+        if request.headers.get("hx-request"):
+            response: Response = PlainTextResponse("", headers={"HX-Redirect": "/login?restored=1"})
+        else:
+            response = RedirectResponse("/login?restored=1", status_code=303)
+        response.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="strict")
+        return response
+
     def require_user(request: Request) -> dict[str, Any] | Response:
         session = session_of(request)
         if not session or not session.get("user"):
             return RedirectResponse("/login", status_code=303)
-        if must_change(session) and request.url.path not in PASSWORD_PATHS:
+        if session.get("must_change") and current_hash() is not None:
+            return restored_logout(request)
+        if must_change(session) and not allowed_while_must_change(request.url.path):
             return RedirectResponse("/settings/password?first=1", status_code=303)
         return session
 
@@ -230,7 +258,7 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         if session and session.get("user"):
             return RedirectResponse("/", status_code=303)
         session = session or new_session()
-        return render(request, "login.html", session, {"error": None, "first_run": current_hash() is None}, set_session=True)
+        return render(request, "login.html", session, {"error": None, "first_run": current_hash() is None, "restored": bool(request.query_params.get("restored"))}, set_session=True)
 
     async def login_submit(request: Request) -> Response:
         form = await request.form()
@@ -414,7 +442,9 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
         session = session_of(request)
         if not session or not session.get("user"):
             return RedirectResponse("/login", status_code=303)
-        if must_change(session) and request.url.path not in PASSWORD_PATHS:
+        if session.get("must_change") and current_hash() is not None:
+            return restored_logout(request)
+        if must_change(session) and not allowed_while_must_change(request.url.path):
             return RedirectResponse("/settings/password?first=1", status_code=303)
         form = await request.form()
         if not csrf_ok(request, session, form):
@@ -1092,6 +1122,234 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             response.set_cookie(LANG_COOKIE, code, max_age=365 * 24 * 3600, httponly=True, secure=True, samesite="strict", path="/")
         return response
 
+    # ---- backup and restore: the whole state as one archive (data, config, .env, certificates) ----------
+
+    BACKUP_KEYS = ("backup-create", "backup-restore")
+
+    def backup_paths() -> tuple[Path, Path | None, Path | None, Path | None]:
+        """The backups folder, the config file, the .env file and the certificate folder as this process sees them."""
+        from .. import backup as lib
+        from ..runtime import certs_dir as find_certs
+        from ..runtime import env_file as find_env
+
+        return lib.backups_dir(config.data_dir), config.path or default_config_path(env), find_env(env), find_certs(env)
+
+    def backup_page(request: Request, session: dict[str, Any] | None = None, *, confirm: str | None = None, preview: dict[str, Any] | None = None,
+                    error: str | None = None, status_code: int = 200) -> Response:
+        session = session or require_user(request)
+        if isinstance(session, Response):
+            return session
+        data = pages.backup_data(config, dict(env), now=now())
+        for item in data["archives"]:
+            item["when"] = local_time(item["created_at"] or item["mtime"], tz)
+        current = jobs.last_of(BACKUP_KEYS)
+        view = web_view(current, request) if current else None
+        context = {"page": "backup", "d": data, "confirm": confirm, "preview": preview, "error": error, "message": request.query_params.get("message"),
+                   "job": view, "busy": False, "poll_url": "/backup/job", "show_log": True, "offline": False,
+                   "restricted": bool(session.get("must_change")),  # the start-password session: upload and restore only
+                   "restored": bool(current and current.key == "backup-restore" and current.status == "done")}
+        return render(request, "backup.html", session, context, status_code=status_code)
+
+    def backup_get(request: Request) -> Response:
+        return backup_page(request)
+
+    def backup_job(request: Request) -> Response:
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        job = jobs.last_of(BACKUP_KEYS)
+        return job_partial(request, session, keys=BACKUP_KEYS, poll_url="/backup/job", refresh=bool(request.query_params.get("poll") and job and not job.running))
+
+    async def backup_create(request: Request) -> Response:
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, _form = got
+        if session.get("must_change"):
+            return PlainTextResponse("set a password first", status_code=403)
+        folder, config_path, env_path, certs = backup_paths()
+        env_values = dict(env)
+
+        def run(conn: Any, log: Callable[[str], None]) -> str:
+            from .. import backup as lib
+            from ..runtime import host_path
+
+            host_data = str(host_path(config.data_dir, env_values))
+            stats = lib.create_backup(config.data_dir, config_path, env_path, folder, certs_dir=certs, now=datetime.now(tz),
+                                      log=lambda line: log(line.replace(str(config.data_dir), host_data)))
+            return f"{stats.manifest.files} files, {stats.manifest.bytes / 1e6:.1f} MB → {host_path(stats.path, env_values)}"
+
+        started = jobs.start("backup-create", "Backup", run, cli="wristpull backup create")
+        if is_htmx(request):
+            return job_partial(request, session, keys=BACKUP_KEYS, poll_url="/backup/job", busy=started is None)
+        return RedirectResponse("/backup", status_code=303)
+
+    def backup_download(request: Request) -> Response:
+        """One archive from <data_dir>/backups/ as an attachment (it holds secrets: the session guards it, like the page)."""
+        from .. import backup as lib
+
+        session = require_user(request)
+        if isinstance(session, Response):
+            return session
+        if session.get("must_change"):
+            return PlainTextResponse("set a password first", status_code=403)
+        name = str(request.query_params.get("name") or "")
+        folder = backup_paths()[0]
+        if not lib.archive_name_ok(name) or not (folder / name).is_file():
+            return PlainTextResponse("not found", status_code=404)
+        return FileResponse(str(folder / name), filename=name, media_type="application/gzip")
+
+    async def backup_delete(request: Request) -> Response:
+        """Two steps like a workout file: the first post shows the confirmation, the second (confirm=1) deletes."""
+        from .. import backup as lib
+
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        if session.get("must_change"):
+            return PlainTextResponse("set a password first", status_code=403)
+        name = str(form.get("file") or "")
+        if not lib.archive_name_ok(name):
+            return PlainTextResponse("bad archive name", status_code=400)
+        if form.get("confirm") is None:
+            return backup_page(request, session, confirm=name)
+        try:
+            lib.delete_backup(backup_paths()[0], name)
+        except lib.BackupError:
+            return PlainTextResponse("unknown archive", status_code=404)
+        return RedirectResponse("/backup?message=deleted", status_code=303)
+
+    async def backup_upload(request: Request) -> Response:
+        """The raw request body (an archive, hundreds of MB) streamed into <data_dir>/backups/: no form parser, no
+        temp copy; the CSRF token comes in the header, the file name in X-File-Name. The archive is checked
+        (manifest) before it is listed; anything else is removed again."""
+        import shutil
+
+        from .. import backup as lib
+
+        session = session_of(request)
+        if not session or not session.get("user"):
+            return PlainTextResponse("log in first", status_code=401)
+        if session.get("must_change") and current_hash() is not None:
+            return restored_logout(request)
+        if not csrf_ok(request, session, None):
+            return PlainTextResponse("CSRF token missing or wrong", status_code=403)
+        length = request.headers.get("content-length") or ""
+        if not length.isdigit() or int(length) <= 0:
+            return PlainTextResponse("Content-Length required", status_code=411)
+        size = int(length)
+        folder = backup_paths()[0]
+        folder.mkdir(parents=True, exist_ok=True)
+        free = shutil.disk_usage(folder).free
+        if size > free - UPLOAD_CHUNK * 64:
+            return PlainTextResponse(f"not enough free space: {free / 1e6:.0f} MB left", status_code=413)
+        target = lib.upload_target(folder, unquote(request.headers.get("x-file-name") or ""), now())
+        part = target.with_name(target.name + lib.PART_SUFFIX)
+        fd = os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        written = 0
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                async for chunk in request.stream():
+                    fh.write(chunk)
+                    written += len(chunk)
+            if written != size:
+                return PlainTextResponse(f"incomplete upload: {written} of {size} bytes", status_code=400)
+            os.replace(part, target)
+            try:
+                lib.read_manifest(target)
+            except lib.BackupError as exc:
+                target.unlink(missing_ok=True)
+                return PlainTextResponse(str(exc), status_code=400)
+        finally:
+            part.unlink(missing_ok=True)
+        return PlainTextResponse(target.name, status_code=201)
+
+    async def backup_restore(request: Request) -> Response:
+        """Step one shows what the archive holds and what this instance already has; step two (confirm=1) needs the
+        password and starts the restore job. Nothing is deleted: the archive's files overwrite, the database is
+        copied into the live file, config and .env are rewritten in place."""
+        from .. import backup as lib
+
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, form = got
+        name = str(form.get("file") or "")
+        preview = pages.backup_preview(config, dict(env), name)
+        if preview is None:
+            return PlainTextResponse("unknown archive", status_code=404)
+        if form.get("confirm") is None:
+            return backup_page(request, session, preview=preview)
+        if preview.get("error"):
+            return backup_page(request, session, preview=preview, error="archive", status_code=400)
+        encoded = current_hash()
+        given = str(form.get("password") or "")
+        if not ((encoded is None and given == INITIAL_PASSWORD) or (encoded and verify_password(given, encoded))):
+            return backup_page(request, session, preview=preview, error="password", status_code=403)
+        if not preview["enough_space"]:
+            return backup_page(request, session, preview=preview, error="space", status_code=400)
+        running = jobs.current()
+        if running and running.running:
+            return backup_page(request, session, preview=preview, error="busy", status_code=409)
+        with closing(connect(config.db_path)) as conn:
+            if queue.current_active(conn):
+                return backup_page(request, session, preview=preview, error="agent", status_code=409)
+        folder, config_path, env_path, certs = backup_paths()
+        env_values = dict(env)
+
+        def run(conn: Any, log: Callable[[str], None]) -> str:
+            from ..config import load_config
+            from ..runtime import HOST_CONFIG_ENV, HOST_DATA_DIR_ENV
+
+            stats = lib.restore_backup(
+                folder / name,
+                data_dir=config.data_dir,
+                config_path=config_path,
+                env_path=env_path,
+                certs_dir=certs,
+                host_data_dir=env_values.get(HOST_DATA_DIR_ENV) or None,
+                host_config=env_values.get(HOST_CONFIG_ENV) or None,
+                force=True,
+                log=log,
+            )
+            if stats.config_path:
+                fresh = load_config(stats.config_path, env=env_values)
+                fresh.data_dir = config.data_dir  # the mount (or the local folder) stays where it is
+                pages.apply_config(config, fresh)
+                log("configuration reloaded")
+            store.apply(config)
+            parts = [f"{stats.files} files restored"]
+            if stats.db_replaced_live:
+                parts.append("database overwritten in place")
+            if stats.env_path:
+                parts.append(".env rewritten")
+            if stats.certs_dir:
+                parts.append("certificates rewritten")
+            for note in stats.notes:
+                log(f"note: {note}")
+            return ", ".join(parts)
+
+        started = jobs.start("backup-restore", "Restore from backup", run, cli=f"wristpull backup restore {folder / name} --force")
+        if is_htmx(request):
+            return job_partial(request, session, keys=BACKUP_KEYS, poll_url="/backup/job", busy=started is None)
+        return RedirectResponse("/backup", status_code=303)
+
+    async def backup_restart(request: Request) -> Response:
+        """Stop the server so Docker starts it again with the restored secrets store and config (only inside the
+        container; a native `wristpull serve` has no supervisor and gets instructions instead)."""
+        from ..runtime import in_container
+
+        got = await posted(request)
+        if isinstance(got, Response):
+            return got
+        session, _form = got
+        if not in_container(env):
+            return PlainTextResponse("not running in a container", status_code=404)
+        response = render(request, "restarting.html", session, {"page": "backup"})
+        (deps.restart or restart_process)()
+        return response
+
     def help_page(request: Request) -> Response:
         session = require_user(request)
         if isinstance(session, Response):
@@ -1164,6 +1422,14 @@ def create_app(config: Config, *, password_hash: str | None = None, secret: str,
             Route("/workouts/edit", workout_edit),
             Route("/workouts/check", workout_check, methods=["POST"]),
             Route("/workouts/save", workout_save, methods=["POST"]),
+            Route("/backup", backup_get),
+            Route("/backup/create", backup_create, methods=["POST"]),
+            Route("/backup/job", backup_job),
+            Route("/backup/download", backup_download),
+            Route("/backup/delete", backup_delete, methods=["POST"]),
+            Route("/backup/upload", backup_upload, methods=["POST"]),
+            Route("/backup/restore", backup_restore, methods=["POST"]),
+            Route("/backup/restart", backup_restart, methods=["POST"]),
             Route("/login", login_page, methods=["GET"]),
             Route("/login", login_submit, methods=["POST"]),
             Route("/logout", logout, methods=["POST"]),

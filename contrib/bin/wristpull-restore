@@ -1,18 +1,36 @@
 #!/bin/sh
-# wristpull-restore ARCHIVE [DATA_DIR [CONFIG_FILE [--force]]]: set this machine up from a backup made
-# with wristpull-backup. Needs only Docker and the checkout, no .env yet: builds the image when it is
-# missing, runs `wristpull backup restore` in a plain container and writes .env next to compose.yaml
-# with this user's UID/GID and the paths given here. Defaults: ~/Health/wristpull and
-# ~/.config/wristpull/config.toml. Nothing is deleted; existing targets stop the restore unless --force.
-# Afterwards: docker compose build && docker compose up -d, plus docs/setup.md steps 4 and 5.
+# wristpull-restore ARCHIVE [DATA_DIR] [CONFIG_FILE] [--force]: set this machine up from a backup made
+# with wristpull-backup or the dashboard's Backup page. Needs only Docker and the checkout, no .env yet:
+# builds the image when it is missing, runs `wristpull backup restore` in a plain container and writes
+# .env next to compose.yaml with this user's UID/GID and the paths given here, plus the certificate
+# files into deploy/certs/. Defaults: ~/Health/wristpull and ~/.config/wristpull/config.toml. Nothing is
+# deleted; existing targets stop the restore unless --force (anywhere on the command line).
+# Afterwards: check WRISTPULL_SITE/WRISTPULL_TLS in .env, docker compose build && docker compose up -d,
+# plus docs/setup.md steps 4 and 5. The alternative without this script: docker compose up -d on a fresh
+# .env, log in with the start password and upload the archive on the Backup page.
 set -eu
-if [ $# -lt 1 ]; then
-    echo "usage: wristpull-restore ARCHIVE.tar.gz [DATA_DIR [CONFIG_FILE [--force]]]" >&2
+force=""
+archive=""
+data=""
+config=""
+for arg in "$@"; do
+    case "$arg" in
+        --force) force="--force" ;;
+        -h|--help) echo "usage: wristpull-restore ARCHIVE.tar.gz [DATA_DIR] [CONFIG_FILE] [--force]"; exit 0 ;;
+        *)
+            if [ -z "$archive" ]; then archive="$arg"
+            elif [ -z "$data" ]; then data="$arg"
+            elif [ -z "$config" ]; then config="$arg"
+            else echo "wristpull-restore: too many arguments: $arg" >&2; exit 2
+            fi ;;
+    esac
+done
+if [ -z "$archive" ]; then
+    echo "usage: wristpull-restore ARCHIVE.tar.gz [DATA_DIR] [CONFIG_FILE] [--force]" >&2
     exit 2
 fi
-archive="$1"; shift
-data="${1:-$HOME/Health/wristpull}"; [ $# -gt 0 ] && shift
-config="${1:-${XDG_CONFIG_HOME:-$HOME/.config}/wristpull/config.toml}"; [ $# -gt 0 ] && shift
+data="${data:-$HOME/Health/wristpull}"
+config="${config:-${XDG_CONFIG_HOME:-$HOME/.config}/wristpull/config.toml}"
 here="$(cd "$(dirname "$0")" && pwd -P)"
 compose="${WRISTPULL_COMPOSE:-$here/../../compose.yaml}"
 [ -f "$compose" ] || compose="$HOME/dev/wristpull/compose.yaml"
@@ -26,7 +44,7 @@ if [ ! -f "$archive" ]; then
     exit 2
 fi
 archive="$(cd "$(dirname "$archive")" && pwd -P)/$(basename "$archive")"
-mkdir -p "$data" "$(dirname "$config")"
+mkdir -p "$data" "$(dirname "$config")" "$checkout/deploy/certs"
 data="$(cd "$data" && pwd -P)"
 config_dir="$(cd "$(dirname "$config")" && pwd -P)"
 config="$config_dir/$(basename "$config")"
@@ -36,9 +54,10 @@ if ! docker image inspect wristpull:latest >/dev/null 2>&1; then
 fi
 # A plain `docker run`: compose would need the .env this restore is about to write, and the cli
 # service's AppArmor profile is not installed yet on a fresh machine.
+# shellcheck disable=SC2086  # $force is empty or --force
 docker run --rm --user "$(id -u):$(id -g)" \
     -e HOME=/home/wristpull -e WRISTPULL_IN_CONTAINER=1 -e WRISTPULL_DATA_DIR=/data -e "WRISTPULL_HOST_DATA_DIR=$data" \
     -v "$archive:/backup.tar.gz:ro" -v "$data:/data" -v "$config_dir:/config" -v "$checkout:/checkout" \
     wristpull:latest wristpull --config "/config/$(basename "$config")" backup restore /backup.tar.gz \
-    --data-dir /data --env /checkout/.env --host-data-dir "$data" --host-config "$config" \
-    --uid "$(id -u)" --gid "$(id -g)" "$@"
+    --data-dir /data --env /checkout/.env --certs /checkout/deploy/certs --host-data-dir "$data" --host-config "$config" \
+    --uid "$(id -u)" --gid "$(id -g)" $force

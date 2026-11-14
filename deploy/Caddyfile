@@ -11,6 +11,7 @@
 {$WRISTPULL_SITE} {
 	tls {$WRISTPULL_TLS:internal}
 	encode zstd gzip
+	# No request_body max_size and no proxy timeouts: the Backup page uploads whole archives (hundreds of MB).
 	reverse_proxy web:8000
 	header {
 		Strict-Transport-Security "max-age=31536000"

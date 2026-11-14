@@ -25,17 +25,28 @@ services:
       # and Export pages show paths you can open on the laptop.
       WRISTPULL_DATA_DIR: /data
       WRISTPULL_HOST_DATA_DIR: ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}
+      # The marker lets the Backup page offer "restart the dashboard" (the process exits, Docker starts it again).
+      WRISTPULL_IN_CONTAINER: "1"
+      # The .env file itself and deploy/certs, for the Backup page (archive and restore of the whole state).
+      WRISTPULL_ENV_FILE: /checkout/.env
+      WRISTPULL_CERTS_DIR: /certs
       # Coach runs with Ollama: the host as seen from the container (see README before changing OLLAMA_HOST).
       WRISTPULL_OLLAMA_URL: ${WRISTPULL_OLLAMA_URL:-http://host.docker.internal:11434}
       # Coach API keys: taken from the shell that runs `docker compose up`, or from .env.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
-      # Read-write: coach runs, ratings, journal notes, workout files and the secrets store (<data>/secrets.json,
-      # written by the settings page) live here.
+      # Read-write: coach runs, ratings, journal notes, workout files, the secrets store (<data>/secrets.json,
+      # written by the settings page) and the archives of the Backup page (<data>/backups/) live here.
       - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}:/data
       # Read-write since the settings page saves the config file (the TUI's settings screen does the same via `cli`).
       - ${WRISTPULL_CONFIG:?set WRISTPULL_CONFIG in .env}:/config/config.toml
+      # Read-write for the Backup page: .env goes into every archive and a restore rewrites it IN PLACE (a
+      # single-file bind mount can be truncated and rewritten, never unlinked). Compose re-reads it only on
+      # `docker compose up -d`, so a restored .env takes effect after that command on the host.
+      - ./.env:/checkout/.env
+      # Read-write for the same reason: the own-CA certificate files (Caddy keeps its read-only mount below).
+      - ./deploy/certs:/certs
     extra_hosts:
       # Ollama on the host as http://host.docker.internal:11434 (never OLLAMA_HOST=0.0.0.0, see README).
       - "host.docker.internal:host-gateway"
@@ -140,10 +151,16 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # The band's auth key for `pull strap`, like the API keys: from .env, never from the config file.
       WRISTPULL_STRAP_AUTHKEY: ${WRISTPULL_STRAP_AUTHKEY:-}
+      # `wristpull backup create|restore` inside the container: the .env file and deploy/certs (see `web`).
+      WRISTPULL_ENV_FILE: /checkout/.env
+      WRISTPULL_CERTS_DIR: /certs
     volumes:
       - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}:/data
       # Read-write: the TUI settings screen saves the config file.
       - ${WRISTPULL_CONFIG:?set WRISTPULL_CONFIG in .env}:/config/config.toml
+      # The .env file and the certificate folder for `wristpull backup` (archived, and rewritten in place on restore).
+      - ./.env:/checkout/.env
+      - ./deploy/certs:/certs
       # adb keys (adbkey, adbkey.pub): seed once from ~/.android so the phone needs no new authorisation.
       - ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}/adb:/home/wristpull/.android
       # USB pass-through for the watch (MTP) and the phone (ADB); hot-plug works because the whole bus is mounted.

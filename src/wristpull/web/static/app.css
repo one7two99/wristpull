@@ -435,3 +435,17 @@ td.good, span.good { color: var(--good); } td.bad, span.bad { color: var(--bad);
 .helptable th, .helptable td { text-align: left; white-space: normal; vertical-align: top; }
 .helptable td.num { text-align: center; }
 .helptable code { white-space: nowrap; }
+
+/* Backup page: the upload block (a file picker styled as a button, a progress bar) and the archive table. */
+.upload { align-items: flex-start; }
+.upload-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.upload-pick { cursor: pointer; }
+.upload-input:focus-visible + .hint { outline: 2px solid var(--accent); outline-offset: 2px; }
+.upload progress { width: 100%; max-width: 480px; height: 10px; accent-color: var(--accent); }
+.archive-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.archive { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.archive-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; }
+.archive-head code { word-break: break-all; }
+.archive .row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.archive .row-actions form, .archive .row-actions .inline { margin: 0; width: auto; }
+.archive .row-actions .btn-link, .archive .row-actions button { min-height: 36px; padding: 0 12px; }

@@ -2601,3 +2601,177 @@ msgstr "Workout-Dateien"
 
 msgid "Workout files, templates, drafts from the plan, editor; push, verify, delete; the watch view"
 msgstr "Workout-Dateien, Vorlagen, Entwürfe aus dem Plan, Editor; pushen, prüfen, löschen; die Uhr-Ansicht"
+
+msgid "A wristpull-backup-….tar.gz from another instance. It lands in the backups folder and is checked before it is listed; restore it from the list below."
+msgstr "Ein wristpull-backup-….tar.gz einer anderen Instanz. Es landet im Backup-Ordner und wird vor dem Auflisten geprüft; wiederherstellen aus der Liste unten."
+
+msgid "Archive"
+msgstr "Archiv"
+
+msgid "Archive contents"
+msgstr "Inhalt des Archivs"
+
+msgid "Archive deleted."
+msgstr "Archiv gelöscht."
+
+msgid "Archive uploaded. Check what it holds, then restore it."
+msgstr "Archiv hochgeladen. Prüfe, was es enthält, und stelle es dann wieder her."
+
+msgid "Archives"
+msgstr "Archive"
+
+msgid "Backup"
+msgstr "Backup"
+
+msgid "Backup & restore"
+msgstr "Backup & Wiederherstellung"
+
+msgid "Choose a file"
+msgstr "Datei wählen"
+
+msgid "Copy path"
+msgstr "Pfad kopieren"
+
+msgid "Create a backup"
+msgstr "Backup erstellen"
+
+msgid "Create a backup now"
+msgstr "Jetzt ein Backup erstellen"
+
+msgid "Delete the archive {name}? This cannot be undone."
+msgstr "Archiv {name} löschen? Das lässt sich nicht rückgängig machen."
+
+msgid "Delete…"
+msgstr "Löschen…"
+
+msgid "Everything in one archive: data, config, .env and certificates. Create, download, upload and restore on the backup page."
+msgstr "Alles in einem Archiv: Daten, Config, .env und Zertifikate. Erstellen, herunterladen, hochladen und wiederherstellen auf der Backup-Seite."
+
+msgid "Free space in the data directory: {free}."
+msgstr "Freier Platz im Datenordner: {free}."
+
+msgid "Holds"
+msgstr "Enthält"
+
+msgid "Large archives take a while over Wi-Fi. Copying the file into {path} by hand (scp) works just as well."
+msgstr "Große Archive brauchen über WLAN eine Weile. Die Datei von Hand nach {path} zu kopieren (scp) geht genauso."
+
+msgid "Moving from another instance?"
+msgstr "Umzug von einer anderen Instanz?"
+
+msgid "No archives yet in {path}."
+msgstr "Noch keine Archive in {path}."
+
+msgid "No certificate folder found: deploy/certs is not in the archive."
+msgstr "Kein Zertifikatsordner gefunden: deploy/certs ist nicht im Archiv."
+
+msgid "No .env found: secrets and the band's auth key are not in the archive."
+msgstr "Keine .env gefunden: Secrets und der Auth-Key des Bands sind nicht im Archiv."
+
+msgid "Not enough free space: the archive unpacks to {needed}, {free} are free."
+msgstr "Zu wenig freier Platz: das Archiv entpackt sich auf {needed}, frei sind {free}."
+
+msgid "On the host, afterwards: check WRISTPULL_SITE, WRISTPULL_TLS and WRISTPULL_USB_GID in .env, then run the compose command so the agent, Caddy and the dashboard pick up the restored .env and certificates. The udev rule and the AppArmor profile are host installs (setup script)."
+msgstr "Danach auf dem Host: WRISTPULL_SITE, WRISTPULL_TLS und WRISTPULL_USB_GID in .env prüfen, dann den Compose-Befehl ausführen, damit Agent, Caddy und Dashboard die wiederhergestellte .env und die Zertifikate übernehmen. udev-Regel und AppArmor-Profil sind Host-Installationen (Setup-Skript)."
+
+msgid "One archive holds everything: the data directory (raw files, database, keys, coach profile, workouts), the config file, .env and the certificate files. Restore it here on a fresh instance, or on this one."
+msgstr "Ein Archiv enthält alles: den Datenordner (Rohdateien, Datenbank, Schlüssel, Coach-Profil, Workouts), die Config-Datei, .env und die Zertifikatsdateien. Hier auf einer frischen Instanz wiederherstellen, oder auf dieser."
+
+msgid "Open the backup page"
+msgstr "Backup-Seite öffnen"
+
+msgid "Restart the dashboard"
+msgstr "Dashboard neu starten"
+
+msgid "Restart the dashboard so the session secret and the time zone from the archive take effect, then log in with the restored password."
+msgstr "Dashboard neu starten, damit Session-Secret und Zeitzone aus dem Archiv gelten; dann mit dem wiederhergestellten Passwort anmelden."
+
+msgid "Restarting"
+msgstr "Neustart"
+
+msgid "Restarting the dashboard"
+msgstr "Das Dashboard startet neu"
+
+msgid "Restore a backup instead"
+msgstr "Stattdessen ein Backup wiederherstellen"
+
+msgid "Restore from backup"
+msgstr "Wiederherstellung aus Backup"
+
+msgid "Restore now"
+msgstr "Jetzt wiederherstellen"
+
+msgid "Restore {name}?"
+msgstr "{name} wiederherstellen?"
+
+msgid "Restored."
+msgstr "Wiederhergestellt."
+
+msgid "Restored: log in with the password of the backed-up instance."
+msgstr "Wiederhergestellt: mit dem Passwort der gesicherten Instanz anmelden."
+
+msgid "Restore…"
+msgstr "Wiederherstellen…"
+
+msgid "Stop and start `wristpull serve` yourself; this instance does not run in Docker."
+msgstr "`wristpull serve` selbst stoppen und starten; diese Instanz läuft nicht in Docker."
+
+msgid "The database is overwritten in place, config and .env are rewritten, raw files replaced; the dashboard keeps running. Afterwards restart it, and run the compose command on the host when .env or the certificates came back."
+msgstr "Die Datenbank wird an Ort und Stelle überschrieben, Config und .env neu geschrieben, Rohdateien ersetzt; das Dashboard läuft weiter. Danach neu starten und auf dem Host den Compose-Befehl ausführen, wenn .env oder Zertifikate zurückkamen."
+
+msgid "The device agent is running a job; wait until it finishes."
+msgstr "Der Geräte-Agent führt gerade einen Job aus; warte, bis er fertig ist."
+
+msgid "The password is wrong."
+msgstr "Das Passwort ist falsch."
+
+msgid "The server stops now and Docker starts it again with the restored settings. This page returns to the login in a few seconds."
+msgstr "Der Server stoppt jetzt, Docker startet ihn mit den wiederhergestellten Einstellungen neu. Diese Seite springt in wenigen Sekunden zur Anmeldung."
+
+msgid "This archive cannot be read: {error}"
+msgstr "Dieses Archiv lässt sich nicht lesen: {error}"
+
+msgid "This instance holds: {what}."
+msgstr "Diese Instanz enthält: {what}."
+
+msgid "This instance is empty: the archive fills it."
+msgstr "Diese Instanz ist leer: das Archiv füllt sie."
+
+msgid "This instance already holds data: {what}. The archive's files overwrite them; nothing else is deleted."
+msgstr "Diese Instanz enthält schon Daten: {what}. Die Dateien des Archivs überschreiben sie; sonst wird nichts gelöscht."
+
+msgid "The archive contains secrets (password hash, session secret, API keys, the band's auth key): keep it on a disk you trust, never in mail or chat."
+msgstr "Das Archiv enthält Secrets (Passwort-Hash, Session-Secret, API-Keys, Auth-Key des Bands): auf einem vertrauenswürdigen Datenträger aufbewahren, nie per Mail oder Chat."
+
+msgid "Written to {path}. The dashboard may keep running: the database is copied with SQLite's backup API."
+msgstr "Wird nach {path} geschrieben. Das Dashboard darf weiterlaufen: die Datenbank wird mit SQLites Backup-API kopiert."
+
+msgid "Upload"
+msgstr "Hochladen"
+
+msgid "Upload an archive"
+msgstr "Archiv hochladen"
+
+msgid "You are logged in with the start password: restore a backup here, or set your own password first. After a restore, log in with the password of the backed-up instance."
+msgstr "Du bist mit dem Startpasswort angemeldet: stelle hier ein Backup wieder her oder setze zuerst dein eigenes Passwort. Nach einer Wiederherstellung meldest du dich mit dem Passwort der gesicherten Instanz an."
+
+msgid "Your dashboard password confirms the restore (the start password while none is set)."
+msgstr "Dein Dashboard-Passwort bestätigt die Wiederherstellung (das Startpasswort, solange keines gesetzt ist)."
+
+msgid "certificates"
+msgstr "Zertifikate"
+
+msgid "data"
+msgstr "Daten"
+
+msgid "no file chosen"
+msgstr "keine Datei gewählt"
+
+msgid "schema"
+msgstr "Schema"
+
+msgid "Config file, keys, password, coach backend check, appearance, language, link to the backup page"
+msgstr "Config-Datei, Schlüssel, Passwort, Prüfung des Coach-Backends, Darstellung, Sprache, Link zur Backup-Seite"
+
+msgid "One archive of everything (data, config, .env, certificates): create, download, upload, restore into this instance"
+msgstr "Ein Archiv von allem (Daten, Config, .env, Zertifikate): erstellen, herunterladen, hochladen, in diese Instanz wiederherstellen"

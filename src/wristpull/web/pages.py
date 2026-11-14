@@ -1214,11 +1214,12 @@ HELP_PAGES: tuple[tuple[str, str, str, str, str], ...] = (
     ("5", "Sleep", "/sleep", "Nights as bed-to-wake bars; hypnogram, night curves and stage shares per night", "wristpull sleep"),
     ("6", "Files", "/files", "The data directory: archive rows, FIT inspect, previews, downloads", "wristpull inspect FILE"),
     ("7", "Export & Report", "/export", "Claude export and weekly or monthly reports as jobs with downloads; reports also as pages", "wristpull export --for-claude · wristpull report week|month"),
-    ("8", "Settings", "/settings", "Config file, keys, password, coach backend check, appearance and language", "wristpull config"),
+    ("8", "Settings", "/settings", "Config file, keys, password, coach backend check, appearance, language, link to the backup page", "wristpull config"),
     ("9", "Coach", "/coach", "Daily check, weekly review, questions, insights report, dry run, goal profile and wizard, journal", "wristpull coach daily|weekly|ask|insights · coach profile --wizard"),
     ("0", "Workouts", "/workouts", "Workout files, templates, drafts from the plan, editor; push, verify, delete; the watch view", "wristpull workout new|push|verify|watch|remove"),
     ("–", "Trends", "/trends", "A sparkline tile per metric and the training load; metric pages with baseline, zoom, day curve and weekday pattern", "wristpull trends"),
     ("–", "Insights", "/insights", "Readiness with components, sleep regularity, relationships with sweet spots, day tags, the AI report", "wristpull coach insights · coach tag DATE +sauna"),
+    ("–", "Backup", "/backup", "One archive of everything (data, config, .env, certificates): create, download, upload, restore into this instance", "wristpull backup create|show|restore"),
 )
 
 
@@ -1245,4 +1246,95 @@ def help_data(config: Config, env: dict[str, str] | None = None) -> dict[str, An
             ("Coach concept", "https://github.com/one7two99/wristpull/blob/master/docs/coach-concept.md"),
             ("Setup", "https://github.com/one7two99/wristpull/blob/master/docs/setup.md"),
         ],
+    }
+
+
+# ---- backup and restore (the whole state in one archive) ------------------------------------------
+
+HOST_CHECKLIST_KEYS = ("WRISTPULL_SITE", "WRISTPULL_TLS", "WRISTPULL_USB_GID")
+
+
+def backup_data(config: Config, env: dict[str, str], *, now: datetime | None = None) -> dict[str, Any]:
+    """Everything the Backup page shows: the archives in ``<data_dir>/backups/`` with their manifests, what this
+    instance already holds, free disk space, and whether .env, the certificates and the container marker are around."""
+    import shutil
+
+    from .. import backup
+    from ..runtime import certs_dir as find_certs
+    from ..runtime import env_file as find_env
+    from ..runtime import host_path, in_container
+
+    folder = backup.backups_dir(config.data_dir)
+    env_path = find_env(env)
+    certs = find_certs(env)
+    archives = []
+    for info in backup.list_backups(folder):
+        m = info.manifest
+        archives.append({
+            "name": info.name,
+            "size": info.size,
+            "mtime": info.mtime,
+            "host_path": str(host_path(info.path, env)),
+            "error": info.error,
+            "created_at": m.created_at if m else None,
+            "version": m.wristpull_version if m else None,
+            "schema": m.schema_version if m else None,
+            "files": m.files if m else None,
+            "bytes": m.bytes if m else None,
+            "has_env": bool(m and m.has_env),
+            "has_config": bool(m and m.has_config),
+            "has_certs": bool(m and m.has_certs),
+            "data_dir": m.data_dir if m else None,
+        })
+    try:
+        free = shutil.disk_usage(config.data_dir).free
+    except OSError:
+        free = None
+    return {
+        "folder": str(folder),
+        "host_folder": str(host_path(folder, env)),
+        "archives": archives,
+        "present": backup.data_present(config.data_dir),
+        "free_bytes": free,
+        "env_file": str(env_path) if env_path and env_path.is_file() else None,
+        "certs_dir": str(certs) if certs and certs.is_dir() else None,
+        "in_container": in_container(env),
+        "cli_create": "wristpull backup create",
+        "cli_restore": "wristpull backup restore <archive> --force",
+        "host_cli": "docker compose up -d",
+    }
+
+
+def backup_preview(config: Config, env: dict[str, str], name: str) -> dict[str, Any] | None:
+    """The confirmation step of a restore: the archive's manifest, what would be overwritten, the space check."""
+    import shutil
+
+    from .. import backup
+
+    folder = backup.backups_dir(config.data_dir)
+    if not backup.archive_name_ok(name) or not (folder / name).is_file():
+        return None
+    try:
+        manifest = backup.read_manifest(folder / name)
+    except backup.BackupError as exc:
+        return {"name": name, "error": str(exc)}
+    try:
+        free = shutil.disk_usage(config.data_dir).free
+    except OSError:
+        free = None
+    needed = backup.needed_free_bytes(manifest)
+    present = backup.data_present(config.data_dir)
+    return {
+        "name": name,
+        "error": None,
+        "lines": list(backup.describe(manifest)),
+        "schema": manifest.schema_version,
+        "version": manifest.wristpull_version,
+        "created_at": manifest.created_at,
+        "has_env": manifest.has_env,
+        "has_certs": manifest.has_certs,
+        "present": present,
+        "needed_bytes": needed,
+        "free_bytes": free,
+        "enough_space": free is None or free >= needed,
     }

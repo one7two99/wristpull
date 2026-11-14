@@ -479,6 +479,10 @@ def test_web_strings_have_german_translations():
     ids.update(pages.STAGE_ORDER)
     ids.update({"Heart rate", "Altitude", "m"})
     ids.update(pages.COACH_KINDS)
+    from wristpull.web import jobview
+
+    ids.update(jobview.WEB_TITLES.values())
+    ids.update(what for _k, _s, _p, what, _c in pages.HELP_PAGES)
     ids.update(pages.TEMPLATE_KINDS)
     ids.update({"draft", "pushed", "verified", "removed", "running", "cycling", "walking", "strength", "cardio"})
     ids.update({"Resting HR", "HRV last night", "Sleep", "Stress", "Training per week", "Acute:chronic load", "Watch", "Strap", "Hours", "ACWR"})
@@ -512,7 +516,7 @@ def test_web_strings_have_german_translations():
                                                                             "%", "/min", "kg", "min", "ml/kg/min", "SpO2", "VO2max",
                                                                             "Detail", "Garmin", "Export", "Export & Report", "BB", "Int.", "…", "Filter",
                                                                             "HRV (RMSSD)", "W", "km/h", "min/km", "rpm", "spm", "Readiness", "Sauna", "Tag", "Report", "Status", "Workout", "wristpull", "NewFiles",
-                                                                            "Coach", "README", "Setup"})
+                                                                            "Coach", "README", "Setup", "Backup"})
     assert not missing, missing
     assert de.ngettext("{n} warning sign", "{n} warning signs", 2) == "{n} Warnzeichen"
 
@@ -1180,3 +1184,188 @@ def test_settings_page_saves_config_and_keys(seeded: Config, password_hash: str,
     cleared = client.post("/settings/secrets", data={"csrf": token, "clear_WRISTPULL_STRAP_AUTHKEY": "1", "ollama_url": ""})
     assert cleared.status_code == 303 and store.load(seeded) == {}
     assert client.post("/settings/config", data={"timezone": "x"}).status_code == 403  # CSRF
+
+
+# ---- backup and restore in the browser ----------------------------------------------------------
+
+
+def backup_env(tmp_path: Path, **extra: str) -> dict[str, str]:
+    """A checkout-like .env and certificate folder the web app may archive and rewrite."""
+    env_file = tmp_path / "checkout" / ".env"
+    env_file.parent.mkdir(parents=True, exist_ok=True)
+    env_file.write_text("UID=1\nGID=1\nWRISTPULL_DATA=/old\nWRISTPULL_SITE=https://live.example\n", "utf-8")
+    certs = tmp_path / "checkout" / "deploy" / "certs"
+    certs.mkdir(parents=True, exist_ok=True)
+    (certs / "wristpull.pem").write_text("live cert\n", "utf-8")
+    return {"WRISTPULL_ENV_FILE": str(env_file), "WRISTPULL_CERTS_DIR": str(certs), **extra}
+
+
+def source_archive(tmp_path: Path, *, password: str = "archive password") -> Path:
+    """An archive of another instance: journal rows, a config with its own time zone, .env, certs, a secrets store."""
+    from test_backup import make_certs, make_state
+
+    from wristpull import backup
+    from wristpull import secrets as store
+
+    data, config, env = make_state(tmp_path / "source")
+    config.write_text('[storage]\ndata_dir = "/home/old/Health/wristpull"\n[time]\ntimezone = "Europe/Vienna"\n', "utf-8")
+    store.save(Config(data_dir=data), {store.PASSWORD_HASH: hash_password(password), store.WEB_SECRET: "archived-secret"})
+    certs = make_certs(tmp_path / "source")
+    return backup.create_backup(data, config, env, tmp_path / "source" / "out", certs_dir=certs).path
+
+
+def test_backup_page_creates_lists_downloads_and_deletes(seeded: Config, password_hash: str, tmp_path: Path):
+    env = backup_env(tmp_path)
+    client = client_for(seeded, password_hash, env=env)
+    login(client)
+    page = client.get("/backup")
+    assert page.status_code == 200 and "No archives yet" in page.text and "Create a backup now" in page.text and "raw files" in page.text  # the instance holds raw files
+    token = csrf_of(page.text)
+    started = client.post("/backup/create", data={"csrf": token}, headers={"hx-request": "true"})
+    assert started.status_code == 200 and "finished" in started.text and "files," in started.text and "MB" in started.text
+    assert client.get("/backup/job?poll=1").headers["hx-refresh"] == "true"
+    page = client.get("/backup")
+    folder = seeded.data_dir / "backups"
+    archive = next(folder.glob("wristpull-backup-*.tar.gz"))
+    assert archive.name in page.text and ".env" in page.text and "certificates" in page.text and str(folder) in page.text and "schema" in page.text
+    assert "Stop and start" not in page.text  # no restore happened yet
+    download = client.get(f"/backup/download?name={archive.name}")
+    assert download.status_code == 200 and download.headers["content-disposition"].startswith("attachment") and download.headers["content-type"].startswith("application/gzip")
+    assert download.content[:2] == b"\x1f\x8b" and len(download.content) == archive.stat().st_size
+    for bad in ("..%2F.env", "nope.tar.gz", "", "secrets.json", archive.name + ".part"):
+        assert client.get(f"/backup/download?name={bad}").status_code == 404, bad
+    # the Files page keeps the archives and the secrets store out of reach
+    assert client.get("/files?dir=backups").status_code == 404 and client.get("/files/download?path=backups%2F" + archive.name).status_code == 404
+    (seeded.data_dir / "secrets.json").write_text("{}", "utf-8")
+    assert client.get("/files/download?path=secrets.json").status_code == 404 and "secrets.json" not in client.get("/files").text and "backups" not in client.get("/files").text.split("filelist")[1].split("</ul>")[0]
+    # deleting takes two steps
+    first = client.post("/backup/delete", data={"csrf": token, "file": archive.name})
+    assert first.status_code == 200 and "Delete the archive" in first.text and archive.exists()
+    assert client.post("/backup/delete", data={"csrf": token, "file": "../x.tar.gz", "confirm": "1"}).status_code == 400
+    assert client.post("/backup/delete", data={"csrf": token, "file": "ghost.tar.gz", "confirm": "1"}).status_code == 404
+    done = client.post("/backup/delete", data={"csrf": token, "file": archive.name, "confirm": "1"})
+    assert done.status_code == 303 and done.headers["location"] == "/backup?message=deleted" and not archive.exists()
+    assert "Archive deleted" in client.get("/backup?message=deleted").text
+    assert client.post("/backup/create", data={}).status_code == 403  # CSRF
+
+
+def test_backup_upload_streams_the_body_and_checks_the_archive(seeded: Config, password_hash: str, tmp_path: Path, monkeypatch):
+    import shutil
+
+    client = client_for(seeded, password_hash, env=backup_env(tmp_path))
+    login(client)
+    token = csrf_of(client.get("/backup").text)
+    archive = source_archive(tmp_path)
+    payload = archive.read_bytes()
+    folder = seeded.data_dir / "backups"
+    assert client.post("/backup/upload", content=payload).status_code == 403  # no CSRF header
+    assert client.post("/backup/upload", content=b"", headers={"x-csrf-token": token}).status_code == 411
+    bad = client.post("/backup/upload", content=b"not a tar at all", headers={"x-csrf-token": token, "x-file-name": "junk.tar.gz"})
+    assert bad.status_code == 400 and "cannot read" in bad.text and not list(folder.iterdir())
+    usage = shutil.disk_usage(folder)
+    monkeypatch.setattr(shutil, "disk_usage", lambda p: usage._replace(free=10))
+    assert client.post("/backup/upload", content=payload, headers={"x-csrf-token": token}).status_code == 413
+    monkeypatch.setattr(shutil, "disk_usage", lambda p: usage)
+    good = client.post("/backup/upload", content=payload, headers={"x-csrf-token": token, "x-file-name": "wristpull-backup-2026-11-01-0900.tar.gz"})
+    assert good.status_code == 201 and good.text == "wristpull-backup-2026-11-01-0900.tar.gz"
+    assert (folder / good.text).read_bytes() == payload and oct((folder / good.text).stat().st_mode & 0o777) == "0o600" and not list(folder.glob("*.part"))
+    again = client.post("/backup/upload", content=payload, headers={"x-csrf-token": token, "x-file-name": "wristpull-backup-2026-11-01-0900.tar.gz"})
+    assert again.status_code == 201 and again.text.startswith("wristpull-backup-upload-")  # the name was taken
+    page = client.get("/backup?message=uploaded")
+    assert "Archive uploaded" in page.text and good.text in page.text and "/home/old/Health/wristpull" in page.text
+
+
+def test_backup_restore_into_a_running_instance(seeded: Config, password_hash: str, tmp_path: Path):
+    from wristpull import secrets as store
+    from wristpull.agent import queue
+
+    env = backup_env(tmp_path, WRISTPULL_HOST_DATA_DIR="/srv/wp", WRISTPULL_CONFIG="/srv/config.toml")
+    seeded.path = tmp_path / "cfg" / "config.toml"
+    seeded.path.parent.mkdir()
+    seeded.path.write_text('[time]\ntimezone = "Europe/Berlin"\n', "utf-8")
+    client = client_for(seeded, password_hash, env=env)
+    login(client)
+    archive = source_archive(tmp_path)
+    folder = seeded.data_dir / "backups"
+    folder.mkdir()
+    name = "wristpull-backup-2026-11-01-0900.tar.gz"
+    (folder / name).write_bytes(archive.read_bytes())
+    page = client.get("/backup")
+    token = csrf_of(page.text)
+    assert "Restore…" in page.text
+    preview = client.post("/backup/restore", data={"csrf": token, "file": name})
+    assert preview.status_code == 200 and f"Restore {name}?" in preview.text and "already holds data" in preview.text and "raw files" in preview.text
+    assert "env:       included (secrets!)" in preview.text and "certs:     wristpull-key.pem, wristpull.pem" in preview.text
+    assert client.post("/backup/restore", data={"csrf": token, "file": "ghost.tar.gz"}).status_code == 404
+    wrong = client.post("/backup/restore", data={"csrf": token, "file": name, "confirm": "1", "password": "nope"})
+    assert wrong.status_code == 403 and "password is wrong" in wrong.text
+    from wristpull.db import connect
+
+    with connect(seeded.db_path) as conn:
+        job = queue.enqueue(conn, "import_garmin")
+        queue.claim(conn)
+        conn.commit()
+        busy = client.post("/backup/restore", data={"csrf": token, "file": name, "confirm": "1", "password": PASSWORD})
+        assert busy.status_code == 409 and "device agent is running" in busy.text
+        queue.finish(conn, job.id, result={})
+        conn.commit()
+        before = conn.execute("SELECT count(*) FROM raw_files").fetchone()[0]
+        assert before > 0
+    started = client.post("/backup/restore", data={"csrf": token, "file": name, "confirm": "1", "password": PASSWORD}, headers={"hx-request": "true"})
+    assert started.status_code == 200 and "finished" in started.text and "database overwritten in place" in started.text and ".env rewritten" in started.text and "certificates rewritten" in started.text
+    with connect(seeded.db_path) as conn:
+        assert conn.execute("SELECT count(*) FROM raw_files").fetchone()[0] == 0  # the archive's (empty) table replaced ours
+        assert [r[0] for r in conn.execute("SELECT note FROM journal ORDER BY local_date")] == ["kept", "still open"]
+    assert seeded.timezone == "Europe/Vienna" and seeded.data_dir == tmp_path / "Health"  # config reloaded in place, data dir pinned
+    assert 'data_dir = "/srv/wp"' in seeded.path.read_text("utf-8")
+    env_text = Path(env["WRISTPULL_ENV_FILE"]).read_text("utf-8")
+    assert "WRISTPULL_DATA=/srv/wp\n" in env_text and "WRISTPULL_CONFIG=/srv/config.toml\n" in env_text and "WRISTPULL_WEB_SECRET=keep-me" in env_text and "live.example" not in env_text
+    assert (Path(env["WRISTPULL_CERTS_DIR"]) / "wristpull-key.pem").exists() and (Path(env["WRISTPULL_CERTS_DIR"]) / "wristpull.pem").read_text("utf-8").startswith("-----BEGIN")
+    assert verify_password("archive password", store.load(seeded)[store.PASSWORD_HASH])
+    page = client.get("/backup")
+    assert "Restored." in page.text and "Stop and start" in page.text and 'action="/backup/restart"' not in page.text  # not in a container
+    # the archive's password is in force now; the old session stays valid (it was never a start-password session)
+    fresh = client_for(seeded, password_hash, env=env)
+    assert login(fresh, "archive password").status_code == 303 and fresh.get("/").status_code == 200
+
+
+def test_restore_from_the_start_password_session(seeded: Config, tmp_path: Path):
+    client = client_for(seeded, password_hash=None, env=backup_env(tmp_path))
+    page = client.get("/login")
+    assert client.post("/login", data={"csrf": csrf_of(page.text), "password": "wristpull"}).status_code == 303
+    page = client.get("/settings/password?first=1")
+    assert "Restore a backup instead" in page.text
+    page = client.get("/backup")
+    assert page.status_code == 200 and "logged in with the start password" in page.text and "Create a backup now" not in page.text and "Download" not in page.text
+    token = csrf_of(page.text)
+    assert client.post("/backup/create", data={"csrf": token}).status_code == 403
+    assert client.get("/backup/download?name=x.tar.gz").status_code == 403
+    archive = source_archive(tmp_path)
+    up = client.post("/backup/upload", content=archive.read_bytes(), headers={"x-csrf-token": token, "x-file-name": archive.name})
+    assert up.status_code == 201
+    preview = client.post("/backup/restore", data={"csrf": token, "file": up.text})
+    assert preview.status_code == 200 and "start password while none is set" in preview.text
+    done = client.post("/backup/restore", data={"csrf": token, "file": up.text, "confirm": "1", "password": "wristpull"}, headers={"hx-request": "true"})
+    assert done.status_code == 200 and "finished" in done.text
+    # the start-password session is over: the archive's password counts from now on
+    poll = client.get("/backup/job?poll=1", headers={"hx-request": "true"})
+    assert poll.status_code == 200 and poll.headers["hx-redirect"] == "/login?restored=1" and "max-age=0" in poll.headers["set-cookie"].lower()
+    assert client.get("/").headers["location"] == "/login"  # the cookie is gone
+    page = client.get("/login?restored=1")
+    assert "Restored: log in with the password" in page.text and "start password" not in page.text
+    assert client.post("/login", data={"csrf": csrf_of(page.text), "password": "wristpull"}).status_code == 401
+    assert client.post("/login", data={"csrf": csrf_of(page.text), "password": "archive password"}).status_code == 303
+    assert client.get("/").status_code == 200
+
+
+def test_backup_restart_only_inside_the_container(seeded: Config, password_hash: str, tmp_path: Path):
+    calls: list[int] = []
+    client = client_for(seeded, password_hash, env={"WRISTPULL_IN_CONTAINER": "1"}, restart=lambda: calls.append(1))
+    login(client)
+    token = csrf_of(client.get("/backup").text)
+    page = client.post("/backup/restart", data={"csrf": token})
+    assert page.status_code == 200 and "Restarting the dashboard" in page.text and 'url=/login' in page.text and calls == [1]
+    native = client_for(seeded, password_hash, env={}, restart=lambda: calls.append(2))
+    login(native)
+    assert native.post("/backup/restart", data={"csrf": csrf_of(native.get("/backup").text)}).status_code == 404 and calls == [1]
+    assert client.post("/backup/restart", data={}).status_code == 403
