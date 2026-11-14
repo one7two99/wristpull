@@ -21,7 +21,9 @@ services:
       WRISTPULL_WEB_SECRET: ${WRISTPULL_WEB_SECRET:-}
       WRISTPULL_WEB_PASSWORD_HASH: ${WRISTPULL_WEB_PASSWORD_HASH:-}
       WRISTPULL_CONFIG_FILE: /config/config.toml
-      # The data directory as the host sees it: the Files and Export pages show paths you can open on the laptop.
+      # The data directory inside (also given as --data-dir in the image's CMD) and as the host sees it: the Files
+      # and Export pages show paths you can open on the laptop.
+      WRISTPULL_DATA_DIR: /data
       WRISTPULL_HOST_DATA_DIR: ${WRISTPULL_DATA:?set WRISTPULL_DATA in .env}
       # Coach runs with Ollama: the host as seen from the container (see README before changing OLLAMA_HOST).
       WRISTPULL_OLLAMA_URL: ${WRISTPULL_OLLAMA_URL:-http://host.docker.internal:11434}
